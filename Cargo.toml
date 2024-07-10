@@ -1,0 +1,9 @@
+[package]
+name    = "coro-handler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+corosensei = "0.1.4"
+frunk = "0.4"
+tokio = { version = "1.0", features = ["full"] }
