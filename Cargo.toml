@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-corosensei = "0.1.4"
-frunk = "0.4"
-tokio = { version = "1.0", features = ["full"] }
+genawaiter = { version = "0.99.1", default-features = false }
+frunk      = { version = "0.4" }
+
+[dev-dependencies]
+tokio      = { version = "1", features = ["full"] }
