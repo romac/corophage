@@ -8,4 +8,4 @@ genawaiter = { version = "0.99.1", default-features = false }
 frunk      = { version = "0.4" }
 
 [dev-dependencies]
-tokio      = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
