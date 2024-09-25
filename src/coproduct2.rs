@@ -1,5 +1,3 @@
-use frunk::{HCons, HNil};
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Coproduct<H, T> {
     Here(H),
@@ -112,6 +110,38 @@ where
         match self {
             Self::Here(r) => (f_head)(r),
             Self::There(rest) => rest.fold_mut(f_tail),
+        }
+    }
+}
+
+pub trait FoldWith<F, S, R> {
+    fn fold_with(self, s: &mut S, f: &F) -> R;
+}
+
+impl<S, R> FoldWith<CNil, S, R> for CNil {
+    fn fold_with(self, _: &mut S, _: &CNil) -> R {
+        match self {}
+    }
+}
+
+impl<S, R> FoldWith<HNil, S, R> for CNil {
+    fn fold_with(self, _: &mut S, _: &HNil) -> R {
+        unreachable!()
+    }
+}
+
+impl<F, S, R, FTail, CH, CTail> FoldWith<HCons<F, FTail>, S, R> for Coproduct<CH, CTail>
+where
+    F: Fn(&mut S, CH) -> R,
+    CTail: FoldWith<FTail, S, R>,
+{
+    fn fold_with(self, s: &mut S, f: &HCons<F, FTail>) -> R {
+        let f_head = &f.head;
+        let f_tail = &f.tail;
+
+        match self {
+            Coproduct::Here(r) => (f_head)(s, r),
+            Coproduct::There(rest) => rest.fold_with(s, f_tail),
         }
     }
 }

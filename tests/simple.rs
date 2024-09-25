@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
 
 use frunk::hlist;
@@ -64,13 +63,13 @@ pub fn co() -> Co<CoEffs, ()> {
 }
 
 #[test]
-fn it_works() {
+fn run_mut() {
+    use std::cell::RefCell;
+
     #[derive(Debug, PartialEq, Eq)]
     struct State {
         x: u64,
     }
-
-    let state = RefCell::new(State { x: 42 });
 
     fn cancel(_c: Cancel) -> CoControl<CoEffs> {
         CoControl::cancel()
@@ -85,6 +84,8 @@ fn it_works() {
         println!("Reading file: {file}");
         CoControl::resume("file content".to_string())
     }
+
+    let state = RefCell::new(State { x: 42 });
 
     let result = corophage::run(
         co(),
@@ -102,4 +103,46 @@ fn it_works() {
 
     assert_eq!(result, Err(Cancelled));
     assert_eq!(state.into_inner(), State { x: 84 });
+}
+
+#[test]
+fn run_with() {
+    #[derive(Debug, PartialEq, Eq)]
+    struct State {
+        x: u64,
+    }
+
+    fn cancel(_: &mut State, _c: Cancel) -> CoControl<CoEffs> {
+        CoControl::cancel()
+    }
+
+    fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<CoEffs> {
+        println!("LOG: {msg}");
+        CoControl::resume(())
+    }
+
+    fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<CoEffs> {
+        println!("Reading file: {file}");
+        CoControl::resume("file content".to_string())
+    }
+
+    let mut state = State { x: 42 };
+
+    let result = corophage::run_with(
+        co(),
+        &mut state,
+        &mut hlist![
+            cancel,
+            log,
+            file_read,
+            |s: &mut State, _g: GetState<u64>| CoControl::resume(s.x),
+            |s: &mut State, SetState(x)| {
+                s.x = x;
+                CoControl::resume(((), ()))
+            },
+        ],
+    );
+
+    assert_eq!(result, Err(Cancelled));
+    assert_eq!(state, State { x: 84 });
 }

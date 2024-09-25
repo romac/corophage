@@ -1,5 +1,5 @@
 mod coproduct;
-use coproduct::CoproductFoldableMut;
+use coproduct::{FoldMut, FoldWith};
 
 mod effect;
 use effect::{Effects, Resumes, Start};
@@ -40,30 +40,47 @@ where
     }
 }
 
-pub fn run<Effs, Return, F>(mut co: Co<Effs, Return>, handler: &mut F) -> Result<Return, Cancelled>
-where
-    Effs: Effects + CoproductFoldableMut<F, CoControl<Effs>>,
-{
-    use frunk::Coproduct;
+macro_rules! run {
+    ($co:expr, $effect:pat => $handle:expr) => {{
+        use frunk::Coproduct;
 
-    let mut yielded = co.resume_with(Start);
+        let mut yielded = $co.resume_with(Start);
 
-    loop {
-        match yielded {
-            GeneratorState::Complete(value) => break Ok(value),
+        loop {
+            match yielded {
+                GeneratorState::Complete(value) => break Ok(value),
 
-            GeneratorState::Yielded(effect) => {
-                let effect = match effect {
-                    Coproduct::Inl(_) => unreachable!(),
-                    Coproduct::Inr(subeffect) => subeffect,
-                };
+                GeneratorState::Yielded(effect) => {
+                    let $effect = match effect {
+                        Coproduct::Inl(_) => unreachable!(),
+                        Coproduct::Inr(subeffect) => subeffect,
+                    };
 
-                let resume: CoControl<Effs> = effect.fold_mut(handler);
-                match resume {
-                    CoControl::Cancel => break Err(Cancelled),
-                    CoControl::Resume(r) => yielded = co.resume(Coproduct::Inr(r)),
+                    let resume: CoControl<Effs> = $handle;
+                    match resume {
+                        CoControl::Cancel => break Err(Cancelled),
+                        CoControl::Resume(r) => yielded = $co.resume(Coproduct::Inr(r)),
+                    }
                 }
             }
         }
-    }
+    }};
+}
+
+pub fn run<Effs, Return, F>(mut co: Co<Effs, Return>, handler: &mut F) -> Result<Return, Cancelled>
+where
+    Effs: Effects + FoldMut<F, CoControl<Effs>>,
+{
+    run!(co, effect => effect.fold_mut(handler))
+}
+
+pub fn run_with<Effs, Return, State, F>(
+    mut co: Co<Effs, Return>,
+    state: &mut State,
+    handler: &mut F,
+) -> Result<Return, Cancelled>
+where
+    Effs: Effects + FoldWith<F, State, CoControl<Effs>>,
+{
+    run!(co, effect => effect.fold_with(state, handler))
 }
