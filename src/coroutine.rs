@@ -1,9 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use frunk::coproduct::CoprodInjector;
-use frunk::coproduct::CoprodUninjector;
-use frunk::Coproduct;
+use frunk::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 use genawaiter::sync as gen;
 use genawaiter::GeneratorState;
 

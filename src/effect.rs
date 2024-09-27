@@ -1,5 +1,4 @@
-use frunk::coproduct::CNil;
-use frunk::Coproduct;
+use frunk::coproduct::{CNil, Coproduct};
 
 pub trait Effect {
     type Resume;

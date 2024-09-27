@@ -42,7 +42,7 @@ where
 
 macro_rules! run {
     ($co:expr, $effect:pat => $handle:expr) => {{
-        use frunk::Coproduct;
+        use ::frunk::coproduct::Coproduct;
 
         let mut yielded = $co.resume_with(Start);
 
