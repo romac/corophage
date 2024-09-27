@@ -1,5 +1,5 @@
-use frunk::coproduct::CNil;
-use frunk::{Coproduct, HCons, HNil};
+use frunk::coproduct::{CNil, Coproduct};
+use frunk::hlist::{HCons, HNil};
 
 pub trait FoldMut<F, R> {
     fn fold_mut(self, f: &mut F) -> R;

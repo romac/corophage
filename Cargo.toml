@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 genawaiter = { version = "0.99.1", default-features = false }
-frunk      = { version = "0.4" }
+frunk      = { package = "frunk_core", version = "0.4" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
