@@ -5,7 +5,7 @@ use fauxgen::__private::SyncGenerator;
 use fauxgen::Generator;
 use fauxgen::GeneratorState;
 use fauxgen::GeneratorToken;
-use frunk::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
+use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 

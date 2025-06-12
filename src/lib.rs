@@ -10,7 +10,7 @@ mod macros;
 pub use coroutine::{Co, Yielder};
 pub use effect::Effect;
 
-use frunk::coproduct::CoprodInjector;
+use frunk_core::coproduct::CoprodInjector;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Cancelled;
@@ -41,7 +41,7 @@ where
 
 macro_rules! run {
     ($co:expr, $effect:pat => $handle:expr) => {{
-        use ::frunk::coproduct::Coproduct;
+        use ::frunk_core::coproduct::Coproduct;
 
         let mut co = std::pin::pin!($co);
 

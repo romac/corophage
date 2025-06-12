@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use frunk::hlist;
+use frunk_core::hlist;
 
 use corophage::*;
 
