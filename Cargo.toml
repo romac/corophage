@@ -2,6 +2,8 @@
 name    = "corophage"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Romain Ruetschi <github@romac.me>"]
 
 [dependencies]
 fauxgen    = { version = "0.1" }
