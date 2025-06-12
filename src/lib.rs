@@ -12,6 +12,10 @@ pub use effect::Effect;
 
 use frunk_core::coproduct::CoprodInjector;
 
+pub mod frunk {
+    pub use frunk_core::hlist;
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Cancelled;
 
