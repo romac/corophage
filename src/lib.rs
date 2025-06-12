@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod coproduct;
 use coproduct::{FoldMut, FoldWith};
 
