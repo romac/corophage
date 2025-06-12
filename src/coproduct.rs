@@ -1,7 +1,7 @@
 use std::future::Future;
 
-pub use frunk::coproduct::{CNil, Coproduct};
-pub use frunk::hlist::{HCons, HNil};
+pub use frunk_core::coproduct::{CNil, Coproduct};
+pub use frunk_core::hlist::{HCons, HNil};
 
 pub trait FoldMut<F, R> {
     fn fold_mut(self, f: &mut F) -> R;

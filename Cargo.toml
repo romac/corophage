@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 fauxgen    = { version = "0.1" }
-frunk      = { package = "frunk_core", version = "0.4" }
+frunk_core = { version = "0.4" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
