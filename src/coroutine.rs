@@ -1,10 +1,10 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use fauxgen::__private::SyncGenerator;
 use fauxgen::Generator;
 use fauxgen::GeneratorState;
 use fauxgen::GeneratorToken;
-use fauxgen::__private::SyncGenerator;
 use frunk::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
@@ -18,7 +18,7 @@ pub struct Co<Effs, Return>
 where
     Effs: Effects,
 {
-    gen: Gen<Effs, Return>,
+    generator: Gen<Effs, Return>,
 }
 
 impl<Effs, Return> Co<Effs, Return>
@@ -43,15 +43,15 @@ where
             func(token).await
         }) as PinBoxFuture<Return>;
 
-        let gen = fauxgen::__private::gen_sync(marker, fut);
-        Self { gen }
+        let generator = fauxgen::__private::gen_sync(marker, fut);
+        Self { generator }
     }
 
     pub(crate) fn resume(
         self: Pin<&mut Self>,
         resume: Resumes<CanStart<Effs>>,
     ) -> GeneratorState<CanStart<Effs>, Return> {
-        let mut g = unsafe { self.map_unchecked_mut(|s| &mut s.gen) };
+        let mut g = unsafe { self.map_unchecked_mut(|s| &mut s.generator) };
         g.as_mut().resume(resume)
     }
 
