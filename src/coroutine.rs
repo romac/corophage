@@ -1,18 +1,18 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use fauxgen::Generator;
+use fauxgen::GeneratorState;
+use fauxgen::GeneratorToken;
+use fauxgen::__private::SyncGenerator;
 use frunk::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
-use genawaiter::sync as gen;
-use genawaiter::GeneratorState;
 
-use crate::effect::CanStart;
-use crate::effect::Effect;
-use crate::effect::Effects;
-use crate::effect::MapResume;
-use crate::effect::Resumes;
+use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 
-type PinBoxFuture<A> = Pin<Box<dyn Future<Output = A> + 'static + Send>>;
-type Gen<Effs, Return> = gen::Gen<CanStart<Effs>, Resumes<CanStart<Effs>>, PinBoxFuture<Return>>;
+type PinBoxFuture<A> = Pin<Box<dyn Future<Output = A>>>;
+
+type Gen<Effs, Return> =
+    SyncGenerator<PinBoxFuture<Return>, CanStart<Effs>, Resumes<CanStart<Effs>>>;
 
 pub struct Co<Effs, Return>
 where
@@ -25,24 +25,38 @@ impl<Effs, Return> Co<Effs, Return>
 where
     Effs: Effects,
 {
-    pub fn new<F>(f: impl FnOnce(Yielder<Effs>) -> F) -> Self
+    pub fn new<F>(f: impl FnOnce(Yielder<Effs>) -> F + 'static) -> Self
     where
-        F: Future<Output = Return> + Send + 'static,
+        F: Future<Output = Return>,
     {
-        Self {
-            gen: Gen::new_boxed(|co| f(Yielder::new(co))),
-        }
+        let func = |token: GeneratorToken<_, _>| f(Yielder::new(token));
+
+        let token = fauxgen::__private::token();
+        let marker = token.marker();
+
+        let fut = Box::pin(async move {
+            let token = fauxgen::__private::register_owned(token).await;
+
+            let start = token.argument().await;
+            debug_assert!(matches!(start, CanStart::Inl(Start)));
+
+            func(token).await
+        }) as PinBoxFuture<Return>;
+
+        let gen = fauxgen::__private::gen_sync(marker, fut);
+        Self { gen }
     }
 
     pub(crate) fn resume(
-        &mut self,
+        self: Pin<&mut Self>,
         resume: Resumes<CanStart<Effs>>,
     ) -> GeneratorState<CanStart<Effs>, Return> {
-        self.gen.resume_with(resume)
+        let mut g = unsafe { self.map_unchecked_mut(|s| &mut s.gen) };
+        g.as_mut().resume(resume)
     }
 
     pub(crate) fn resume_with<R, Index>(
-        &mut self,
+        self: Pin<&mut Self>,
         resume: R,
     ) -> GeneratorState<CanStart<Effs>, Return>
     where
@@ -56,15 +70,15 @@ pub struct Yielder<Effs>
 where
     Effs: MapResume,
 {
-    co: gen::Co<CanStart<Effs>, Resumes<CanStart<Effs>>>,
+    token: GeneratorToken<CanStart<Effs>, Resumes<CanStart<Effs>>>,
 }
 
 impl<Effs> Yielder<Effs>
 where
     Effs: MapResume,
 {
-    fn new(co: gen::Co<CanStart<Effs>, Resumes<CanStart<Effs>>>) -> Self {
-        Self { co }
+    fn new(token: GeneratorToken<CanStart<Effs>, Resumes<CanStart<Effs>>>) -> Self {
+        Self { token }
     }
 
     pub async fn yield_<E, Index>(&self, effect: E) -> E::Resume
@@ -73,7 +87,10 @@ where
         Effs: CoprodInjector<E, Index>,
         <Effs as MapResume>::Output: CoprodUninjector<E::Resume, Index>,
     {
-        let resume = self.co.yield_(Coproduct::Inr(Effs::inject(effect))).await;
+        let resume = self
+            .token
+            .yield_(Coproduct::Inr(Effs::inject(effect)))
+            .await;
 
         match resume {
             Coproduct::Inl(_) => unreachable!(),

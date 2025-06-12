@@ -29,13 +29,19 @@ pub struct GetState<S> {
     _marker: PhantomData<S>,
 }
 
-impl<S> Effect for GetState<S> {
+impl<S> Effect for GetState<S>
+where
+    S: Send + Sync,
+{
     type Resume = S;
 }
 
 pub struct SetState<S>(pub S);
 
-impl<S> Effect for SetState<S> {
+impl<S> Effect for SetState<S>
+where
+    S: Send + Sync,
+{
     type Resume = ((), ());
 }
 
@@ -87,7 +93,7 @@ fn run_mut() {
 
     let state = RefCell::new(State { x: 42 });
 
-    let result = corophage::run(
+    let result = corophage::sync::run(
         co(),
         &mut hlist![
             cancel,
@@ -128,7 +134,7 @@ fn run_with() {
 
     let mut state = State { x: 42 };
 
-    let result = corophage::run_with(
+    let result = corophage::sync::run_with(
         co(),
         &mut state,
         &mut hlist![
