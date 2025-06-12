@@ -1,5 +1,7 @@
-use frunk::coproduct::{CNil, Coproduct};
-use frunk::hlist::{HCons, HNil};
+use std::future::Future;
+
+pub use frunk::coproduct::{CNil, Coproduct};
+pub use frunk::hlist::{HCons, HNil};
 
 pub trait FoldMut<F, R> {
     fn fold_mut(self, f: &mut F) -> R;
@@ -61,6 +63,70 @@ where
         match self {
             Coproduct::Inl(r) => (f_head)(s, r),
             Coproduct::Inr(rest) => rest.fold_with(s, f_tail),
+        }
+    }
+}
+
+pub trait AsyncFoldMut<F, R> {
+    fn fold_mut(self, f: &mut F) -> impl Future<Output = R>;
+}
+
+impl<R> AsyncFoldMut<CNil, R> for CNil {
+    async fn fold_mut(self, _: &mut CNil) -> R {
+        match self {}
+    }
+}
+
+impl<R> AsyncFoldMut<HNil, R> for CNil {
+    async fn fold_mut(self, _: &mut HNil) -> R {
+        unreachable!()
+    }
+}
+
+impl<F, R, FTail, CH, CTail> AsyncFoldMut<HCons<F, FTail>, R> for Coproduct<CH, CTail>
+where
+    F: AsyncFnMut(CH) -> R,
+    CTail: AsyncFoldMut<FTail, R>,
+{
+    async fn fold_mut(self, f: &mut HCons<F, FTail>) -> R {
+        let f_head = &mut f.head;
+        let f_tail = &mut f.tail;
+
+        match self {
+            Coproduct::Inl(r) => (f_head)(r).await,
+            Coproduct::Inr(rest) => rest.fold_mut(f_tail).await,
+        }
+    }
+}
+
+pub trait AsyncFoldWith<F, S, R> {
+    fn fold_with(self, s: &mut S, f: &F) -> impl Future<Output = R>;
+}
+
+impl<S, R> AsyncFoldWith<CNil, S, R> for CNil {
+    async fn fold_with(self, _: &mut S, _: &CNil) -> R {
+        match self {}
+    }
+}
+
+impl<S, R> AsyncFoldWith<HNil, S, R> for CNil {
+    async fn fold_with(self, _: &mut S, _: &HNil) -> R {
+        unreachable!()
+    }
+}
+
+impl<F, S, R, FTail, CH, CTail> AsyncFoldWith<HCons<F, FTail>, S, R> for Coproduct<CH, CTail>
+where
+    F: AsyncFn(&mut S, CH) -> R,
+    CTail: AsyncFoldWith<FTail, S, R>,
+{
+    async fn fold_with(self, s: &mut S, f: &HCons<F, FTail>) -> R {
+        let f_head = &f.head;
+        let f_tail = &f.tail;
+
+        match self {
+            Coproduct::Inl(r) => (f_head)(s, r).await,
+            Coproduct::Inr(rest) => rest.fold_with(s, f_tail).await,
         }
     }
 }

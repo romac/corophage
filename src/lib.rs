@@ -11,7 +11,6 @@ pub use coroutine::{Co, Yielder};
 pub use effect::Effect;
 
 use frunk::coproduct::CoprodInjector;
-use genawaiter::GeneratorState;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Cancelled;
@@ -44,13 +43,15 @@ macro_rules! run {
     ($co:expr, $effect:pat => $handle:expr) => {{
         use ::frunk::coproduct::Coproduct;
 
-        let mut yielded = $co.resume_with(Start);
+        let mut co = std::pin::pin!($co);
+
+        let mut yielded = co.as_mut().resume_with(Start);
 
         loop {
             match yielded {
-                GeneratorState::Complete(value) => break Ok(value),
+                ::fauxgen::GeneratorState::Complete(value) => break Ok(value),
 
-                GeneratorState::Yielded(effect) => {
+                ::fauxgen::GeneratorState::Yielded(effect) => {
                     let $effect = match effect {
                         Coproduct::Inl(_) => unreachable!(),
                         Coproduct::Inr(subeffect) => subeffect,
@@ -59,7 +60,7 @@ macro_rules! run {
                     let resume: CoControl<Effs> = $handle;
                     match resume {
                         CoControl::Cancel => break Err(Cancelled),
-                        CoControl::Resume(r) => yielded = $co.resume(Coproduct::Inr(r)),
+                        CoControl::Resume(r) => yielded = co.as_mut().resume(Coproduct::Inr(r)),
                     }
                 }
             }
@@ -67,20 +68,54 @@ macro_rules! run {
     }};
 }
 
-pub fn run<Effs, Return, F>(mut co: Co<Effs, Return>, handler: &mut F) -> Result<Return, Cancelled>
-where
-    Effs: Effects + FoldMut<F, CoControl<Effs>>,
-{
-    run!(co, effect => effect.fold_mut(handler))
+pub mod sync {
+    use super::*;
+
+    pub fn run<Effs, Return, F>(
+        mut co: Co<Effs, Return>,
+        handler: &mut F,
+    ) -> Result<Return, Cancelled>
+    where
+        Effs: Effects + FoldMut<F, CoControl<Effs>>,
+    {
+        run!(co, effect => effect.fold_mut(handler))
+    }
+
+    pub fn run_with<Effs, Return, State, F>(
+        mut co: Co<Effs, Return>,
+        state: &mut State,
+        handler: &mut F,
+    ) -> Result<Return, Cancelled>
+    where
+        Effs: Effects + FoldWith<F, State, CoControl<Effs>>,
+    {
+        run!(co, effect => effect.fold_with(state, handler))
+    }
 }
 
-pub fn run_with<Effs, Return, State, F>(
-    mut co: Co<Effs, Return>,
-    state: &mut State,
-    handler: &mut F,
-) -> Result<Return, Cancelled>
-where
-    Effs: Effects + FoldWith<F, State, CoControl<Effs>>,
-{
-    run!(co, effect => effect.fold_with(state, handler))
+pub mod r#async {
+    use crate::coproduct::{AsyncFoldMut, AsyncFoldWith};
+
+    use super::*;
+
+    pub async fn run<Effs, Return, F>(
+        mut co: Co<Effs, Return>,
+        handler: &mut F,
+    ) -> Result<Return, Cancelled>
+    where
+        Effs: Effects + AsyncFoldMut<F, CoControl<Effs>>,
+    {
+        run!(co, effect => effect.fold_mut(handler).await)
+    }
+
+    pub async fn run_with<Effs, Return, State, F>(
+        mut co: Co<Effs, Return>,
+        state: &mut State,
+        handler: &mut F,
+    ) -> Result<Return, Cancelled>
+    where
+        Effs: Effects + AsyncFoldWith<F, State, CoControl<Effs>>,
+    {
+        run!(co, effect => effect.fold_with(state, handler).await)
+    }
 }
