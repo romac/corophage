@@ -4,45 +4,22 @@ mod coproduct;
 use coproduct::{FoldMut, FoldWith};
 
 mod effect;
-use effect::{Effects, Resumes, Start};
+use effect::{Effects, Start};
 
+mod control;
 mod coroutine;
-mod macros;
 
+pub mod prelude;
+
+pub use control::{Cancelled, CoControl};
 pub use coroutine::{Co, Yielder};
 pub use effect::Effect;
 
-use frunk_core::coproduct::CoprodInjector;
-
-pub mod frunk {
-    pub use frunk_core::hlist;
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Cancelled;
-
-pub enum CoControl<Effs>
-where
-    Effs: Effects,
-{
-    Cancel,
-    Resume(Resumes<Effs>),
-}
-
-impl<Effs> CoControl<Effs>
-where
-    Effs: Effects,
-{
-    pub fn cancel() -> Self {
-        Self::Cancel
-    }
-
-    pub fn resume<R, Index>(r: R) -> Self
-    where
-        Resumes<Effs>: CoprodInjector<R, Index>,
-    {
-        Self::Resume(Resumes::<Effs>::inject(r))
-    }
+#[macro_export]
+macro_rules! Effects {
+    [$($effect:ty),*] => {
+        ::frunk_core::Coprod!($($effect),*)
+    };
 }
 
 macro_rules! run {
