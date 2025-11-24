@@ -21,7 +21,7 @@ Traditionally, you might write a function that takes a logger, a file system han
 
 With effect handlers, your business logic function does none of these things directly. Instead, it *describes* the side effects it needs to perform by `yield`ing **effects**.
 
-```rust
+```rust,ignore
 // This function describes WHAT to do, not HOW.
 pub fn my_logic() -> Co<Effects![Log, FileRead, GetState, SetState], ()> {
     Co::new(|yielder| async move {
@@ -50,7 +50,7 @@ An **Effect** is a struct that represents a request for a side effect. It's a me
 
 The most important part of the `Effect` trait is the associated type `Resume`, which defines the type of the value that the computation will receive back after the effect is handled.
 
-```rust
+```rust,ignore
 use corophage::{Effect, Never};
 
 // An effect to request logging a message.
@@ -83,7 +83,7 @@ You create a computation with `Co::new`, which takes an `async` closure. This cl
 
 When you `await` the result of `yielder.yield_(some_effect)`, the computation pauses, the effect is handled by its corresponding handler, and the `await` resolves to the value provided by the handler (which must match the effect's `Resume` type).
 
-```rust
+```rust,ignore
 use corophage::{Co, Effects};
 
 // A type alias for all the effects our computation can perform.
@@ -121,7 +121,7 @@ The handler must return a `CoControl`, which tells the runner what to do next:
 *   `CoControl::resume(value)`: Resumes the computation, passing `value` back as the result of the `yield_`. The type of `value` must match the effect's `Resume` type.
 *   `CoControl::cancel()`: Aborts the entire computation immediately. The final result of the run will be `Err(Cancelled)`.
 
-```rust
+```rust,ignore
 use corophage::{CoControl, Cancelled};
 
 // A handler for the `Log` effect.
@@ -153,7 +153,7 @@ As seen above, handlers can be stateful. The `run_with` function takes a mutable
 
 The example uses `GetState` and `SetState` effects to explicitly manage state from within the computation itself.
 
-```rust
+```rust,ignore
 // The shared state for our handlers.
 #[derive(Debug, PartialEq, Eq)]
 struct State {
@@ -182,7 +182,7 @@ To run a computation, you use `corophage::run_with`. You need three things:
 > [!IMPORTANT]
 > The order of handlers in the `hlist` must exactly match the order of effects in your `Effects!` macro.**
 
-```rust
+```rust,ignore
 use corophage::frunk::hlist;
 use corophage::{run_with, Cancelled};
 
@@ -255,10 +255,8 @@ corophage = "0.1.0"
 
 Licensed under either of
 
- * Apache License, Version 2.0
-   ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
- * MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+ * Apache License, Version 2.0 (<http://www.apache.org/licenses/LICENSE-2.0>)
+ * MIT license (<http://opensource.org/licenses/MIT>)
 
 at your option.
 
