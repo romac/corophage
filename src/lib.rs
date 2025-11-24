@@ -82,7 +82,7 @@ mod asynk {
     use super::*;
 
     pub async fn run<Effs, Return, F>(
-        mut co: Co<Effs, Return>,
+        co: Co<Effs, Return>,
         handler: &mut F,
     ) -> Result<Return, Cancelled>
     where
@@ -92,7 +92,7 @@ mod asynk {
     }
 
     pub async fn run_with<Effs, Return, State, F>(
-        mut co: Co<Effs, Return>,
+        co: Co<Effs, Return>,
         state: &mut State,
         handler: &mut F,
     ) -> Result<Return, Cancelled>
@@ -106,10 +106,7 @@ mod asynk {
 pub mod sync {
     use super::*;
 
-    pub fn run<Effs, Return, F>(
-        mut co: Co<Effs, Return>,
-        handler: &mut F,
-    ) -> Result<Return, Cancelled>
+    pub fn run<Effs, Return, F>(co: Co<Effs, Return>, handler: &mut F) -> Result<Return, Cancelled>
     where
         Effs: Effects + FoldMut<F, CoControl<Effs>>,
     {
@@ -117,7 +114,7 @@ pub mod sync {
     }
 
     pub fn run_with<Effs, Return, State, F>(
-        mut co: Co<Effs, Return>,
+        co: Co<Effs, Return>,
         state: &mut State,
         handler: &mut F,
     ) -> Result<Return, Cancelled>
