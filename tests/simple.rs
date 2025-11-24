@@ -157,7 +157,7 @@ mod sync {
     }
 }
 
-mod r#async {
+mod asynk {
     use corophage::frunk::hlist;
 
     use super::*;

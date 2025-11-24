@@ -74,9 +74,9 @@ macro_rules! run {
     }};
 }
 
-pub use r#async::*;
+pub use asynk::*;
 
-mod r#async {
+mod asynk {
     use crate::coproduct::{AsyncFoldMut, AsyncFoldWith};
 
     use super::*;
