@@ -27,19 +27,13 @@ pub struct GetState<S> {
     _marker: PhantomData<S>,
 }
 
-impl<S> Effect for GetState<S>
-where
-    S: Send + Sync,
-{
+impl<S> Effect for GetState<S> {
     type Resume = S;
 }
 
 pub struct SetState<S>(pub S);
 
-impl<S> Effect for SetState<S>
-where
-    S: Send + Sync,
-{
+impl<S> Effect for SetState<S> {
     type Resume = ((), ());
 }
 
