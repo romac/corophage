@@ -7,7 +7,7 @@ authors = ["Romain Ruetschi <github@romac.me>"]
 
 [dependencies]
 fauxgen    = { version = "0.1" }
-frunk_core = { version = "0.4" }
+frunk_core = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
