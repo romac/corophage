@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use corophage::*;
+use corophage::prelude::*;
 
 pub enum Never {}
 
@@ -61,8 +61,6 @@ pub fn co() -> Co<CoEffs, ()> {
 }
 
 mod sync {
-    use corophage::frunk::hlist;
-
     use super::*;
 
     #[test]
@@ -152,8 +150,6 @@ mod sync {
 }
 
 mod asynk {
-    use corophage::frunk::hlist;
-
     use super::*;
 
     #[tokio::test]
