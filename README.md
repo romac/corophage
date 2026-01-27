@@ -8,6 +8,15 @@
 
 `corophage` provides a way to separate the *description* of what your program should do from the *implementation* of how it gets done. This allows you to write clean, testable, and composable business logic.
 
+## Usage
+
+Add `corophage` to your `Cargo.toml`:
+
+```toml
+[dependencies]
+corophage = "0.1.0"
+```
+
 ## What are effect handlers?
 
 Imagine you are writing a piece of business logic:
@@ -243,14 +252,59 @@ assert_eq!(state, State { x: 84 });
 13. `run_with` finds the `cancel` handler (1st in the list) and executes it. It returns `CoControl::cancel()`.
 14. The entire execution is aborted. `run_with` returns `Err(Cancelled)`.
 
-## Installation
+## Performance
 
-Add `corophage` to your `Cargo.toml`:
+Benchmarks were run using [Divan](https://github.com/nvzqz/divan). Run them with `cargo bench`.
 
-```toml
-[dependencies]
-corophage = "0.1.0"
-```
+### Coroutine Overhead
+
+| Benchmark | Median | Notes |
+|-----------|--------|-------|
+| `coroutine_creation` | ~7 ns | Just struct initialization |
+| `empty_coroutine` | ~30 ns | Full lifecycle with no yields |
+| `single_yield` | ~38 ns | One yield/resume cycle |
+
+Coroutine creation is nearly free, and the baseline overhead for running a coroutine is ~30 ns.
+
+### Yield Scaling (Sync vs Async)
+
+| Yields | Sync | Async | Overhead |
+|--------|------|-------|----------|
+| 10 | 131 ns | 178 ns | +36% |
+| 100 | 1.0 µs | 1.27 µs | +27% |
+| 1000 | 9.5 µs | 11.1 µs | +17% |
+
+Async adds ~30% overhead at small scales, but the gap narrows as yield count increases. Per-yield cost is approximately **9-10 ns** for sync and **11 ns** for async.
+
+### Effect Dispatch Position
+
+| Position | Median |
+|----------|--------|
+| First (index 0) | 49 ns |
+| Middle (index 2) | 42 ns |
+| Last (index 4) | 47 ns |
+
+Dispatch position has negligible impact. The coproduct-based dispatch is effectively O(1).
+
+### State Management
+
+| Pattern | Median |
+|---------|--------|
+| Stateless (`run`) | 38 ns |
+| Stateful (`run_with`) | 53 ns |
+| RefCell pattern | 55 ns |
+
+Stateful handlers add ~15 ns overhead. RefCell is nearly equivalent to `run_with`.
+
+### Handler Complexity
+
+| Handler | Median |
+|---------|--------|
+| Noop (returns `()`) | 42 ns |
+| Allocating (returns `String`) | 83 ns |
+
+Allocation dominates handler cost. Consider returning references or zero-copy types for performance-critical effects.
+
 
 ## License
 
