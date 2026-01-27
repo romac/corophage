@@ -9,7 +9,7 @@ homepage = "https://github.com/romac/corophage"
 repository = "https://github.com/romac/corophage"
 
 [dependencies]
-fauxgen = { version = "0.1" }
+fauxgen = { version = "0.1", default-features = false }
 frunk_core = { version = "0.4", default-features = false }
 
 [dev-dependencies]
