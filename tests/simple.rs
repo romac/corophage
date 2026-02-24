@@ -159,35 +159,36 @@ mod asynk {
             x: u64,
         }
 
-        fn cancel(_c: Cancel) -> CoControl<CoEffs> {
+        async fn cancel(_c: Cancel) -> CoControl<CoEffs> {
             CoControl::cancel()
         }
 
-        fn log(Log(msg): Log<'_>) -> CoControl<CoEffs> {
+        async fn log(Log(msg): Log<'_>) -> CoControl<CoEffs> {
             println!("LOG: {msg}");
             CoControl::resume(())
         }
 
-        fn file_read(FileRead(file): FileRead) -> CoControl<CoEffs> {
+        async fn file_read(FileRead(file): FileRead) -> CoControl<CoEffs> {
             println!("Reading file: {file}");
             CoControl::resume("file content".to_string())
         }
 
         let state = RefCell::new(State { x: 42 });
 
-        let result = corophage::sync::run(
+        let result = corophage::run(
             co(),
             &mut hlist![
                 cancel,
                 log,
                 file_read,
-                |_g: GetState<u64>| CoControl::resume(state.borrow().x),
-                |SetState(x)| {
+                async |_g: GetState<u64>| CoControl::resume(state.borrow().x),
+                async |SetState(x)| {
                     state.borrow_mut().x = x;
                     CoControl::resume(((), ()))
                 },
             ],
-        );
+        )
+        .await;
 
         assert_eq!(result, Err(Cancelled));
         assert_eq!(state.into_inner(), State { x: 84 });
