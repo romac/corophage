@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::marker::PhantomPinned;
 use std::pin::Pin;
 
 use fauxgen::__private::SyncGenerator;
@@ -19,6 +20,7 @@ where
     Effs: Effects,
 {
     generator: Gen<Effs, Return>,
+    _pin: PhantomPinned,
 }
 
 impl<Effs, Return> Co<Effs, Return>
@@ -44,7 +46,10 @@ where
         }) as PinBoxFuture<Return>;
 
         let generator = fauxgen::__private::gen_sync(marker, fut);
-        Self { generator }
+        Self {
+            generator,
+            _pin: PhantomPinned,
+        }
     }
 
     pub(crate) fn resume(
