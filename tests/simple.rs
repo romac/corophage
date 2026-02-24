@@ -147,6 +147,7 @@ mod sync {
     }
 }
 
+#[cfg(not(miri))]
 mod asynk {
     use super::*;
 
