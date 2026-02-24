@@ -15,6 +15,12 @@ pub use control::{Cancelled, CoControl};
 pub use coroutine::{Co, Yielder};
 pub use effect::Effect;
 
+/// An uninhabited type for effects that never resume.
+///
+/// Use this as `Effect::Resume` for effects that always cancel the computation
+/// (e.g., `Cancel`) and therefore can never resume.
+pub enum Never {}
+
 #[macro_export]
 macro_rules! Effects {
     [$($effect:ty),*] => {

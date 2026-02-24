@@ -2,8 +2,6 @@ use std::marker::PhantomData;
 
 use corophage::prelude::*;
 
-pub enum Never {}
-
 pub struct Cancel;
 
 impl Effect for Cancel {
