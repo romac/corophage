@@ -15,7 +15,7 @@ impl<R> FoldMut<CNil, R> for CNil {
 
 impl<R> FoldMut<HNil, R> for CNil {
     fn fold_mut(self, _: &mut HNil) -> R {
-        unreachable!()
+        match self {}
     }
 }
 
@@ -47,7 +47,7 @@ impl<S, R> FoldWith<CNil, S, R> for CNil {
 
 impl<S, R> FoldWith<HNil, S, R> for CNil {
     fn fold_with(self, _: &mut S, _: &HNil) -> R {
-        unreachable!()
+        match self {}
     }
 }
 
@@ -79,7 +79,7 @@ impl<R> AsyncFoldMut<CNil, R> for CNil {
 
 impl<R> AsyncFoldMut<HNil, R> for CNil {
     async fn fold_mut(self, _: &mut HNil) -> R {
-        unreachable!()
+        match self {}
     }
 }
 
@@ -111,7 +111,7 @@ impl<S, R> AsyncFoldWith<CNil, S, R> for CNil {
 
 impl<S, R> AsyncFoldWith<HNil, S, R> for CNil {
     async fn fold_with(self, _: &mut S, _: &HNil) -> R {
-        unreachable!()
+        match self {}
     }
 }
 
