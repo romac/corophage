@@ -105,9 +105,9 @@ dependencies = [
 
 [[package]]
 name = "fauxgen"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dbf79f2bd7cca6a3846747a57ccea7f12e23eb1bb37aa65cb7d46e867d7d8b0"
+checksum = "4e085db4e539f6325fa7e0d2d2e4e503c7c1a7d106adcd249b2d3984206cb141"
 dependencies = [
  "futures-core",
  "rustc_version",
