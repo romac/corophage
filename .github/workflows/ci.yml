@@ -156,6 +156,30 @@ jobs:
       - name: Check MSRV
         run: cargo check --all-targets --all-features
 
+  # Run tests under Miri
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        run: |
+          rustup toolchain install nightly --component miri
+          rustup default nightly
+
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests under Miri
+        run: cargo miri test --all-features
+
   # Security audit for dependencies
   audit:
     name: Security Audit
@@ -189,7 +213,7 @@ jobs:
   ci-success:
     name: CI Success
     if: always()
-    needs: [check, fmt, clippy, docs, test, msrv, audit, deps]
+    needs: [check, fmt, clippy, docs, test, miri, msrv, audit, deps]
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs passed
