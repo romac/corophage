@@ -18,7 +18,6 @@ jobs:
   # Publish to crates.io
   publish:
     name: Publish to crates.io
-    needs: [build]
     runs-on: ubuntu-latest
     environment: Release
     permissions:
