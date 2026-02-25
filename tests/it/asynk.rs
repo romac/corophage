@@ -1,10 +1,9 @@
-#![cfg_attr(miri, ignore)]
-
 use corophage::prelude::*;
 
 use crate::common::*;
 
 #[tokio::test]
+#[cfg_attr(miri, ignore)]
 async fn run_mut() {
     use std::cell::RefCell;
 
@@ -49,6 +48,7 @@ async fn run_mut() {
 }
 
 #[tokio::test]
+#[cfg_attr(miri, ignore)]
 async fn run_with() {
     #[derive(Debug, PartialEq, Eq)]
     struct State {
