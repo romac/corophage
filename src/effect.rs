@@ -1,11 +1,11 @@
 use frunk_core::coproduct::{CNil, Coproduct};
 
 pub trait Effect {
-    type Resume;
+    type Resume: Sync + Send;
 }
 
 pub trait MapResume {
-    type Output;
+    type Output: Sync + Send;
 }
 
 impl MapResume for CNil {
@@ -16,9 +16,9 @@ impl<H: Effect, T: MapResume> MapResume for Coproduct<H, T> {
     type Output = Coproduct<H::Resume, <T as MapResume>::Output>;
 }
 
-pub trait Effects: MapResume + 'static {}
+pub trait Effects: MapResume + Send + Sync + 'static {}
 
-impl<E> Effects for E where E: MapResume + 'static {}
+impl<E> Effects for E where E: MapResume + Send + Sync + 'static {}
 
 pub type Resumes<E> = <E as MapResume>::Output;
 
