@@ -29,7 +29,7 @@ macro_rules! Effects {
 }
 
 macro_rules! run {
-    ($co:expr, $effect:pat => $handle:expr) => {{
+    ($effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
         use ::frunk_core::coproduct::Coproduct;
 
         let mut co = std::pin::pin!($co);
@@ -46,7 +46,7 @@ macro_rules! run {
                         Coproduct::Inr(subeffect) => subeffect,
                     };
 
-                    let resume: CoControl<Effs> = $handle;
+                    let resume: CoControl<$effs> = $handle;
                     match resume {
                         CoControl::Cancel => break Err(Cancelled),
                         CoControl::Resume(r) => yielded = co.as_mut().resume(Coproduct::Inr(r)),
@@ -71,7 +71,7 @@ mod asynk {
     where
         Effs: Effects + AsyncFoldMut<F, CoControl<Effs>>,
     {
-        run!(co, effect => effect.fold_mut(handler).await)
+        run!(Effs, co, effect => effect.fold_mut(handler).await)
     }
 
     pub async fn run_with<Effs, Return, State, F>(
@@ -82,7 +82,7 @@ mod asynk {
     where
         Effs: Effects + AsyncFoldWith<F, State, CoControl<Effs>>,
     {
-        run!(co, effect => effect.fold_with(state, handler).await)
+        run!(Effs, co, effect => effect.fold_with(state, handler).await)
     }
 }
 
@@ -93,7 +93,7 @@ pub mod sync {
     where
         Effs: Effects + FoldMut<F, CoControl<Effs>>,
     {
-        run!(co, effect => effect.fold_mut(handler))
+        run!(Effs, co, effect => effect.fold_mut(handler))
     }
 
     pub fn run_with<Effs, Return, State, F>(
@@ -104,6 +104,6 @@ pub mod sync {
     where
         Effs: Effects + FoldWith<F, State, CoControl<Effs>>,
     {
-        run!(co, effect => effect.fold_with(state, handler))
+        run!(Effs, co, effect => effect.fold_with(state, handler))
     }
 }
