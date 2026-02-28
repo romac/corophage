@@ -10,7 +10,7 @@ use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 
-type PinBoxFuture<A> = Pin<Box<dyn Future<Output = A>>>;
+type PinBoxFuture<A> = Pin<Box<dyn Future<Output = A> + Send>>;
 
 type Gen<Effs, Return> =
     SyncGenerator<PinBoxFuture<Return>, CanStart<Effs>, Resumes<CanStart<Effs>>>;
@@ -27,9 +27,9 @@ impl<Effs, Return> Co<Effs, Return>
 where
     Effs: Effects,
 {
-    pub fn new<F>(f: impl FnOnce(Yielder<Effs>) -> F + 'static) -> Self
+    pub fn new<F>(f: impl FnOnce(Yielder<Effs>) -> F + Send + 'static) -> Self
     where
-        F: Future<Output = Return>,
+        F: Future<Output = Return> + Send,
     {
         let func = |token: GeneratorToken<_, _>| f(Yielder::new(token));
 
