@@ -135,11 +135,17 @@ where
             .await;
 
         match resume {
-            Coproduct::Inl(_) => unreachable!(),
             Coproduct::Inr(value) => match value.uninject() {
                 Ok(value) => value,
-                Err(_) => unreachable!(),
+                Err(_) => unreachable!(
+                    "The resume value should always be of type `E::Resume<'a>` because the effect \
+                    we yielded is of type `E` and the resume type is determined by the effect type."
+                ),
             },
+            Coproduct::Inl(_) => unreachable!(
+                "The resume value should never be `CanStart<Effs>` because the generator \
+                should only yield effects of type `E` and never the start signal."
+            ),
         }
     }
 }

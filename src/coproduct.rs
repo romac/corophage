@@ -8,12 +8,14 @@ pub trait FoldMut<F, R> {
 }
 
 impl<R> FoldMut<CNil, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fold_mut(self, _: &mut CNil) -> R {
         match self {}
     }
 }
 
 impl<R> FoldMut<HNil, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fold_mut(self, _: &mut HNil) -> R {
         match self {}
     }
@@ -40,12 +42,14 @@ pub trait FoldWith<F, S, R> {
 }
 
 impl<S, R> FoldWith<CNil, S, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fold_with(self, _: &mut S, _: &CNil) -> R {
         match self {}
     }
 }
 
 impl<S, R> FoldWith<HNil, S, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fold_with(self, _: &mut S, _: &HNil) -> R {
         match self {}
     }
@@ -72,12 +76,14 @@ pub trait AsyncFoldMut<F, R> {
 }
 
 impl<R> AsyncFoldMut<CNil, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     async fn fold_mut(self, _: &mut CNil) -> R {
         match self {}
     }
 }
 
 impl<R> AsyncFoldMut<HNil, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     async fn fold_mut(self, _: &mut HNil) -> R {
         match self {}
     }
@@ -104,12 +110,14 @@ pub trait AsyncFoldWith<F, S, R> {
 }
 
 impl<S, R> AsyncFoldWith<CNil, S, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     async fn fold_with(self, _: &mut S, _: &CNil) -> R {
         match self {}
     }
 }
 
 impl<S, R> AsyncFoldWith<HNil, S, R> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     async fn fold_with(self, _: &mut S, _: &HNil) -> R {
         match self {}
     }
