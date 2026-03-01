@@ -1,5 +1,4 @@
 use std::fmt;
-use std::marker::PhantomData;
 
 use frunk_core::coproduct::CoprodInjector;
 
@@ -11,8 +10,6 @@ where
 {
     Cancel,
     Resume(Resumes<'a, Effs>),
-    #[doc(hidden)]
-    _Phantom(std::convert::Infallible, PhantomData<&'a ()>),
 }
 
 impl<'a, Effs> CoControl<'a, Effs>
