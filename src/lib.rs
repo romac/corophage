@@ -28,59 +28,61 @@ pub use asynk::*;
 
 mod asynk {
     use crate::coproduct::{AsyncFoldMut, AsyncFoldWith};
+    use crate::effect::Effects;
     use crate::locality::Locality;
 
     use super::*;
 
-    pub async fn run<'a, Effs, Return, L, F>(
-        co: GenericCo<'a, Effs, Return, L>,
+    pub async fn run<'a, ES, R, L, F>(
+        co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
-    ) -> Result<Return, Cancelled>
+    ) -> Result<R, Cancelled>
     where
         L: Locality,
-        Effs: effect::Effects<'a> + AsyncFoldMut<F, CoControl<'a, Effs>>,
+        ES: Effects<'a> + AsyncFoldMut<F, CoControl<'a, ES>>,
     {
-        run!('a, Effs, co, effect => effect.fold_mut(handler).await)
+        run!('a, ES, co, effect => effect.fold_mut(handler).await)
     }
 
-    pub async fn run_with<'a, Effs, Return, L, State, F>(
-        co: GenericCo<'a, Effs, Return, L>,
-        state: &mut State,
+    pub async fn run_with<'a, ES, R, L, S, F>(
+        co: GenericCo<'a, ES, R, L>,
+        state: &mut S,
         handler: &mut F,
-    ) -> Result<Return, Cancelled>
+    ) -> Result<R, Cancelled>
     where
         L: Locality,
-        Effs: effect::Effects<'a> + AsyncFoldWith<F, State, CoControl<'a, Effs>>,
+        ES: Effects<'a> + AsyncFoldWith<F, S, CoControl<'a, ES>>,
     {
-        run!('a, Effs, co, effect => effect.fold_with(state, handler).await)
+        run!('a, ES, co, effect => effect.fold_with(state, handler).await)
     }
 }
 
 pub mod sync {
+    use crate::effect::Effects;
     use crate::locality::Locality;
 
     use super::*;
 
-    pub fn run<'a, Effs, Return, L, F>(
-        co: GenericCo<'a, Effs, Return, L>,
+    pub fn run<'a, ES, R, L, F>(
+        co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
-    ) -> Result<Return, Cancelled>
+    ) -> Result<R, Cancelled>
     where
         L: Locality,
-        Effs: effect::Effects<'a> + FoldMut<F, CoControl<'a, Effs>>,
+        ES: Effects<'a> + FoldMut<F, CoControl<'a, ES>>,
     {
-        run!('a, Effs, co, effect => effect.fold_mut(handler))
+        run!('a, ES, co, effect => effect.fold_mut(handler))
     }
 
-    pub fn run_with<'a, Effs, Return, L, State, F>(
-        co: GenericCo<'a, Effs, Return, L>,
-        state: &mut State,
+    pub fn run_with<'a, ES, R, L, S, F>(
+        co: GenericCo<'a, ES, R, L>,
+        state: &mut S,
         handler: &mut F,
-    ) -> Result<Return, Cancelled>
+    ) -> Result<R, Cancelled>
     where
         L: Locality,
-        Effs: effect::Effects<'a> + FoldWith<F, State, CoControl<'a, Effs>>,
+        ES: Effects<'a> + FoldWith<F, S, CoControl<'a, ES>>,
     {
-        run!('a, Effs, co, effect => effect.fold_with(state, handler))
+        run!('a, ES, co, effect => effect.fold_with(state, handler))
     }
 }
