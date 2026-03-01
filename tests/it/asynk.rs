@@ -12,16 +12,16 @@ async fn run_mut() {
         x: u64,
     }
 
-    async fn cancel(_c: Cancel) -> CoControl<CoEffs> {
+    async fn cancel(_c: Cancel) -> CoControl<'static, CoEffs> {
         CoControl::cancel()
     }
 
-    async fn log(Log(msg): Log<'_>) -> CoControl<CoEffs> {
+    async fn log(Log(msg): Log<'_>) -> CoControl<'static, CoEffs> {
         println!("LOG: {msg}");
         CoControl::resume(())
     }
 
-    async fn file_read(FileRead(file): FileRead) -> CoControl<CoEffs> {
+    async fn file_read(FileRead(file): FileRead) -> CoControl<'static, CoEffs> {
         println!("Reading file: {file}");
         CoControl::resume("file content".to_string())
     }
@@ -55,16 +55,16 @@ async fn run_with() {
         x: u64,
     }
 
-    async fn cancel(_: &mut State, _c: Cancel) -> CoControl<CoEffs> {
+    async fn cancel(_: &mut State, _c: Cancel) -> CoControl<'static, CoEffs> {
         CoControl::cancel()
     }
 
-    async fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<CoEffs> {
+    async fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<'static, CoEffs> {
         println!("LOG: {msg}");
         CoControl::resume(())
     }
 
-    async fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<CoEffs> {
+    async fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<'static, CoEffs> {
         println!("Reading file: {file}");
         CoControl::resume("file content".to_string())
     }

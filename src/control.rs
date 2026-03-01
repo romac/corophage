@@ -1,20 +1,23 @@
 use std::fmt;
+use std::marker::PhantomData;
 
 use frunk_core::coproduct::CoprodInjector;
 
 use crate::effect::{Effects, Resumes};
 
-pub enum CoControl<Effs>
+pub enum CoControl<'a, Effs>
 where
-    Effs: Effects,
+    Effs: Effects<'a>,
 {
     Cancel,
     Resume(Resumes<Effs>),
+    #[doc(hidden)]
+    _Phantom(std::convert::Infallible, PhantomData<&'a ()>),
 }
 
-impl<Effs> CoControl<Effs>
+impl<'a, Effs> CoControl<'a, Effs>
 where
-    Effs: Effects,
+    Effs: Effects<'a>,
 {
     pub fn cancel() -> Self {
         Self::Cancel

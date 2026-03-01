@@ -40,7 +40,7 @@ impl<S> Effect for SetState<S> {
 
 pub type CoEffs = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];
 
-pub fn co() -> Co<CoEffs, ()> {
+pub fn co() -> Co<'static, CoEffs, ()> {
     Co::new(|yielder| async move {
         println!("Logging...");
         let () = yielder.yield_(Log("Hello, world!")).await;

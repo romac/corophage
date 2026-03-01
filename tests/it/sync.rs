@@ -11,16 +11,16 @@ fn run_mut() {
         x: u64,
     }
 
-    fn cancel(_c: Cancel) -> CoControl<CoEffs> {
+    fn cancel(_c: Cancel) -> CoControl<'static, CoEffs> {
         CoControl::cancel()
     }
 
-    fn log(Log(msg): Log<'_>) -> CoControl<CoEffs> {
+    fn log(Log(msg): Log<'_>) -> CoControl<'static, CoEffs> {
         println!("LOG: {msg}");
         CoControl::resume(())
     }
 
-    fn file_read(FileRead(file): FileRead) -> CoControl<CoEffs> {
+    fn file_read(FileRead(file): FileRead) -> CoControl<'static, CoEffs> {
         println!("Reading file: {file}");
         CoControl::resume("file content".to_string())
     }
@@ -52,16 +52,16 @@ fn run_with() {
         x: u64,
     }
 
-    fn cancel(_: &mut State, _c: Cancel) -> CoControl<CoEffs> {
+    fn cancel(_: &mut State, _c: Cancel) -> CoControl<'static, CoEffs> {
         CoControl::cancel()
     }
 
-    fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<CoEffs> {
+    fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<'static, CoEffs> {
         println!("LOG: {msg}");
         CoControl::resume(())
     }
 
-    fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<CoEffs> {
+    fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<'static, CoEffs> {
         println!("Reading file: {file}");
         CoControl::resume("file content".to_string())
     }

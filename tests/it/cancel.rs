@@ -22,7 +22,7 @@ impl Effect for Fetch {
 fn sync_early_cancel_no_side_effects() {
     type Effs = Effects![Trigger, Log];
 
-    let co: Co<Effs, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, ()> = Co::new(|yielder| async move {
         let _ = yielder.yield_(Trigger).await;
         yielder.yield_(Log("should not appear")).await;
     });
@@ -48,7 +48,7 @@ fn sync_early_cancel_no_side_effects() {
 fn sync_non_cancel_handler_cancels() {
     type Effs = Effects![Fetch];
 
-    let co: Co<Effs, &'static str> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, &'static str> = Co::new(|yielder| async move {
         let _ = yielder.yield_(Fetch("restricted")).await;
         "unreachable"
     });
@@ -71,7 +71,7 @@ fn sync_non_cancel_handler_cancels() {
 fn sync_cancel_mid_pipeline() {
     type Effs = Effects![Trigger, Log, Fetch];
 
-    let co: Co<Effs, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, ()> = Co::new(|yielder| async move {
         yielder.yield_(Log("step1")).await;
         let _ = yielder.yield_(Fetch("f")).await;
         let _ = yielder.yield_(Trigger).await;
@@ -100,7 +100,7 @@ fn sync_cancel_mid_pipeline() {
 fn sync_cancel_preserves_state_before_cancel() {
     type Effs = Effects![Fetch, Trigger];
 
-    let co: Co<Effs, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, ()> = Co::new(|yielder| async move {
         let _ = yielder.yield_(Fetch("a")).await;
         let _ = yielder.yield_(Fetch("b")).await;
         let _ = yielder.yield_(Trigger).await;
@@ -132,7 +132,7 @@ fn sync_refcell_cancel_no_borrow_leak() {
 
     let state: RefCell<Vec<String>> = RefCell::new(vec![]);
 
-    let co: Co<Effs, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, ()> = Co::new(|yielder| async move {
         let _ = yielder.yield_(Fetch("x")).await;
         let _ = yielder.yield_(Trigger).await;
     });
@@ -157,7 +157,7 @@ fn sync_refcell_cancel_no_borrow_leak() {
 async fn async_non_cancel_handler_cancels() {
     type Effs = Effects![Fetch];
 
-    let co: Co<Effs, &'static str> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, &'static str> = Co::new(|yielder| async move {
         let _ = yielder.yield_(Fetch("anything")).await;
         "unreachable"
     });
@@ -171,7 +171,7 @@ async fn async_non_cancel_handler_cancels() {
 async fn async_early_cancel() {
     type Effs = Effects![Trigger, Log];
 
-    let co: Co<Effs, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, ()> = Co::new(|yielder| async move {
         let _ = yielder.yield_(Trigger).await;
         yielder.yield_(Log("never")).await;
     });
