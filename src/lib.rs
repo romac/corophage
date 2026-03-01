@@ -4,7 +4,7 @@ mod coproduct;
 use coproduct::{FoldMut, FoldWith};
 
 mod effect;
-use effect::{Effects, Start};
+use effect::Start;
 
 mod control;
 mod coroutine;
@@ -29,7 +29,7 @@ macro_rules! Effects {
 }
 
 macro_rules! run {
-    ($effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
+    ($lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
         use ::frunk_core::coproduct::Coproduct;
 
         let mut co = std::pin::pin!($co);
@@ -46,7 +46,7 @@ macro_rules! run {
                         Coproduct::Inr(subeffect) => subeffect,
                     };
 
-                    let resume: CoControl<$effs> = $handle;
+                    let resume: CoControl<$lt, $effs> = $handle;
                     match resume {
                         CoControl::Cancel => break Err(Cancelled),
                         CoControl::Resume(r) => yielded = co.as_mut().resume(Coproduct::Inr(r)),
@@ -64,46 +64,49 @@ mod asynk {
 
     use super::*;
 
-    pub async fn run<Effs, Return, F>(
-        co: Co<Effs, Return>,
+    pub async fn run<'a, Effs, Return, F>(
+        co: Co<'a, Effs, Return>,
         handler: &mut F,
     ) -> Result<Return, Cancelled>
     where
-        Effs: Effects + AsyncFoldMut<F, CoControl<Effs>>,
+        Effs: effect::Effects<'a> + AsyncFoldMut<F, CoControl<'a, Effs>>,
     {
-        run!(Effs, co, effect => effect.fold_mut(handler).await)
+        run!('a, Effs, co, effect => effect.fold_mut(handler).await)
     }
 
-    pub async fn run_with<Effs, Return, State, F>(
-        co: Co<Effs, Return>,
+    pub async fn run_with<'a, Effs, Return, State, F>(
+        co: Co<'a, Effs, Return>,
         state: &mut State,
         handler: &mut F,
     ) -> Result<Return, Cancelled>
     where
-        Effs: Effects + AsyncFoldWith<F, State, CoControl<Effs>>,
+        Effs: effect::Effects<'a> + AsyncFoldWith<F, State, CoControl<'a, Effs>>,
     {
-        run!(Effs, co, effect => effect.fold_with(state, handler).await)
+        run!('a, Effs, co, effect => effect.fold_with(state, handler).await)
     }
 }
 
 pub mod sync {
     use super::*;
 
-    pub fn run<Effs, Return, F>(co: Co<Effs, Return>, handler: &mut F) -> Result<Return, Cancelled>
+    pub fn run<'a, Effs, Return, F>(
+        co: Co<'a, Effs, Return>,
+        handler: &mut F,
+    ) -> Result<Return, Cancelled>
     where
-        Effs: Effects + FoldMut<F, CoControl<Effs>>,
+        Effs: effect::Effects<'a> + FoldMut<F, CoControl<'a, Effs>>,
     {
-        run!(Effs, co, effect => effect.fold_mut(handler))
+        run!('a, Effs, co, effect => effect.fold_mut(handler))
     }
 
-    pub fn run_with<Effs, Return, State, F>(
-        co: Co<Effs, Return>,
+    pub fn run_with<'a, Effs, Return, State, F>(
+        co: Co<'a, Effs, Return>,
         state: &mut State,
         handler: &mut F,
     ) -> Result<Return, Cancelled>
     where
-        Effs: Effects + FoldWith<F, State, CoControl<Effs>>,
+        Effs: effect::Effects<'a> + FoldWith<F, State, CoControl<'a, Effs>>,
     {
-        run!(Effs, co, effect => effect.fold_with(state, handler))
+        run!('a, Effs, co, effect => effect.fold_with(state, handler))
     }
 }

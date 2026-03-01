@@ -10,24 +10,24 @@ use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 
-type PinBoxFuture<A> = Pin<Box<dyn Future<Output = A> + Send>>;
+type PinBoxFuture<'a, A> = Pin<Box<dyn Future<Output = A> + Send + 'a>>;
 
-type Gen<Effs, Return> =
-    SyncGenerator<PinBoxFuture<Return>, CanStart<Effs>, Resumes<CanStart<Effs>>>;
+type Gen<'a, Effs, Return> =
+    SyncGenerator<PinBoxFuture<'a, Return>, CanStart<Effs>, Resumes<CanStart<Effs>>>;
 
-pub struct Co<Effs, Return>
+pub struct Co<'a, Effs, Return>
 where
-    Effs: Effects,
+    Effs: Effects<'a>,
 {
-    generator: Gen<Effs, Return>,
+    generator: Gen<'a, Effs, Return>,
     _pin: PhantomPinned,
 }
 
-impl<Effs, Return> Co<Effs, Return>
+impl<'a, Effs, Return> Co<'a, Effs, Return>
 where
-    Effs: Effects,
+    Effs: Effects<'a>,
 {
-    pub fn new<F>(f: impl FnOnce(Yielder<Effs>) -> F + Send + 'static) -> Self
+    pub fn new<F>(f: impl FnOnce(Yielder<Effs>) -> F + Send + 'a) -> Self
     where
         F: Future<Output = Return> + Send,
     {
@@ -43,7 +43,7 @@ where
             debug_assert!(matches!(start, CanStart::Inl(Start)));
 
             func(token).await
-        }) as PinBoxFuture<Return>;
+        }) as PinBoxFuture<'a, Return>;
 
         let generator = fauxgen::__private::gen_sync(marker, fut);
         Self {

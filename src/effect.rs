@@ -16,9 +16,9 @@ impl<H: Effect, T: MapResume> MapResume for Coproduct<H, T> {
     type Output = Coproduct<H::Resume, <T as MapResume>::Output>;
 }
 
-pub trait Effects: MapResume + Send + Sync + 'static {}
+pub trait Effects<'a>: MapResume + Send + Sync + 'a {}
 
-impl<E> Effects for E where E: MapResume + Send + Sync + 'static {}
+impl<'a, E> Effects<'a> for E where E: MapResume + Send + Sync + 'a {}
 
 pub type Resumes<E> = <E as MapResume>::Output;
 

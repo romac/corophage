@@ -33,7 +33,7 @@ With effect handlers, your business logic function does none of these things dir
 
 ```rust,ignore
 // This function describes WHAT to do, not HOW.
-pub fn my_logic() -> Co<Effects![Log, FileRead, GetState, SetState], ()> {
+pub fn my_logic() -> Co<'static, Effects![Log, FileRead, GetState, SetState], ()> {
     Co::new(|yielder| async move {
         yielder.yield_(Log("Starting...")).await;
         let config = yielder.yield_(FileRead("config.toml")).await;
@@ -87,7 +87,7 @@ impl Effect for Cancel {
 
 ### 2. Computations (`Co`)
 
-A **Computation** is a piece of logic that can yield effects. It is represented by the `Co<E, T>` type, where `E` is a list of possible effects and `T` is the final return value.
+A **Computation** is a piece of logic that can yield effects. It is represented by the `Co<'a, E, T>` type, where `'a` is the lifetime bound for the effects, `E` is a list of possible effects, and `T` is the final return value.
 
 You create a computation with `Co::new`, which takes an `async` closure. This closure receives a `Yielder` argument, which you use to perform effects with `yielder.yield_(...)`.
 
@@ -101,7 +101,7 @@ use corophage::{Co, Effects};
 pub type MyEffects = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];
 
 // This function defines a computation.
-pub fn co() -> Co<MyEffects, ()> {
+pub fn co() -> Co<'static, MyEffects, ()> {
     Co::new(|yielder| async move {
         // Yield a Log effect and wait for it to be handled.
         // The await resolves to `()`, as defined in `Log::Resume`.
@@ -135,13 +135,13 @@ The handler must return a `CoControl`, which tells the runner what to do next:
 use corophage::{CoControl, Cancelled};
 
 // A handler for the `Log` effect.
-async fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<MyEffects> {
+async fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<'static, MyEffects> {
     println!("LOG: {msg}");
     CoControl::resume(()) // Resume the computation with `()`.
 }
 
 // A handler for the `FileRead` effect.
-async fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<MyEffects> {
+async fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<'static, MyEffects> {
     println!("Reading file: {file}");
     // In a real app, you'd read the file here.
     // tokio::fs::read_to_string(file).await...
@@ -149,7 +149,7 @@ async fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<MyEffec
 }
 
 // A handler for the `Cancel` effect.
-async fn cancel(_: &mut State, _c: Cancel) -> CoControl<MyEffects> {
+async fn cancel(_: &mut State, _c: Cancel) -> CoControl<'static, MyEffects> {
     CoControl::cancel() // Abort the computation.
 }
 ```
@@ -171,12 +171,12 @@ struct State {
 }
 
 // Handler for GetState<u64>
-async fn handle_get_state(s: &mut State, _g: GetState<u64>) -> CoControl<MyEffects> {
+async fn handle_get_state(s: &mut State, _g: GetState<u64>) -> CoControl<'static, MyEffects> {
     CoControl::resume(s.x)
 }
 
 // Handler for SetState<u64>
-async fn handle_set_state(s: &mut State, SetState(x): SetState<u64>) -> CoControl<MyEffects> {
+async fn handle_set_state(s: &mut State, SetState(x): SetState<u64>) -> CoControl<'static, MyEffects> {
     s.x = x;
     CoControl::resume(((), ())) // Resume with a dummy value.
 }
@@ -187,7 +187,7 @@ async fn handle_set_state(s: &mut State, SetState(x): SetState<u64>) -> CoContro
 To run a computation, you use `corophage::run_with`. You need three things:
 1.  The `Co` computation to run.
 2.  An initial `State`.
-3.  A list of handlers, provided in a heterogeneous list (`hlist`). 
+3.  A list of handlers, provided in a heterogeneous list (`hlist`).
 
 > [!IMPORTANT]
 > The order of handlers in the `hlist` must exactly match the order of effects in your `Effects!` macro.**

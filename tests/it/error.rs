@@ -50,7 +50,7 @@ type AskEffects = Effects![Ask];
 
 #[test]
 fn sync_single_effect_resume() {
-    let co: Co<AskEffects, &'static str> =
+    let co: Co<'_, AskEffects, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("q")).await });
 
     let result = sync::run(co, &mut hlist![|Ask(_)| CoControl::resume("42")]);
@@ -59,7 +59,7 @@ fn sync_single_effect_resume() {
 
 #[test]
 fn sync_single_effect_cancel() {
-    let co: Co<AskEffects, &'static str> = Co::new(|yielder| async move {
+    let co: Co<'_, AskEffects, &'static str> = Co::new(|yielder| async move {
         yielder.yield_(Ask("forbidden")).await;
         "unreachable"
     });
@@ -70,7 +70,7 @@ fn sync_single_effect_cancel() {
 
 #[test]
 fn sync_single_effect_multiple_yields() {
-    let co: Co<AskEffects, (&'static str, &'static str, &'static str)> =
+    let co: Co<'_, AskEffects, (&'static str, &'static str, &'static str)> =
         Co::new(|yielder| async move {
             let a = yielder.yield_(Ask("q1")).await;
             let b = yielder.yield_(Ask("q2")).await;
@@ -98,7 +98,7 @@ fn sync_single_effect_multiple_yields() {
 
 #[test]
 fn sync_handler_accumulates_effects() {
-    let co: Co<AskEffects, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, AskEffects, ()> = Co::new(|yielder| async move {
         yielder.yield_(Ask("q1")).await;
         yielder.yield_(Ask("q2")).await;
         yielder.yield_(Ask("q3")).await;
@@ -122,7 +122,7 @@ fn sync_handler_accumulates_effects() {
 async fn async_single_effect_with_real_sleep() {
     use std::time::Duration;
 
-    let co: Co<AskEffects, &'static str> =
+    let co: Co<'_, AskEffects, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("q")).await });
 
     let result = run(
@@ -144,7 +144,7 @@ async fn async_handler_accumulates_via_refcell() {
 
     let log: RefCell<Vec<&str>> = RefCell::new(vec![]);
 
-    let co: Co<AskEffects, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, AskEffects, ()> = Co::new(|yielder| async move {
         yielder.yield_(Ask("a")).await;
         yielder.yield_(Ask("b")).await;
     });
