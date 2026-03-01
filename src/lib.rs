@@ -3,12 +3,13 @@
 mod coproduct;
 use coproduct::{FoldMut, FoldWith};
 
-mod effect;
-use effect::Start;
-
 mod control;
 mod coroutine;
+mod effect;
 mod locality;
+
+#[macro_use]
+mod macros;
 
 pub mod prelude;
 
@@ -22,43 +23,6 @@ pub use locality::{Local, Locality, Sendable};
 /// Use this as `Effect::Resume` for effects that always cancel the computation
 /// (e.g., `Cancel`) and therefore can never resume.
 pub enum Never {}
-
-#[macro_export]
-macro_rules! Effects {
-    [$($effect:ty),*] => {
-        ::frunk_core::Coprod!($($effect),*)
-    };
-}
-
-macro_rules! run {
-    ($lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
-        use ::frunk_core::coproduct::Coproduct;
-
-        let mut co = std::pin::pin!($co);
-
-        let mut yielded = co.as_mut().resume_with(Start);
-
-        loop {
-            match yielded {
-                ::fauxgen::GeneratorState::Complete(value) => break Ok(value),
-
-                ::fauxgen::GeneratorState::Yielded(effect) => {
-                    let $effect = match effect {
-                        Coproduct::Inl(_) => unreachable!(),
-                        Coproduct::Inr(subeffect) => subeffect,
-                    };
-
-                    let resume: CoControl<$lt, $effs> = $handle;
-                    match resume {
-                        CoControl::Cancel => break Err(Cancelled),
-                        CoControl::Resume(r) => yielded = co.as_mut().resume(Coproduct::Inr(r)),
-                        CoControl::_Phantom(infallible, _) => match infallible {},
-                    }
-                }
-            }
-        }
-    }};
-}
 
 pub use asynk::*;
 
