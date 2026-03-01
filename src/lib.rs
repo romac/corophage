@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod coproduct;
 use coproduct::{FoldMut, FoldWith};
