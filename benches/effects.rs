@@ -194,11 +194,15 @@ mod sync_benches {
 
 mod async_benches {
     use super::*;
-    use tokio::runtime::Runtime;
+    use tokio::runtime;
+
+    fn runtime() -> runtime::Runtime {
+        runtime::Builder::new_current_thread().build().unwrap()
+    }
 
     #[divan::bench]
     fn single_yield(bencher: divan::Bencher) {
-        let rt = Runtime::new().unwrap();
+        let rt = runtime();
         bencher.bench(|| {
             rt.block_on(async {
                 let co = single_yield_co();
@@ -212,7 +216,7 @@ mod async_benches {
 
     #[divan::bench(args = [10, 100, 1000])]
     fn yield_scaling(bencher: divan::Bencher, n: usize) {
-        let rt = Runtime::new().unwrap();
+        let rt = runtime();
         bencher.bench(|| {
             rt.block_on(async {
                 let co = multi_yield_co(n);
@@ -226,7 +230,7 @@ mod async_benches {
 
     #[divan::bench]
     fn stateful_handler(bencher: divan::Bencher) {
-        let rt = Runtime::new().unwrap();
+        let rt = runtime();
         bencher.bench(|| {
             rt.block_on(async {
                 let co = stateful_co();

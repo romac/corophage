@@ -61,7 +61,7 @@ pub fn co() -> Co<'static, CoEffs, ()> {
     })
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     #[derive(Debug, PartialEq, Eq)]
     struct State {

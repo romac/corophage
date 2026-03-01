@@ -14,7 +14,7 @@ frunk_core = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 divan = "0.1"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt", "time"] }
 
 [[bench]]
 name = "effects"
