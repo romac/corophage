@@ -43,7 +43,7 @@ fn cancelled_copy_and_eq() {
 struct Ask(pub &'static str);
 
 impl Effect for Ask {
-    type Resume = &'static str;
+    type Resume<'r> = &'static str;
 }
 
 type AskEffects = Effects![Ask];

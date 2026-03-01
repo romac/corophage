@@ -13,7 +13,7 @@ use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 type PinBoxFuture<'a, A> = Pin<Box<dyn Future<Output = A> + Send + 'a>>;
 
 type Gen<'a, Effs, Return> =
-    SyncGenerator<PinBoxFuture<'a, Return>, CanStart<Effs>, Resumes<CanStart<Effs>>>;
+    SyncGenerator<PinBoxFuture<'a, Return>, CanStart<Effs>, Resumes<'a, CanStart<Effs>>>;
 
 pub struct Co<'a, Effs, Return>
 where
@@ -27,7 +27,7 @@ impl<'a, Effs, Return> Co<'a, Effs, Return>
 where
     Effs: Effects<'a>,
 {
-    pub fn new<F>(f: impl FnOnce(Yielder<Effs>) -> F + Send + 'a) -> Self
+    pub fn new<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + Send + 'a) -> Self
     where
         F: Future<Output = Return> + Send,
     {
@@ -54,7 +54,7 @@ where
 
     pub(crate) fn resume(
         self: Pin<&mut Self>,
-        resume: Resumes<CanStart<Effs>>,
+        resume: Resumes<'a, CanStart<Effs>>,
     ) -> GeneratorState<CanStart<Effs>, Return> {
         let mut g = unsafe { self.map_unchecked_mut(|s| &mut s.generator) };
         g.as_mut().resume(resume)
@@ -65,32 +65,32 @@ where
         resume: R,
     ) -> GeneratorState<CanStart<Effs>, Return>
     where
-        Resumes<CanStart<Effs>>: CoprodInjector<R, Index>,
+        Resumes<'a, CanStart<Effs>>: CoprodInjector<R, Index>,
     {
-        self.resume(Resumes::<CanStart<Effs>>::inject(resume))
+        self.resume(Resumes::<'a, CanStart<Effs>>::inject(resume))
     }
 }
 
-pub struct Yielder<Effs>
+pub struct Yielder<'a, Effs>
 where
     Effs: MapResume,
 {
-    token: GeneratorToken<CanStart<Effs>, Resumes<CanStart<Effs>>>,
+    token: GeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>,
 }
 
-impl<Effs> Yielder<Effs>
+impl<'a, Effs> Yielder<'a, Effs>
 where
     Effs: MapResume,
 {
-    fn new(token: GeneratorToken<CanStart<Effs>, Resumes<CanStart<Effs>>>) -> Self {
+    fn new(token: GeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>) -> Self {
         Self { token }
     }
 
-    pub async fn yield_<E, Index>(&self, effect: E) -> E::Resume
+    pub async fn yield_<E, Index>(&self, effect: E) -> E::Resume<'a>
     where
         E: Effect,
         Effs: CoprodInjector<E, Index>,
-        <Effs as MapResume>::Output: CoprodUninjector<E::Resume, Index>,
+        <Effs as MapResume>::Output<'a>: CoprodUninjector<E::Resume<'a>, Index>,
     {
         let resume = self
             .token

@@ -3,19 +3,19 @@ use corophage::prelude::*;
 struct Trigger;
 
 impl Effect for Trigger {
-    type Resume = Never;
+    type Resume<'r> = Never;
 }
 
 struct Log(pub &'static str);
 
 impl Effect for Log {
-    type Resume = ();
+    type Resume<'r> = ();
 }
 
 struct Fetch(pub &'static str);
 
 impl Effect for Fetch {
-    type Resume = String;
+    type Resume<'r> = String;
 }
 
 #[test]
