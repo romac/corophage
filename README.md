@@ -3,6 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/corophage.svg)](https://crates.io/crates/corophage)
 [![Docs.rs](https://docs.rs/corophage/badge.svg)](https://docs.rs/corophage)
 ![Stable Rust](https://img.shields.io/badge/rust-stable-orange)
+[![Coverage](https://codecov.io/github/romac/corophage/graph/badge.svg?token=U8FVD3HT2X)](https://codecov.io/github/romac/corophage)
 
 **An effect handler library for Rust**
 
