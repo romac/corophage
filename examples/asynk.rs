@@ -5,19 +5,19 @@ use corophage::prelude::*;
 pub struct Cancel;
 
 impl Effect for Cancel {
-    type Resume = Never;
+    type Resume<'r> = Never;
 }
 
 pub struct Log<'a>(pub &'a str);
 
 impl<'a> Effect for Log<'a> {
-    type Resume = ();
+    type Resume<'r> = ();
 }
 
 pub struct FileRead(pub String);
 
 impl Effect for FileRead {
-    type Resume = String;
+    type Resume<'r> = String;
 }
 
 #[derive(Default)]
@@ -29,13 +29,13 @@ impl<S> Effect for GetState<S>
 where
     S: Sync + Send,
 {
-    type Resume = S;
+    type Resume<'r> = S;
 }
 
 pub struct SetState<S>(pub S);
 
 impl<S> Effect for SetState<S> {
-    type Resume = ((), ());
+    type Resume<'r> = ((), ());
 }
 
 pub type CoEffs = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];

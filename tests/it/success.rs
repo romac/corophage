@@ -4,13 +4,13 @@ use corophage::prelude::*;
 struct Ask(pub &'static str);
 
 impl Effect for Ask {
-    type Resume = &'static str;
+    type Resume<'r> = &'static str;
 }
 
 struct Counter;
 
 impl Effect for Counter {
-    type Resume = u64;
+    type Resume<'r> = u64;
 }
 
 #[derive(Debug, PartialEq)]

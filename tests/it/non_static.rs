@@ -3,7 +3,7 @@ use corophage::prelude::*;
 struct Log<'a>(pub &'a str);
 
 impl<'a> Effect for Log<'a> {
-    type Resume = ();
+    type Resume<'r> = ();
 }
 
 /// Test that effects can borrow non-'static data.

@@ -58,7 +58,7 @@ This separation provides powerful benefits:
 
 An **Effect** is a struct that represents a request for a side effect. It's a message from your computation to the outside world. To define an effect, you implement the `Effect` trait.
 
-The most important part of the `Effect` trait is the associated type `Resume`, which defines the type of the value that the computation will receive back after the effect is handled.
+The most important part of the `Effect` trait is the associated type `Resume<'r>` (a generic associated type), which defines the type of the value that the computation will receive back after the effect is handled.
 
 ```rust,ignore
 use corophage::{Effect, Never};
@@ -67,21 +67,21 @@ use corophage::{Effect, Never};
 // It doesn't need any data back, so we resume with `()`.
 pub struct Log<'a>(pub &'a str);
 impl<'a> Effect for Log<'a> {
-    type Resume = ();
+    type Resume<'r> = ();
 }
 
 // An effect to request reading a file.
 // It expects the file's contents back, so we resume with `String`.
 pub struct FileRead(pub String);
 impl Effect for FileRead {
-    type Resume = String;
+    type Resume<'r> = String;
 }
 
 // An effect that cancels the computation.
 // It will never resume, so we use the special `Never` type.
 pub struct Cancel;
 impl Effect for Cancel {
-    type Resume = Never;
+    type Resume<'r> = Never;
 }
 ```
 

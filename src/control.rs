@@ -10,7 +10,7 @@ where
     Effs: Effects<'a>,
 {
     Cancel,
-    Resume(Resumes<Effs>),
+    Resume(Resumes<'a, Effs>),
     #[doc(hidden)]
     _Phantom(std::convert::Infallible, PhantomData<&'a ()>),
 }
@@ -25,9 +25,9 @@ where
 
     pub fn resume<R, Index>(r: R) -> Self
     where
-        Resumes<Effs>: CoprodInjector<R, Index>,
+        Resumes<'a, Effs>: CoprodInjector<R, Index>,
     {
-        Self::Resume(Resumes::<Effs>::inject(r))
+        Self::Resume(Resumes::<'a, Effs>::inject(r))
     }
 }
 

@@ -10,31 +10,31 @@ use corophage::prelude::*;
 
 struct Noop;
 impl Effect for Noop {
-    type Resume = ();
+    type Resume<'r> = ();
 }
 
 struct GetValue;
 impl Effect for GetValue {
-    type Resume = u64;
+    type Resume<'r> = u64;
 }
 
 struct Alloc;
 impl Effect for Alloc {
-    type Resume = String;
+    type Resume<'r> = String;
 }
 
 struct IncrementResult;
 
 struct Increment;
 impl Effect for Increment {
-    type Resume = IncrementResult;
+    type Resume<'r> = IncrementResult;
 }
 
 struct DecrementResult;
 
 struct Decrement;
 impl Effect for Decrement {
-    type Resume = DecrementResult;
+    type Resume<'r> = DecrementResult;
 }
 
 // =============================================================================

@@ -50,6 +50,7 @@ macro_rules! run {
                     match resume {
                         CoControl::Cancel => break Err(Cancelled),
                         CoControl::Resume(r) => yielded = co.as_mut().resume(Coproduct::Inr(r)),
+                        CoControl::_Phantom(infallible, _) => match infallible {},
                     }
                 }
             }
