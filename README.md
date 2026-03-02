@@ -86,13 +86,19 @@ impl Effect for Cancel {
 }
 ```
 
-### 2. Computations (`Co`)
+### 2. Computations (`Co` and `CoSend`)
 
 A **Computation** is a piece of logic that can yield effects. It is represented by the `Co<'a, E, T>` type, where `'a` is the lifetime bound for the effects, `E` is a list of possible effects, and `T` is the final return value.
 
-You create a computation with `Co::new`, which takes an `async` closure. This closure receives a `Yielder` argument, which you use to perform effects with `yielder.yield_(...)`.
+The lifetime `'a` controls how long the effects (and any data they borrow) must live. Use `'static` when your effects own all their data, or a shorter lifetime when effects need to borrow from the local scope.
 
-When you `await` the result of `yielder.yield_(some_effect)`, the computation pauses, the effect is handled by its corresponding handler, and the `await` resolves to the value provided by the handler (which must match the effect's `Resume` type).
+Both `Co` and `CoSend` are type aliases for `GenericCo<'a, Effs, Return, L>`, parameterized by a `Locality` marker type:
+- **`Co`** (uses `Local`) - the default, not `Send`. Use this when your coroutine doesn't need to cross thread boundaries.
+- **`CoSend`** (uses `Sendable`) - `Send`-able. Use this when you need to spawn the coroutine on a multi-threaded executor like `tokio::spawn`.
+
+You create a computation with `Co::new` (or `CoSend::new`), which takes an `async` closure. This closure receives a `Yielder` argument, which you use to perform effects with `yielder.yield_(...)`.
+
+When you `await` the result of `yielder.yield_(some_effect)`, the computation pauses, the effect is handled by its corresponding handler, and the `await` resolves to the value provided by the handler (which must match the effect's `Resume<'r>` type).
 
 ```rust,ignore
 use corophage::{Co, Effects};
@@ -123,6 +129,110 @@ pub fn co() -> Co<'static, MyEffects, ()> {
     })
 }
 ```
+
+#### Borrowing non-`'static` data
+
+Effects can borrow data from the local scope by using a non-`'static` lifetime:
+
+```rust,ignore
+use corophage::{Co, Effects, sync, CoControl};
+use corophage::frunk::hlist;
+
+struct Log<'a>(pub &'a str);
+impl<'a> Effect for Log<'a> {
+    type Resume<'r> = ();
+}
+
+let msg = String::from("hello from a local string");
+let msg_ref = msg.as_str(); // a non-'static reference
+
+// The lifetime on `Co` ties the computation to `msg_ref`'s lifetime.
+let co: Co<'_, Effects![Log<'_>], ()> = Co::new(move |y| async move {
+    y.yield_(Log(msg_ref)).await;
+});
+
+let result = sync::run(
+    co,
+    &mut hlist![|Log(m)| {
+        println!("{m}");
+        CoControl::resume(())
+    }],
+);
+assert_eq!(result, Ok(()));
+```
+
+#### Borrowed resume types
+
+Because `Effect::Resume<'r>` is a generic associated type (GAT), handlers can resume computations with *borrowed* data instead of requiring owned values. This is useful when the handler has access to data that the computation only needs to read temporarily.
+
+```rust,ignore
+use corophage::prelude::*;
+use std::collections::HashMap;
+
+// An effect that looks up a key in a map.
+// Thanks to the GAT, the handler can resume with a `&str`
+// borrowed from the map, avoiding a clone.
+struct Lookup<'a> {
+    map: &'a HashMap<String, String>,
+    key: &'a str,
+}
+
+impl<'a> Effect for Lookup<'a> {
+    type Resume<'r> = &'r str;
+}
+
+let map = HashMap::from([
+    ("host".to_string(), "localhost".to_string()),
+    ("port".to_string(), "5432".to_string()),
+]);
+
+let co: Co<'_, Effects![Lookup<'_>], String> = Co::new({
+    let map = &map;
+    move |y| async move {
+        let host: &str = y.yield_(Lookup { map, key: "host" }).await;
+        let port: &str = y.yield_(Lookup { map, key: "port" }).await;
+        format!("{host}:{port}")
+    }
+});
+
+let result = sync::run(
+    co,
+    &mut hlist![|Lookup { map, key }| {
+        let value = map.get(key).unwrap();
+        CoControl::resume(value.as_str()) // resumes with a borrowed &str
+    }],
+);
+
+assert_eq!(result, Ok("localhost:5432".to_string()));
+```
+
+#### `Send`-able coroutines with `CoSend`
+
+By default, `Co` is not `Send`, which means it cannot be moved across threads. When you need to spawn a coroutine on a multi-threaded async runtime (e.g., `tokio::spawn`), use `CoSend` instead:
+
+```rust,ignore
+use corophage::{CoSend, Effects, sync, CoControl};
+use corophage::frunk::hlist;
+
+fn co() -> CoSend<'static, Effects![FileRead], String> {
+    CoSend::new(|y| async move {
+        y.yield_(FileRead("test".to_string())).await
+    })
+}
+
+// CoSend is Send, so it can be spawned on a multi-threaded executor.
+let handle = tokio::spawn(async move {
+    sync::run(
+        co(),
+        &mut hlist![|FileRead(file)| {
+            println!("Reading file: {file}");
+            CoControl::<'static, Effects![FileRead]>::resume("file content".to_string())
+        }],
+    )
+});
+```
+
+Both `Co` and `CoSend` work with the same `run`/`run_with` functions - the runner is generic over the `Locality` parameter.
 
 ### 3. Handlers
 
