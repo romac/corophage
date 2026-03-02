@@ -417,6 +417,12 @@ Stateful handlers add ~15 ns overhead. RefCell is nearly equivalent to `run_with
 Allocation dominates handler cost. Consider returning references or zero-copy types for performance-critical effects.
 
 
+## Acknowledgments
+
+`corophage` is heavily inspired by [`effing-mad`](https://github.com/rosefromthedead/effing-mad), a pioneering algebraic effects library for nightly Rust. 
+`effing-mad` demonstrated that algebraic effects and effect handlers are viable in Rust by leveraging coroutines to let effectful functions suspend, pass control to their callers, and resume with results.
+While `effing-mad` requires nightly Rust for its `#[coroutine]`-based approach, `corophage` supports stable Rust by leveraging async coroutines (via [`fauxgen`](https://github.com/jmkr/fauxgen)). Big thanks as well to [`frunk`](https://github.com/lloydmeta/frunk) for its coproduct and hlist implementation.
+
 ## License
 
 Licensed under either of
