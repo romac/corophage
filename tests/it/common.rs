@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use corophage::Co;
 use corophage::prelude::*;
 
 pub struct Cancel;

@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::Add;
 
@@ -7,9 +8,9 @@ use frunk_core::hlist::{HCons, HNil};
 use crate::CoControl;
 use crate::control::Cancelled;
 use crate::coproduct::{AsyncFoldMut, AsyncFoldWith, FoldMut, FoldWith};
-use crate::coroutine::GenericCo;
-use crate::effect::Effects;
-use crate::locality::Locality;
+use crate::coroutine::{Co, CoSend, GenericCo, Yielder};
+use crate::effect::{CanStart, Effects, Resumes};
+use crate::locality::{Local, Locality, Sendable};
 
 /// A computation with incrementally attached effect handlers.
 ///
@@ -23,12 +24,40 @@ pub struct Program<'a, Effs: Effects<'a>, R, L: Locality, Remaining, Handlers> {
     _remaining: PhantomData<Remaining>,
 }
 
+impl<'a, Effs, R> Program<'a, Effs, R, Local, Effs, HNil>
+where
+    Effs: Effects<'a>,
+{
+    /// Create a new program from a computation closure.
+    pub fn new<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a) -> Self
+    where
+        F: Future<Output = R>,
+    {
+        Self::from_co(Co::new(f))
+    }
+}
+
+impl<'a, Effs, R> Program<'a, Effs, R, Sendable, Effs, HNil>
+where
+    Effs: Effects<'a>,
+    for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
+{
+    /// Create a new `Send`-able program from a computation closure.
+    pub fn new_send<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + Send + 'a) -> Self
+    where
+        F: Future<Output = R> + Send,
+    {
+        Self::from_co(CoSend::new(f))
+    }
+}
+
 impl<'a, Effs, R, L> Program<'a, Effs, R, L, Effs, HNil>
 where
     Effs: Effects<'a>,
     L: Locality,
 {
-    pub fn new(co: GenericCo<'a, Effs, R, L>) -> Self {
+    /// Create a program from an existing coroutine.
+    pub fn from_co(co: GenericCo<'a, Effs, R, L>) -> Self {
         Program {
             co,
             handlers: HNil,

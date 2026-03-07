@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use corophage::prelude::*;
+use corophage::{Co, run, sync};
 
 /// An effect whose resume type borrows data via the GAT lifetime.
 /// The handler provides a `&'r str` instead of an owned `String`,

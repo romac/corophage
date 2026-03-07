@@ -1,4 +1,5 @@
 use corophage::prelude::*;
+use corophage::{Co, run, run_stateful, sync};
 
 #[allow(dead_code)]
 struct Ask(pub &'static str);

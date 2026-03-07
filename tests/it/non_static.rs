@@ -1,4 +1,5 @@
 use corophage::prelude::*;
+use corophage::{Co, run, sync};
 
 struct Log<'a>(pub &'a str);
 
