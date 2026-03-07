@@ -296,6 +296,48 @@ async fn handle_set_state(s: &mut State, SetState(x): SetState<u64>) -> CoContro
 }
 ```
 
+## Incremental handler attachment with `Program`
+
+Sometimes you want to attach handlers to a computation incrementally — for example, when different parts of your application are responsible for handling different effects, or when you want to partially apply a fixed set of handlers and re-use them across multiple computations.
+
+`Program` wraps a `Co` and accumulates handlers one at a time. The type system tracks which effects still need a handler, and `.run()`/`.run_sync()` are only available once all effects are handled.
+
+```rust,ignore
+use corophage::{Co, Effects, Program, CoControl, Cancelled};
+
+type Effs = Effects![Log<'static>, FileRead];
+
+let co: Co<'_, Effs, String> = Co::new(|y| async move {
+    y.yield_(Log("fetching...")).await;
+    y.yield_(FileRead("data.txt".to_string())).await
+});
+
+// Attach handlers one at a time, in effect declaration order.
+let result = Program::new(co)
+    .handle(|Log(msg)| {
+        println!("{msg}");
+        CoControl::resume(())
+    })
+    .handle(|FileRead(path)| CoControl::resume(format!("contents of {path}")))
+    .run_sync();
+
+assert_eq!(result, Ok("contents of data.txt".to_string()));
+```
+
+A free function `handle` is available in the `program` module as an alternative style:
+
+```rust,ignore
+use corophage::program::handle;
+
+let p = Program::new(co);
+let p = handle(p, |Log(msg)| { println!("{msg}"); CoControl::resume(()) });
+let p = handle(p, |FileRead(path)| CoControl::resume(format!("contents of {path}")));
+let result = p.run_sync();
+```
+
+> [!IMPORTANT]
+> As with `run`/`run_sync`, handlers must be attached in the same order as the effects appear in the `Effects![...]` list. This is enforced by the type system — attaching handlers in the wrong order is a compile error.
+
 ## Putting it all together
 
 To run a computation, you use `corophage::run_stateful`. You need three things:
