@@ -1,5 +1,5 @@
 use corophage::prelude::*;
-use corophage::{Co, run, run_stateful, sync};
+use corophage::{Co, asynk, sync};
 
 #[allow(dead_code)]
 struct Ask(pub &'static str);
@@ -126,7 +126,7 @@ async fn async_ok_value_return() {
     let co: Co<'_, Effs, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("async")).await });
 
-    let result = run(co, &mut hlist![async |_: Ask| CoControl::resume("done")]).await;
+    let result = asynk::run(co, &mut hlist![async |_: Ask| CoControl::resume("done")]).await;
     assert_eq!(result, Ok("done"));
 }
 
@@ -138,7 +138,7 @@ async fn async_run_stateful_ok() {
     let co: Co<'_, Effs, u64> = Co::new(|yielder| async move { yielder.yield_(Counter).await });
 
     let mut state: u64 = 5;
-    let result = run_stateful(
+    let result = asynk::run_stateful(
         co,
         &mut state,
         &mut hlist![async |s: &mut u64, _: Counter| {

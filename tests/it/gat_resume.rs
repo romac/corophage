@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use corophage::prelude::*;
-use corophage::{Co, run, sync};
+use corophage::{Co, asynk, sync};
 
 /// An effect whose resume type borrows data via the GAT lifetime.
 /// The handler provides a `&'r str` instead of an owned `String`,
@@ -108,7 +108,7 @@ async fn async_gat_resume_borrows_local_data() {
     });
 
     let mut logged: Vec<String> = vec![];
-    let result = run(
+    let result = asynk::run(
         co,
         &mut hlist![
             async |_: GetConfig| CoControl::resume(config_ref),

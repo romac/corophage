@@ -185,8 +185,8 @@ assert_eq!(count, 2);
 For cases where you need to pass a computation around before attaching handlers (e.g., returning it from a function, or storing it in a data structure), you can use `Co` and `CoSend` directly.
 
 ```rust,ignore
-use corophage::{Co, CoSend, Effects, sync, CoControl};
-use corophage::frunk::hlist;
+use corophage::{Co, CoSend, sync, CoControl};
+use corophage::prelude::*;
 
 // Co — the computation type (not Send)
 let co: Co<'_, Effects![FileRead], String> = Co::new(|y| async move {
@@ -220,7 +220,7 @@ tokio::spawn(async move {
 });
 ```
 
-The direct API (`sync::run`, `sync::run_stateful`, `run`, `run_stateful`) accepts a `Co`/`CoSend` and an `hlist!` of all handlers at once. This is useful for concise one-shot execution but requires providing all handlers together.
+The direct API (`sync::run`, `sync::run_stateful`, `asynk::run`, `asynk::run_stateful`) accepts a `Co`/`CoSend` and an `hlist!` of all handlers at once. This is useful for concise one-shot execution but requires providing all handlers together.
 
 #### Borrowing non-`'static` data
 

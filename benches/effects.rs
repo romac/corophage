@@ -210,7 +210,7 @@ mod async_benches {
                 let mut handler = hlist![async |_: Noop| -> CoControl<'static, OneEffect> {
                     CoControl::resume(())
                 }];
-                divan::black_box(corophage::run(co, &mut handler).await)
+                divan::black_box(corophage::asynk::run(co, &mut handler).await)
             })
         });
     }
@@ -224,7 +224,7 @@ mod async_benches {
                 let mut handler = hlist![async |_: Noop| -> CoControl<'static, OneEffect> {
                     CoControl::resume(())
                 }];
-                divan::black_box(corophage::run(co, &mut handler).await)
+                divan::black_box(corophage::asynk::run(co, &mut handler).await)
             })
         });
     }
@@ -247,7 +247,7 @@ mod async_benches {
                         CoControl::resume(String::new())
                     },
                 ];
-                divan::black_box(corophage::run_stateful(co, &mut state, &mut handler).await)
+                divan::black_box(corophage::asynk::run_stateful(co, &mut state, &mut handler).await)
             })
         });
     }
