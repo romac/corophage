@@ -37,8 +37,7 @@ where
     }
 }
 
-impl<'a, Effs, R, L, Head, Tail, Handlers>
-    Program<'a, Effs, R, L, Coproduct<Head, Tail>, Handlers>
+impl<'a, Effs, R, L, Head, Tail, Handlers> Program<'a, Effs, R, L, Coproduct<Head, Tail>, Handlers>
 where
     Effs: Effects<'a>,
     L: Locality,
@@ -81,12 +80,12 @@ where
     }
 
     /// Run the computation synchronously with shared state.
-    pub fn run_sync_with<S>(self, state: &mut S) -> Result<R, Cancelled>
+    pub fn run_sync_stateful<S>(self, state: &mut S) -> Result<R, Cancelled>
     where
         Effs: FoldWith<Handlers, S, CoControl<'a, Effs>>,
     {
         let mut handlers = self.handlers;
-        crate::sync::run_with(self.co, state, &mut handlers)
+        crate::sync::run_stateful(self.co, state, &mut handlers)
     }
 
     /// Run the computation asynchronously.
@@ -99,12 +98,12 @@ where
     }
 
     /// Run the computation asynchronously with shared state.
-    pub async fn run_with<S>(self, state: &mut S) -> Result<R, Cancelled>
+    pub async fn run_stateful<S>(self, state: &mut S) -> Result<R, Cancelled>
     where
         Effs: AsyncFoldWith<Handlers, S, CoControl<'a, Effs>>,
     {
         let mut handlers = self.handlers;
-        crate::run_with(self.co, state, &mut handlers).await
+        crate::run_stateful(self.co, state, &mut handlers).await
     }
 }
 

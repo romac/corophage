@@ -71,7 +71,7 @@ fn sync_gat_resume_with_stateful_handler() {
     });
 
     let mut call_count: u32 = 0;
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut call_count,
         &mut hlist![
@@ -182,7 +182,7 @@ fn sync_gat_resume_borrows_from_effect() {
     assert_eq!(result, Ok("localhost:5432".to_string()));
 }
 
-/// Same pattern with `run_with` and stateful tracking.
+/// Same pattern with `run_stateful` and stateful tracking.
 #[test]
 fn sync_gat_resume_borrows_from_effect_with_state() {
     type Effs<'a> = Effects![Lookup<'a>];
@@ -202,7 +202,7 @@ fn sync_gat_resume_borrows_from_effect_with_state() {
     });
 
     let mut lookups: Vec<String> = vec![];
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut lookups,
         &mut hlist![|s: &mut Vec<String>, Lookup { map, key }| {

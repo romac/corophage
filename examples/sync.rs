@@ -83,7 +83,7 @@ fn main() {
 
     let mut state = State { x: 42 };
 
-    let result = corophage::sync::run_with(
+    let result = corophage::sync::run_stateful(
         co(),
         &mut state,
         &mut hlist![

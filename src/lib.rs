@@ -47,7 +47,7 @@ mod asynk {
         run!('a, ES, co, effect => effect.fold_mut(handler).await)
     }
 
-    pub async fn run_with<'a, ES, R, L, S, F>(
+    pub async fn run_stateful<'a, ES, R, L, S, F>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
         handler: &mut F,
@@ -77,7 +77,7 @@ pub mod sync {
         run!('a, ES, co, effect => effect.fold_mut(handler))
     }
 
-    pub fn run_with<'a, ES, R, L, S, F>(
+    pub fn run_stateful<'a, ES, R, L, S, F>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
         handler: &mut F,

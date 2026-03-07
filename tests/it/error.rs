@@ -79,7 +79,7 @@ fn sync_single_effect_multiple_yields() {
         });
 
     let mut state: u32 = 0;
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut state,
         &mut hlist![|s: &mut u32, _: Ask| {

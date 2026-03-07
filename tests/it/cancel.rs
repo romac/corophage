@@ -28,7 +28,7 @@ fn sync_early_cancel_no_side_effects() {
     });
 
     let mut state: Vec<&str> = vec![];
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut state,
         &mut hlist![
@@ -79,7 +79,7 @@ fn sync_cancel_mid_pipeline() {
     });
 
     let mut state: Vec<String> = vec![];
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut state,
         &mut hlist![
@@ -108,7 +108,7 @@ fn sync_cancel_preserves_state_before_cancel() {
     });
 
     let mut state: u64 = 0;
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut state,
         &mut hlist![

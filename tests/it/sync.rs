@@ -46,7 +46,7 @@ fn run_mut() {
 }
 
 #[test]
-fn run_with() {
+fn run_stateful() {
     #[derive(Debug, PartialEq, Eq)]
     struct State {
         x: u64,
@@ -68,7 +68,7 @@ fn run_with() {
 
     let mut state = State { x: 42 };
 
-    let result = corophage::sync::run_with(
+    let result = corophage::sync::run_stateful(
         co(),
         &mut state,
         &mut hlist![

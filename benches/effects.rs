@@ -167,7 +167,7 @@ mod sync_benches {
                     CoControl::resume(String::new())
                 },
             ];
-            divan::black_box(corophage::sync::run_with(co, &mut state, &mut handler))
+            divan::black_box(corophage::sync::run_stateful(co, &mut state, &mut handler))
         });
     }
 
@@ -246,7 +246,7 @@ mod async_benches {
                         CoControl::resume(String::new())
                     },
                 ];
-                divan::black_box(corophage::run_with(co, &mut state, &mut handler).await)
+                divan::black_box(corophage::run_stateful(co, &mut state, &mut handler).await)
             })
         });
     }

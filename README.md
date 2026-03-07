@@ -51,6 +51,9 @@ This separation provides powerful benefits:
 *   **Modularity**: The core logic is completely decoupled from its execution context. You can run the same logic with different handlers for different environments (e.g., production vs. testing, CLI vs. GUI).
 *   **Clarity**: The business logic code becomes a pure, high-level description of the steps involved, making it easier to read and reason about.
 
+> [!NOTE]
+> `corophage` provides **single-shot** effect handlers: each handler can resume the computation at most once. This means handlers cannot duplicate or replay continuations. This is a deliberate design choice that keeps the implementation efficient and compatible with Rust's ownership model.
+
 ## Core concepts
 
 `corophage` is built around a few key concepts: Effects, Computations, and Handlers.
@@ -232,7 +235,7 @@ let handle = tokio::spawn(async move {
 });
 ```
 
-Both `Co` and `CoSend` work with the same `run`/`run_with` functions - the runner is generic over the `Locality` parameter.
+Both `Co` and `CoSend` work with the same `run`/`run_stateful` functions - the runner is generic over the `Locality` parameter.
 
 ### 3. Handlers
 
@@ -267,7 +270,7 @@ async fn cancel(_: &mut State, _c: Cancel) -> CoControl<'static, MyEffects> {
 
 ### 4. State
 
-As seen above, handlers can be stateful. The `run_with` function takes a mutable reference to a state object of your choosing. This same state object is passed as the first argument to every handler, allowing them to share and modify state.
+As seen above, handlers can be stateful. The `run_stateful` function takes a mutable reference to a state object of your choosing. This same state object is passed as the first argument to every handler, allowing them to share and modify state.
 
 > [!NOTE]
 > If your handlers do not need shared state, you can instead run them using the `run` function, which does not require a state parameter.
@@ -295,7 +298,7 @@ async fn handle_set_state(s: &mut State, SetState(x): SetState<u64>) -> CoContro
 
 ## Putting it all together
 
-To run a computation, you use `corophage::run_with`. You need three things:
+To run a computation, you use `corophage::run_stateful`. You need three things:
 1.  The `Co` computation to run.
 2.  An initial `State`.
 3.  A list of handlers, provided in a heterogeneous list (`hlist`).
@@ -305,7 +308,7 @@ To run a computation, you use `corophage::run_with`. You need three things:
 
 ```rust,ignore
 use corophage::frunk::hlist;
-use corophage::{run_with, Cancelled};
+use corophage::{run_stateful, Cancelled};
 
 // 1. Define the computation (see `co()` function above).
 
@@ -320,7 +323,7 @@ let mut state = State { x: 42 };
 // 3. Define handlers (see handler functions above).
 
 // 4. Run the computation.
-let result = run_with(
+let result = run_stateful(
     co(),
     &mut state,
     // The hlist of handlers. Order must match `MyEffects`.
@@ -348,20 +351,20 @@ assert_eq!(state, State { x: 84 });
 
 ### Execution flow
 
-1.  `run_with` starts the `co()` computation.
+1.  `run_stateful` starts the `co()` computation.
 2.  `yielder.yield_(Log(...))` is called. The computation pauses.
-3.  `run_with` finds the `log` handler (2nd in the list) and executes it. "LOG: Hello, world!" is printed. The handler returns `CoControl::resume(())`.
+3.  `run_stateful` finds the `log` handler (2nd in the list) and executes it. "LOG: Hello, world!" is printed. The handler returns `CoControl::resume(())`.
 4.  The computation resumes.
 5.  `yielder.yield_(FileRead(...))` is called. The computation pauses.
-6.  `run_with` finds the `file_read` handler (3rd in the list) and executes it. It returns `CoControl::resume("file content")`.
+6.  `run_stateful` finds the `file_read` handler (3rd in the list) and executes it. It returns `CoControl::resume("file content")`.
 7.  The computation resumes. `text` is `"file content"`.
 8.  `yielder.yield_(GetState)` is called. The 4th handler runs, returning `CoControl::resume(42)`.
 9.  The computation resumes. `state` is `42`.
 10. `yielder.yield_(SetState(84))` is called. The 5th handler runs, changing `state.x` to `84` and resuming.
 11. `yielder.yield_(GetState)` is called again. The 4th handler runs, now returning `CoControl::resume(84)`.
 12. `yielder.yield_(Cancel)` is called. The computation pauses.
-13. `run_with` finds the `cancel` handler (1st in the list) and executes it. It returns `CoControl::cancel()`.
-14. The entire execution is aborted. `run_with` returns `Err(Cancelled)`.
+13. `run_stateful` finds the `cancel` handler (1st in the list) and executes it. It returns `CoControl::cancel()`.
+14. The entire execution is aborted. `run_stateful` returns `Err(Cancelled)`.
 
 ## Performance
 
@@ -402,10 +405,10 @@ Dispatch position has negligible impact. The coproduct-based dispatch is effecti
 | Pattern | Median |
 |---------|--------|
 | Stateless (`run`) | 38 ns |
-| Stateful (`run_with`) | 53 ns |
+| Stateful (`run_stateful`) | 53 ns |
 | RefCell pattern | 55 ns |
 
-Stateful handlers add ~15 ns overhead. RefCell is nearly equivalent to `run_with`.
+Stateful handlers add ~15 ns overhead. RefCell is nearly equivalent to `run_stateful`.
 
 ### Handler Complexity
 
