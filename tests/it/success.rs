@@ -63,7 +63,7 @@ fn sync_ok_multiple_yields() {
     });
 
     let mut state: u64 = 0;
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut state,
         &mut hlist![|s: &mut u64, _: Counter| {
@@ -102,13 +102,13 @@ fn sync_ok_struct_return() {
 }
 
 #[test]
-fn sync_run_with_ok() {
+fn sync_run_stateful_ok() {
     type Effs = Effects![Counter];
 
     let co: Co<'_, Effs, u64> = Co::new(|yielder| async move { yielder.yield_(Counter).await });
 
     let mut state: u64 = 10;
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut state,
         &mut hlist![|s: &mut u64, _: Counter| CoControl::resume(*s)],
@@ -131,13 +131,13 @@ async fn async_ok_value_return() {
 
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
-async fn async_run_with_ok() {
+async fn async_run_stateful_ok() {
     type Effs = Effects![Counter];
 
     let co: Co<'_, Effs, u64> = Co::new(|yielder| async move { yielder.yield_(Counter).await });
 
     let mut state: u64 = 5;
-    let result = run_with(
+    let result = run_stateful(
         co,
         &mut state,
         &mut hlist![async |s: &mut u64, _: Counter| {

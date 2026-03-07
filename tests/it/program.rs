@@ -131,7 +131,7 @@ async fn async_free_function_style() {
 }
 
 #[test]
-fn sync_run_with_state() {
+fn sync_run_stateful_state() {
     type Effs = Effects![Counter];
 
     let co: Co<'_, Effs, u64> = Co::new(|yielder| async move {
@@ -146,7 +146,7 @@ fn sync_run_with_state() {
             *s += 1;
             CoControl::resume(*s)
         })
-        .run_sync_with(&mut state);
+        .run_sync_stateful(&mut state);
 
     assert_eq!(result, Ok(3u64));
     assert_eq!(state, 2u64);
@@ -154,7 +154,7 @@ fn sync_run_with_state() {
 
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
-async fn async_run_with_state() {
+async fn async_run_stateful_state() {
     type Effs = Effects![Counter];
 
     let co: Co<'_, Effs, u64> = Co::new(|yielder| async move { yielder.yield_(Counter).await });
@@ -165,7 +165,7 @@ async fn async_run_with_state() {
             *s += 10;
             CoControl::resume(*s)
         })
-        .run_with(&mut state)
+        .run_stateful(&mut state)
         .await;
 
     assert_eq!(result, Ok(15u64));

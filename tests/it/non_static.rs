@@ -34,7 +34,7 @@ fn sync_non_static_log() {
     assert_eq!(logged, vec!["hello from a local string"]);
 }
 
-/// Test non-'static effects with run_with (stateful handler).
+/// Test non-'static effects with run_stateful (stateful handler).
 #[test]
 fn sync_non_static_log_with_state() {
     type Effs<'a> = Effects![Log<'a>];
@@ -48,7 +48,7 @@ fn sync_non_static_log_with_state() {
     });
 
     let mut count: u32 = 0;
-    let result = sync::run_with(
+    let result = sync::run_stateful(
         co,
         &mut count,
         &mut hlist![|s: &mut u32, Log(_)| {

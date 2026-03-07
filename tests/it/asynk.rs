@@ -49,7 +49,7 @@ async fn run_mut() {
 
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
-async fn run_with() {
+async fn run_stateful() {
     #[derive(Debug, PartialEq, Eq)]
     struct State {
         x: u64,
@@ -71,7 +71,7 @@ async fn run_with() {
 
     let mut state = State { x: 42 };
 
-    let result = corophage::run_with(
+    let result = corophage::run_stateful(
         co(),
         &mut state,
         &mut hlist![
