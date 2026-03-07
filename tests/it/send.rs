@@ -1,4 +1,5 @@
 use corophage::prelude::*;
+use corophage::{CoSend, sync};
 
 use crate::common::*;
 
