@@ -8,6 +8,7 @@ mod control;
 mod coroutine;
 mod effect;
 mod locality;
+pub mod program;
 
 #[macro_use]
 mod macros;
@@ -18,6 +19,7 @@ pub use control::{Cancelled, CoControl};
 pub use coroutine::{Co, CoSend, GenericCo, Yielder};
 pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
+pub use program::Program;
 
 /// An uninhabited type for effects that never resume.
 ///

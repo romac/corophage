@@ -4,6 +4,7 @@ mod common;
 mod error;
 mod gat_resume;
 mod non_static;
+mod program;
 mod send;
 mod success;
 mod sync;
