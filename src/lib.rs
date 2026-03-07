@@ -13,6 +13,7 @@ mod program;
 #[macro_use]
 mod macros;
 
+/// Re-exports of the most commonly used types and traits.
 pub mod prelude;
 
 pub use control::{Cancelled, CoControl};
@@ -26,6 +27,10 @@ pub use program::{Program, handle};
 /// (e.g., `Cancel`) and therefore can never resume.
 pub enum Never {}
 
+/// Async effect runners.
+///
+/// Use these functions to run a coroutine with async effect handlers.
+/// For most use cases, prefer [`Program::run`] instead.
 pub mod asynk {
     use crate::coproduct::{AsyncFoldMut, AsyncFoldWith};
     use crate::coroutine::GenericCo;
@@ -34,6 +39,7 @@ pub mod asynk {
 
     use super::*;
 
+    /// Run a coroutine with an hlist of async handlers.
     pub async fn run<'a, ES, R, L, F>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
@@ -45,6 +51,7 @@ pub mod asynk {
         run!('a, ES, co, effect => effect.fold_mut(handler).await)
     }
 
+    /// Run a coroutine with an hlist of async handlers and shared mutable state.
     pub async fn run_stateful<'a, ES, R, L, S, F>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
@@ -58,6 +65,10 @@ pub mod asynk {
     }
 }
 
+/// Synchronous effect runners.
+///
+/// Use these functions to run a coroutine with synchronous effect handlers.
+/// For most use cases, prefer [`Program::run_sync`] instead.
 pub mod sync {
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
@@ -65,6 +76,7 @@ pub mod sync {
 
     use super::*;
 
+    /// Run a coroutine with an hlist of synchronous handlers.
     pub fn run<'a, ES, R, L, F>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
@@ -76,6 +88,7 @@ pub mod sync {
         run!('a, ES, co, effect => effect.fold_mut(handler))
     }
 
+    /// Run a coroutine with an hlist of synchronous handlers and shared mutable state.
     pub fn run_stateful<'a, ES, R, L, S, F>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,

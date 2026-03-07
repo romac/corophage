@@ -3,7 +3,9 @@ use std::future::Future;
 pub use frunk_core::coproduct::{CNil, Coproduct};
 pub use frunk_core::hlist::{HCons, HNil};
 
+/// Fold a coproduct by dispatching to the matching handler in an hlist of `FnMut` closures.
 pub trait FoldMut<F, R> {
+    /// Consume the coproduct and dispatch to the matching handler.
     fn fold_mut(self, f: &mut F) -> R;
 }
 
@@ -37,7 +39,10 @@ where
     }
 }
 
+/// Fold a coproduct by dispatching to the matching handler in an hlist of `Fn` closures,
+/// threading shared mutable state `S` through each handler call.
 pub trait FoldWith<F, S, R> {
+    /// Consume the coproduct and dispatch to the matching handler with shared state.
     fn fold_with(self, s: &mut S, f: &F) -> R;
 }
 
@@ -71,7 +76,10 @@ where
     }
 }
 
+/// Async version of [`FoldMut`]. Dispatches to the matching async handler in an hlist
+/// of `AsyncFnMut` closures.
 pub trait AsyncFoldMut<F, R> {
+    /// Consume the coproduct and dispatch to the matching async handler.
     fn fold_mut(self, f: &mut F) -> impl Future<Output = R>;
 }
 
@@ -105,7 +113,10 @@ where
     }
 }
 
+/// Async version of [`FoldWith`]. Dispatches to the matching async handler in an hlist
+/// of `AsyncFn` closures, threading shared mutable state `S` through each handler call.
 pub trait AsyncFoldWith<F, S, R> {
+    /// Consume the coproduct and dispatch to the matching async handler with shared state.
     fn fold_with(self, s: &mut S, f: &F) -> impl Future<Output = R>;
 }
 

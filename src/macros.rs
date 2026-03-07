@@ -1,3 +1,12 @@
+/// Constructs a coproduct type from a list of [`Effect`](crate::Effect) types.
+///
+/// `Effects![A, B, C]` expands to `Coprod!(A, B, C)` from `frunk_core`.
+///
+/// # Example
+///
+/// ```ignore
+/// type MyEffects = Effects![Log, Ask];
+/// ```
 #[macro_export]
 macro_rules! Effects {
     [$($effect:ty),*] => {

@@ -17,9 +17,27 @@ type Gen<'a, Effs, Return, L> = SyncGenerator<
     Resumes<'a, CanStart<Effs>>,
 >;
 
+/// A non-`Send` coroutine that can yield effects from `Effs` and return `Return`.
+///
+/// This is the default coroutine type. Use [`CoSend`] if you need a `Send`-able
+/// coroutine for use with multi-threaded executors like `tokio::spawn`.
+///
+/// For most use cases, prefer [`Program`](crate::Program) over using `Co` directly.
 pub type Co<'a, Effs, Return> = GenericCo<'a, Effs, Return, Local>;
+
+/// A `Send`-able coroutine that can yield effects from `Effs` and return `Return`.
+///
+/// Use this instead of [`Co`] when the coroutine needs to be `Send`,
+/// e.g., for use with `tokio::spawn` or other multi-threaded executors.
+///
+/// For most use cases, prefer [`Program::new_send`](crate::Program::new_send) over
+/// using `CoSend` directly.
 pub type CoSend<'a, Effs, Return> = GenericCo<'a, Effs, Return, Sendable>;
 
+/// A coroutine parameterized by a [`Locality`] marker that controls `Send`-ness.
+///
+/// You typically use this through the type aliases [`Co`] (non-`Send`) or
+/// [`CoSend`] (`Send`-able) rather than using `GenericCo` directly.
 pub struct GenericCo<'a, Effs, Return, L: Locality = Local>
 where
     Effs: Effects<'a>,
@@ -32,6 +50,7 @@ impl<'a, Effs, Return> Co<'a, Effs, Return>
 where
     Effs: Effects<'a>,
 {
+    /// Create a new non-`Send` coroutine from a closure that receives a [`Yielder`].
     pub fn new<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a) -> Self
     where
         F: Future<Output = Return>,
@@ -61,6 +80,7 @@ where
     Effs: Effects<'a>,
     for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
 {
+    /// Create a new `Send`-able coroutine from a closure that receives a [`Yielder`].
     pub fn new<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + Send + 'a) -> Self
     where
         F: Future<Output = Return> + Send,
@@ -108,6 +128,10 @@ where
     }
 }
 
+/// Handle passed to computation closures for yielding effects.
+///
+/// Use [`yield_`](Yielder::yield_) to perform an effect and receive the handler's
+/// resume value.
 pub struct Yielder<'a, Effs>
 where
     Effs: MapResume,
@@ -123,6 +147,9 @@ where
         Self { token }
     }
 
+    /// Yield an effect to the handler and suspend until resumed.
+    ///
+    /// Returns the resume value provided by the handler for this effect.
     pub async fn yield_<E, Index>(&self, effect: E) -> E::Resume<'a>
     where
         E: Effect,
