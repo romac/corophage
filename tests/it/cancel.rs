@@ -1,5 +1,5 @@
 use corophage::prelude::*;
-use corophage::{Co, run, sync};
+use corophage::{Co, asynk, sync};
 
 struct Trigger;
 
@@ -163,7 +163,7 @@ async fn async_non_cancel_handler_cancels() {
         "unreachable"
     });
 
-    let result = run(co, &mut hlist![async |_: Fetch| CoControl::cancel()]).await;
+    let result = asynk::run(co, &mut hlist![async |_: Fetch| CoControl::cancel()]).await;
     assert_eq!(result, Err(Cancelled));
 }
 
@@ -177,7 +177,7 @@ async fn async_early_cancel() {
         yielder.yield_(Log("never")).await;
     });
 
-    let result = run(
+    let result = asynk::run(
         co,
         &mut hlist![async |_: Trigger| CoControl::cancel(), async |_: Log| {
             CoControl::resume(())

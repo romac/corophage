@@ -1,5 +1,5 @@
 use corophage::prelude::*;
-use corophage::{Co, run, sync};
+use corophage::{Co, asynk, sync};
 
 struct Log<'a>(pub &'a str);
 
@@ -76,7 +76,7 @@ async fn async_non_static_log() {
     });
 
     let mut logged: Vec<String> = vec![];
-    let result = run(
+    let result = asynk::run(
         co,
         &mut hlist![async |Log(m)| {
             logged.push(m.to_string());

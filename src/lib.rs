@@ -16,9 +16,8 @@ mod macros;
 pub mod prelude;
 
 pub use control::{Cancelled, CoControl};
-pub use coroutine::{Co, CoSend, GenericCo, Yielder};
+pub use coroutine::{Co, CoSend, Yielder};
 pub use effect::Effect;
-pub use locality::{Local, Locality, Sendable};
 pub use program::{Program, handle};
 
 /// An uninhabited type for effects that never resume.
@@ -27,10 +26,9 @@ pub use program::{Program, handle};
 /// (e.g., `Cancel`) and therefore can never resume.
 pub enum Never {}
 
-pub use asynk::*;
-
-mod asynk {
+pub mod asynk {
     use crate::coproduct::{AsyncFoldMut, AsyncFoldWith};
+    use crate::coroutine::GenericCo;
     use crate::effect::Effects;
     use crate::locality::Locality;
 
@@ -61,6 +59,7 @@ mod asynk {
 }
 
 pub mod sync {
+    use crate::coroutine::GenericCo;
     use crate::effect::Effects;
     use crate::locality::Locality;
 

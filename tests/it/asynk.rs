@@ -28,7 +28,7 @@ async fn run_mut() {
 
     let state = RefCell::new(State { x: 42 });
 
-    let result = corophage::run(
+    let result = corophage::asynk::run(
         co(),
         &mut hlist![
             cancel,
@@ -71,7 +71,7 @@ async fn run_stateful() {
 
     let mut state = State { x: 42 };
 
-    let result = corophage::run_stateful(
+    let result = corophage::asynk::run_stateful(
         co(),
         &mut state,
         &mut hlist![

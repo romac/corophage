@@ -123,7 +123,7 @@ where
         Effs: AsyncFoldMut<Handlers, CoControl<'a, Effs>>,
     {
         let mut handlers = self.handlers;
-        crate::run(self.co, &mut handlers).await
+        crate::asynk::run(self.co, &mut handlers).await
     }
 
     /// Run the computation asynchronously with shared state.
@@ -132,7 +132,7 @@ where
         Effs: AsyncFoldWith<Handlers, S, CoControl<'a, Effs>>,
     {
         let mut handlers = self.handlers;
-        crate::run_stateful(self.co, state, &mut handlers).await
+        crate::asynk::run_stateful(self.co, state, &mut handlers).await
     }
 }
 

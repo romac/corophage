@@ -1,5 +1,5 @@
 use corophage::prelude::*;
-use corophage::{Co, run, sync};
+use corophage::{Co, asynk, sync};
 
 // Section A: Cancelled trait tests
 
@@ -126,7 +126,7 @@ async fn async_single_effect_with_real_sleep() {
     let co: Co<'_, AskEffects, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("q")).await });
 
-    let result = run(
+    let result = asynk::run(
         co,
         &mut hlist![async |_: Ask| {
             tokio::time::sleep(Duration::from_millis(1)).await;
@@ -150,7 +150,7 @@ async fn async_handler_accumulates_via_refcell() {
         yielder.yield_(Ask("b")).await;
     });
 
-    let result = run(
+    let result = asynk::run(
         co,
         &mut hlist![async |Ask(q): Ask| {
             log.borrow_mut().push(q);
