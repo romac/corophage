@@ -1,5 +1,6 @@
+use corophage::coroutine::CoSend;
 use corophage::prelude::*;
-use corophage::{CoSend, sync};
+use corophage::sync;
 
 use crate::common::*;
 

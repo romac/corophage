@@ -161,7 +161,7 @@ async fn async_run_stateful_state() {
 
 #[test]
 fn from_co() {
-    use corophage::Co;
+    use corophage::coroutine::Co;
 
     type Effs = Effects![Ask];
 

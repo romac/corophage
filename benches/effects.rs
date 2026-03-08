@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 
-use corophage::Co;
+use corophage::coroutine::Co;
 use corophage::prelude::*;
 
 // =============================================================================
