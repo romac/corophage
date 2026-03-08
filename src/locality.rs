@@ -9,17 +9,17 @@ mod sealed {
 
 /// Marker for coroutines that are not `Send`.
 ///
-/// This is the default locality for [`Co`](crate::Co).
+/// This is the default locality for [`Co`](crate::coroutine::Co).
 pub struct Local;
 
 /// Marker for coroutines that are `Send`.
 ///
-/// Use this as the third type parameter of [`Co`](crate::Co) to make the
+/// Use this as the third type parameter of [`Co`](crate::coroutine::Co) to make the
 /// coroutine `Send`, allowing it to be used with `tokio::spawn` and other
 /// multi-threaded executors.
 pub struct Sendable;
 
-/// Sealed trait that controls whether a [`Co`](crate::Co) coroutine is `Send`.
+/// Sealed trait that controls whether a [`Co`](crate::coroutine::Co) coroutine is `Send`.
 ///
 /// This trait is sealed and cannot be implemented outside of this crate.
 /// The only valid implementations are [`Local`] and [`Sendable`].

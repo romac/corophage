@@ -5,7 +5,6 @@ mod coproduct;
 use coproduct::{FoldMut, FoldWith};
 
 mod control;
-mod coroutine;
 mod effect;
 mod locality;
 mod program;
@@ -16,9 +15,12 @@ mod macros;
 /// Re-exports of the most commonly used types and traits.
 pub mod prelude;
 
+pub mod coroutine;
+
 pub use control::{Cancelled, CoControl};
-pub use coroutine::{Co, CoSend, Yielder};
+pub use coroutine::Yielder;
 pub use effect::Effect;
+pub use locality::{Local, Locality, Sendable};
 pub use program::{Program, handle};
 
 /// An uninhabited type for effects that never resume.

@@ -1,5 +1,6 @@
+use corophage::coroutine::Co;
 use corophage::prelude::*;
-use corophage::{Co, asynk, sync};
+use corophage::{asynk, sync};
 
 struct Log<'a>(pub &'a str);
 

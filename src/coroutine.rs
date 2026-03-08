@@ -1,3 +1,12 @@
+//! Coroutine types for defining effectful computations.
+//!
+//! The primary types are [`Co`] (non-`Send`) and [`CoSend`] (`Send`-able),
+//! both of which are type aliases for [`GenericCo`] parameterized by a
+//! [`Locality`] marker.
+//!
+//! For most use cases, prefer [`Program`](crate::Program) over constructing
+//! coroutines directly.
+
 use std::future::Future;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
