@@ -16,8 +16,23 @@
   |_: Ask| Control::<&str>::cancel()
   ```
 
+- **`Program::handle_all`** — attach multiple handlers at once from an HList. Handlers can cover any subset of the remaining effects, in any order.
+
+  ```rust
+  let handlers = hlist![
+      |_: Counter| Control::resume(42u64),
+      |_: Ask| Control::resume("yes"),
+  ];
+
+  Program::new(|y: Yielder<'_, Effects![Other, Counter, Ask]>| async move { ... })
+      .handle_all(handlers)
+      .handle(|_: Other| Control::resume(()))
+      .run_sync()
+  ```
+
 ### Changed
 
+- **Handlers can be in any order** — effect dispatch now uses type-based handler lookup (`FindHandler`) instead of positional matching. Handlers attached via `.handle()`, `.handle_all()`, or passed to `sync::run`/`asynk::run` no longer need to be in the same order as the `Effects![...]` list.
 - **`CoControl` is now internal** — replaced by `Control<R>` in user-facing code. `CoControl` is still used internally by the runner loop but is no longer exported.
 - **Prelude updated** — `CoControl` removed from prelude, `Control` added.
 

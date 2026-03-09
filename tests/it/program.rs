@@ -160,6 +160,66 @@ async fn async_run_stateful_state() {
 }
 
 #[test]
+fn handle_multiple() {
+    struct Other;
+
+    impl Effect for Other {
+        type Resume<'r> = ();
+    }
+
+    type Effs = Effects![Other, Counter, Ask];
+
+    let handlers = hlist![
+        // Counter
+        |_: Counter| Control::resume(42u64),
+        // Ask
+        |_: Ask| Control::resume("yes")
+    ];
+
+    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+        let n = yielder.yield_(Counter).await;
+        let answer = yielder.yield_(Ask("question")).await;
+        (answer, n)
+    })
+    .handle_all(handlers)
+    .handle(|_: Other| Control::resume(()))
+    .run_sync();
+
+    assert_eq!(result, Ok(("yes", 42)));
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn async_handle_multiple() {
+    struct Other;
+
+    impl Effect for Other {
+        type Resume<'r> = ();
+    }
+
+    type Effs = Effects![Other, Counter, Ask];
+
+    let handlers = hlist![
+        // Counter
+        async |_: Counter| Control::resume(42u64),
+        // Ask
+        async |_: Ask| { Control::resume("yes") },
+    ];
+
+    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+        let n = yielder.yield_(Counter).await;
+        let answer = yielder.yield_(Ask("question")).await;
+        (answer, n)
+    })
+    .handle_all(handlers)
+    .handle(async |_: Other| Control::resume(()))
+    .run()
+    .await;
+
+    assert_eq!(result, Ok(("yes", 42)));
+}
+
+#[test]
 fn from_co() {
     use corophage::coroutine::Co;
 

@@ -44,13 +44,10 @@ fn sync_gat_resume_borrows_local_data() {
     let mut logged: Vec<String> = vec![];
     let result = sync::run(
         co,
-        &mut hlist![
-            |_: GetConfig| Control::resume(config_ref),
-            |Log(msg)| {
-                logged.push(msg.to_string());
-                Control::resume(())
-            },
-        ],
+        &mut hlist![|_: GetConfig| Control::resume(config_ref), |Log(msg)| {
+            logged.push(msg.to_string());
+            Control::resume(())
+        },],
     );
 
     assert_eq!(result, Ok("local-config".to_string()));

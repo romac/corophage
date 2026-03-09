@@ -180,10 +180,9 @@ async fn async_early_cancel() {
 
     let result = asynk::run(
         co,
-        &mut hlist![
-            async |_: Trigger| Control::cancel(),
-            async |_: Log| { Control::resume(()) },
-        ],
+        &mut hlist![async |_: Trigger| Control::cancel(), async |_: Log| {
+            Control::resume(())
+        },],
     )
     .await;
 

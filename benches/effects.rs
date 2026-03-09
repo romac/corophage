@@ -153,12 +153,12 @@ mod sync_benches {
         bencher.bench(|| {
             let co = stateful_co();
             let mut state = 42u64;
-            let mut handler = hlist![
+            let handler = hlist![
                 |_s: &mut u64, _: Noop| Control::resume(()),
                 |s: &mut u64, _: GetValue| Control::resume(*s),
                 |_s: &mut u64, _: Alloc| Control::resume(String::new()),
             ];
-            divan::black_box(corophage::sync::run_stateful(co, &mut state, &mut handler))
+            divan::black_box(corophage::sync::run_stateful(co, &mut state, &handler))
         });
     }
 
@@ -220,12 +220,12 @@ mod async_benches {
             rt.block_on(async {
                 let co = stateful_co();
                 let mut state = 42u64;
-                let mut handler = hlist![
+                let handler = hlist![
                     async |_s: &mut u64, _: Noop| Control::resume(()),
                     async |s: &mut u64, _: GetValue| Control::resume(*s),
                     async |_s: &mut u64, _: Alloc| Control::resume(String::new()),
                 ];
-                divan::black_box(corophage::asynk::run_stateful(co, &mut state, &mut handler).await)
+                divan::black_box(corophage::asynk::run_stateful(co, &mut state, &handler).await)
             })
         });
     }

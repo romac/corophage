@@ -127,11 +127,7 @@ async fn async_ok_value_return() {
     let co: Co<'_, Effs, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("async")).await });
 
-    let result = asynk::run(
-        co,
-        &mut hlist![async |_: Ask| Control::resume("done")],
-    )
-    .await;
+    let result = asynk::run(co, &mut hlist![async |_: Ask| Control::resume("done")]).await;
     assert_eq!(result, Ok("done"));
 }
 

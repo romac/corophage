@@ -2,7 +2,7 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod coproduct;
-use coproduct::{HandleMut, HandleWith};
+use coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
 
 mod control;
 mod effect;
@@ -34,7 +34,6 @@ pub enum Never {}
 /// Use these functions to run a coroutine with async effect handlers.
 /// For most use cases, prefer [`Program::run`] instead.
 pub mod asynk {
-    use crate::coproduct::{AsyncHandleMut, AsyncHandleWith};
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
     use crate::locality::Locality;
@@ -57,7 +56,7 @@ pub mod asynk {
     pub async fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
-        handler: &mut F,
+        handler: &F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,
@@ -94,7 +93,7 @@ pub mod sync {
     pub fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
-        handler: &mut F,
+        handler: &F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,

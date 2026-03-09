@@ -2,11 +2,11 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::Add;
 
-use frunk_core::coproduct::{CNil, Coproduct};
+use frunk_core::coproduct::{CNil, Coproduct, CoproductSubsetter};
 use frunk_core::hlist::{HCons, HNil};
 
 use crate::control::Cancelled;
-use crate::coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
+use crate::coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith, HandlersToEffects};
 use crate::coroutine::{Co, CoSend, GenericCo, Yielder};
 use crate::effect::{CanStart, Effects, Resumes};
 use crate::locality::{Local, Locality, Sendable};
@@ -14,7 +14,7 @@ use crate::locality::{Local, Locality, Sendable};
 /// A computation with incrementally attached effect handlers.
 ///
 /// Handlers are added one at a time via [`handle`](Program::handle),
-/// in the same order as the effects in the `Effects![...]` list.
+/// or in bulk via [`handle_all`](Program::handle_all).
 /// Once all effects are handled (`Remaining = CNil`), the computation
 /// can be executed via [`run`](Program::run) or [`run_sync`](Program::run_sync).
 pub struct Program<'a, Effs: Effects<'a>, R, L: Locality, Remaining, Handlers> {
@@ -93,6 +93,48 @@ where
     }
 }
 
+type HandleEffects<'a, Remaining, H, Effs, HandleIdx, SubsetIdx> =
+    <Remaining as CoproductSubsetter<
+        <H as HandlersToEffects<'a, Effs, HandleIdx>>::Effects,
+        SubsetIdx,
+    >>::Remainder;
+
+impl<'a, Effs, R, L, Remaining, Handlers> Program<'a, Effs, R, L, Remaining, Handlers>
+where
+    Effs: Effects<'a>,
+    L: Locality,
+{
+    /// Attach multiple handlers at once from an HList.
+    ///
+    /// The handlers can be for any subset of the remaining effects,
+    /// in any order. The effect types are inferred from the handler
+    /// closure signatures, and `CoproductSubsetter` removes those
+    /// effects from the `Remaining` set.
+    #[allow(clippy::type_complexity)]
+    pub fn handle_all<H, HandleIdx, SubsetIdx>(
+        self,
+        handlers: H,
+    ) -> Program<
+        'a,
+        Effs,
+        R,
+        L,
+        HandleEffects<'a, Remaining, H, Effs, HandleIdx, SubsetIdx>,
+        <Handlers as Add<H>>::Output,
+    >
+    where
+        H: HandlersToEffects<'a, Effs, HandleIdx>,
+        Remaining: CoproductSubsetter<H::Effects, SubsetIdx>,
+        Handlers: Add<H>,
+    {
+        Program {
+            co: self.co,
+            handlers: self.handlers + handlers,
+            _remaining: PhantomData,
+        }
+    }
+}
+
 impl<'a, Effs, R, L, Handlers> Program<'a, Effs, R, L, CNil, Handlers>
 where
     Effs: Effects<'a>,
@@ -112,8 +154,8 @@ where
     where
         Effs: HandleWith<'a, Effs, Handlers, S, Indices>,
     {
-        let mut handlers = self.handlers;
-        crate::sync::run_stateful(self.co, state, &mut handlers)
+        let handlers = self.handlers;
+        crate::sync::run_stateful(self.co, state, &handlers)
     }
 
     /// Run the computation asynchronously.
@@ -130,8 +172,8 @@ where
     where
         Effs: AsyncHandleWith<'a, Effs, Handlers, S, Indices>,
     {
-        let mut handlers = self.handlers;
-        crate::asynk::run_stateful(self.co, state, &mut handlers).await
+        let handlers = self.handlers;
+        crate::asynk::run_stateful(self.co, state, &handlers).await
     }
 }
 
