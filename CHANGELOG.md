@@ -30,9 +30,11 @@
       .run_sync()
   ```
 
+- **`HandlersToEffects` impls for stateful handlers** — `Fn(&mut S, E) -> Control<E::Resume<'a>>` and `AsyncFn(&mut S, E) -> Control<E::Resume<'a>>` closures are now recognized by `HandlersToEffects`, enabling stateful handlers to work with `handle()` and `handle_all()`.
+
 ### Changed
 
-- **Handlers can be in any order** — effect dispatch now uses type-based handler lookup (`FindHandler`) instead of positional matching. Handlers attached via `.handle()`, `.handle_all()`, or passed to `sync::run`/`asynk::run` no longer need to be in the same order as the `Effects![...]` list.
+- **`Program::handle()` is now order-independent** — `.handle()` now uses `CoproductSubsetter` (like `.handle_all()`) to remove the handled effect from the remaining set, so handlers can be attached in any order. Handlers passed to the low-level `sync::run`/`asynk::run` functions must still match the `Effects![...]` order.
 - **`CoControl` is now internal** — replaced by `Control<R>` in user-facing code. `CoControl` is still used internally by the runner loop but is no longer exported.
 - **Prelude updated** — `CoControl` removed from prelude, `Control` added.
 

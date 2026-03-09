@@ -342,6 +342,21 @@ where
 }
 
 #[doc(hidden)]
+pub struct SyncStatefulHandler<S>(std::marker::PhantomData<S>);
+
+impl<'a, Effs, F, FTail, CH, S, Index, ITail>
+    HandlersToEffects<'a, Effs, HCons<(CH, Index, SyncStatefulHandler<S>), ITail>>
+    for HCons<F, FTail>
+where
+    Effs: Effects<'a> + InjectResume<'a, CH, Index>,
+    CH: Effect,
+    F: Fn(&mut S, CH) -> Control<CH::Resume<'a>>,
+    FTail: HandlersToEffects<'a, Effs, ITail>,
+{
+    type Effects = Coproduct<CH, <FTail as HandlersToEffects<'a, Effs, ITail>>::Effects>;
+}
+
+#[doc(hidden)]
 pub struct AsyncHandler;
 
 impl<'a, Effs, F, FTail, CH, Index, ITail>
@@ -350,6 +365,21 @@ where
     Effs: Effects<'a> + InjectResume<'a, CH, Index>,
     CH: Effect,
     F: AsyncFnMut(CH) -> Control<CH::Resume<'a>>,
+    FTail: HandlersToEffects<'a, Effs, ITail>,
+{
+    type Effects = Coproduct<CH, <FTail as HandlersToEffects<'a, Effs, ITail>>::Effects>;
+}
+
+#[doc(hidden)]
+pub struct AsyncStatefulHandler<S>(std::marker::PhantomData<S>);
+
+impl<'a, Effs, F, FTail, CH, S, Index, ITail>
+    HandlersToEffects<'a, Effs, HCons<(CH, Index, AsyncStatefulHandler<S>), ITail>>
+    for HCons<F, FTail>
+where
+    Effs: Effects<'a> + InjectResume<'a, CH, Index>,
+    CH: Effect,
+    F: AsyncFn(&mut S, CH) -> Control<CH::Resume<'a>>,
     FTail: HandlersToEffects<'a, Effs, ITail>,
 {
     type Effects = Coproduct<CH, <FTail as HandlersToEffects<'a, Effs, ITail>>::Effects>;

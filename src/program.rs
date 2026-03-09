@@ -2,7 +2,7 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::Add;
 
-use frunk_core::coproduct::{CNil, Coproduct, CoproductSubsetter};
+use frunk_core::coproduct::{CNil, CoproductSubsetter};
 use frunk_core::hlist::{HCons, HNil};
 
 use crate::control::Cancelled;
@@ -65,34 +65,6 @@ where
     }
 }
 
-impl<'a, Effs, R, L, Head, Tail, Handlers> Program<'a, Effs, R, L, Coproduct<Head, Tail>, Handlers>
-where
-    Effs: Effects<'a>,
-    L: Locality,
-{
-    /// Attach a handler for the next unhandled effect.
-    ///
-    /// Handlers must be attached in the same order as the effects
-    /// appear in the `Effects![...]` list.
-    pub fn handle<F>(
-        self,
-        handler: F,
-    ) -> Program<'a, Effs, R, L, Tail, <Handlers as Add<HCons<F, HNil>>>::Output>
-    where
-        Handlers: Add<HCons<F, HNil>>,
-    {
-        Program {
-            co: self.co,
-            handlers: self.handlers
-                + HCons {
-                    head: handler,
-                    tail: HNil,
-                },
-            _remaining: PhantomData,
-        }
-    }
-}
-
 type HandleEffects<'a, Remaining, H, Effs, HandleIdx, SubsetIdx> =
     <Remaining as CoproductSubsetter<
         <H as HandlersToEffects<'a, Effs, HandleIdx>>::Effects,
@@ -104,6 +76,37 @@ where
     Effs: Effects<'a>,
     L: Locality,
 {
+    /// Attach a handler for an unhandled effect.
+    ///
+    /// Handlers can be attached in any order — the effect type is
+    /// inferred from the closure signature and removed from the
+    /// remaining set via [`CoproductSubsetter`].
+    #[allow(clippy::type_complexity)]
+    pub fn handle<F, HandleIdx, SubsetIdx>(
+        self,
+        handler: F,
+    ) -> Program<
+        'a,
+        Effs,
+        R,
+        L,
+        HandleEffects<'a, Remaining, HCons<F, HNil>, Effs, HandleIdx, SubsetIdx>,
+        <Handlers as Add<HCons<F, HNil>>>::Output,
+    >
+    where
+        HCons<F, HNil>: HandlersToEffects<'a, Effs, HandleIdx>,
+        Remaining: CoproductSubsetter<
+                <HCons<F, HNil> as HandlersToEffects<'a, Effs, HandleIdx>>::Effects,
+                SubsetIdx,
+            >,
+        Handlers: Add<HCons<F, HNil>>,
+    {
+        self.handle_all(HCons {
+            head: handler,
+            tail: HNil,
+        })
+    }
+
     /// Attach multiple handlers at once from an HList.
     ///
     /// The handlers can be for any subset of the remaining effects,
