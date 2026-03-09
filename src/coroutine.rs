@@ -112,6 +112,11 @@ where
         self: Pin<&mut Self>,
         resume: Resumes<'a, CanStart<Effs>>,
     ) -> GeneratorState<CanStart<Effs>, Return> {
+        // SAFETY: This is a structural pin projection from `Pin<&mut GenericCo>` to
+        // `Pin<&mut Gen>`. This is sound because:
+        // 1. `GenericCo` is `!Unpin` (contains `PhantomPinned`), so it is never moved after pinning.
+        // 2. The `generator` field is structurally pinned (not behind an indirection).
+        // 3. `GenericCo` has no `Drop` impl that could move the field.
         let mut g = unsafe { self.map_unchecked_mut(|s| &mut s.generator) };
         Generator::resume(g.as_mut(), resume)
     }
