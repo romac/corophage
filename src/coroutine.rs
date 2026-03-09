@@ -154,6 +154,7 @@ where
     /// Yield an effect to the handler and suspend until resumed.
     ///
     /// Returns the resume value provided by the handler for this effect.
+    #[inline]
     pub async fn yield_<E, Index>(&self, effect: E) -> E::Resume<'a>
     where
         E: Effect,

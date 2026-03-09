@@ -25,6 +25,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             F: $fn_bound(CH) -> Control<CH::Resume<'a>>,
         {
+            #[inline]
             fn call_handler(&mut self, effect: CH) -> CoControl<'a, Effs> {
                 match (self.head)(effect) {
                     Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
@@ -40,6 +41,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             FTail: $trait_name<'a, Effs, CH, InjectIdx, I>,
         {
+            #[inline]
             fn call_handler(&mut self, effect: CH) -> CoControl<'a, Effs> {
                 self.tail.call_handler(effect)
             }
@@ -59,6 +61,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             F: $fn_bound(&mut S, CH) -> Control<CH::Resume<'a>>,
         {
+            #[inline]
             fn call_handler(&self, state: &mut S, effect: CH) -> CoControl<'a, Effs> {
                 match (self.head)(state, effect) {
                     Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
@@ -74,6 +77,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             FTail: $trait_name<'a, Effs, CH, S, InjectIdx, I>,
         {
+            #[inline]
             fn call_handler(&self, state: &mut S, effect: CH) -> CoControl<'a, Effs> {
                 self.tail.call_handler(state, effect)
             }
@@ -93,6 +97,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             F: $fn_bound(CH) -> Control<CH::Resume<'a>>,
         {
+            #[inline]
             async fn call_handler(&mut self, effect: CH) -> CoControl<'a, Effs> {
                 match (self.head)(effect).await {
                     Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
@@ -108,6 +113,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             FTail: $trait_name<'a, Effs, CH, InjectIdx, I>,
         {
+            #[inline]
             async fn call_handler(&mut self, effect: CH) -> CoControl<'a, Effs> {
                 self.tail.call_handler(effect).await
             }
@@ -131,6 +137,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             F: $fn_bound(&mut S, CH) -> Control<CH::Resume<'a>>,
         {
+            #[inline]
             async fn call_handler(&self, state: &mut S, effect: CH) -> CoControl<'a, Effs> {
                 match (self.head)(state, effect).await {
                     Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
@@ -146,6 +153,7 @@ macro_rules! declare_find_handler {
             CH: Effect,
             FTail: $trait_name<'a, Effs, CH, S, InjectIdx, I>,
         {
+            #[inline]
             async fn call_handler(&self, state: &mut S, effect: CH) -> CoControl<'a, Effs> {
                 self.tail.call_handler(state, effect).await
             }
@@ -171,6 +179,7 @@ macro_rules! declare_handle_dispatch {
 
         impl<'a, Effs: Effects<'a>, Handlers> $trait_name<'a, Effs, Handlers, HNil> for CNil {
             #[cfg_attr(coverage_nightly, coverage(off))]
+            #[inline]
             fn handle_mut(self, _: &mut Handlers) -> CoControl<'a, Effs> {
                 match self {}
             }
@@ -185,6 +194,7 @@ macro_rules! declare_handle_dispatch {
             Handlers: $find_trait<'a, Effs, CH, InjectIdx, FindIdx>,
             CTail: $trait_name<'a, Effs, Handlers, ITail>,
         {
+            #[inline]
             fn handle_mut(self, handlers: &mut Handlers) -> CoControl<'a, Effs> {
                 match self {
                     Coproduct::Inl(head) => handlers.call_handler(head),
@@ -202,6 +212,7 @@ macro_rules! declare_handle_dispatch {
 
         impl<'a, Effs: Effects<'a>, Handlers, S> $trait_name<'a, Effs, Handlers, S, HNil> for CNil {
             #[cfg_attr(coverage_nightly, coverage(off))]
+            #[inline]
             fn handle_with(self, _: &mut S, _: &Handlers) -> CoControl<'a, Effs> {
                 match self {}
             }
@@ -216,6 +227,7 @@ macro_rules! declare_handle_dispatch {
             Handlers: $find_trait<'a, Effs, CH, S, InjectIdx, FindIdx>,
             CTail: $trait_name<'a, Effs, Handlers, S, ITail>,
         {
+            #[inline]
             fn handle_with(self, state: &mut S, handlers: &Handlers) -> CoControl<'a, Effs> {
                 match self {
                     Coproduct::Inl(head) => handlers.call_handler(state, head),
@@ -236,6 +248,7 @@ macro_rules! declare_handle_dispatch {
 
         impl<'a, Effs: Effects<'a>, Handlers> $trait_name<'a, Effs, Handlers, HNil> for CNil {
             #[cfg_attr(coverage_nightly, coverage(off))]
+            #[inline]
             async fn handle_mut(self, _: &mut Handlers) -> CoControl<'a, Effs> {
                 match self {}
             }
@@ -250,6 +263,7 @@ macro_rules! declare_handle_dispatch {
             Handlers: $find_trait<'a, Effs, CH, InjectIdx, FindIdx>,
             CTail: $trait_name<'a, Effs, Handlers, ITail>,
         {
+            #[inline]
             async fn handle_mut(self, handlers: &mut Handlers) -> CoControl<'a, Effs> {
                 match self {
                     Coproduct::Inl(head) => handlers.call_handler(head).await,
@@ -271,6 +285,7 @@ macro_rules! declare_handle_dispatch {
 
         impl<'a, Effs: Effects<'a>, Handlers, S> $trait_name<'a, Effs, Handlers, S, HNil> for CNil {
             #[cfg_attr(coverage_nightly, coverage(off))]
+            #[inline]
             async fn handle_with(self, _: &mut S, _: &Handlers) -> CoControl<'a, Effs> {
                 match self {}
             }
@@ -285,6 +300,7 @@ macro_rules! declare_handle_dispatch {
             Handlers: $find_trait<'a, Effs, CH, S, InjectIdx, FindIdx>,
             CTail: $trait_name<'a, Effs, Handlers, S, ITail>,
         {
+            #[inline]
             async fn handle_with(self, state: &mut S, handlers: &Handlers) -> CoControl<'a, Effs> {
                 match self {
                     Coproduct::Inl(head) => handlers.call_handler(state, head).await,

@@ -55,6 +55,7 @@ pub trait InjectResume<'a, E: Effect, Index>: MapResume {
 }
 
 impl<'a, E: Effect, T: MapResume> InjectResume<'a, E, Here> for Coproduct<E, T> {
+    #[inline]
     fn inject_resume(r: E::Resume<'a>) -> Resumes<'a, Self> {
         Coproduct::Inl(r)
     }
@@ -65,6 +66,7 @@ impl<'a, H: Effect, E: Effect, T: MapResume, TailIndex> InjectResume<'a, E, Ther
 where
     T: InjectResume<'a, E, TailIndex>,
 {
+    #[inline]
     fn inject_resume(r: E::Resume<'a>) -> Resumes<'a, Self> {
         Coproduct::Inr(T::inject_resume(r))
     }

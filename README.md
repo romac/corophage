@@ -307,7 +307,7 @@ Async adds ~30% overhead at small scales, but the gap narrows as yield count inc
 | Middle (index 2) | 42 ns |
 | Last (index 4) | 47 ns |
 
-Dispatch position has negligible impact. The coproduct-based dispatch is effectively O(1).
+Dispatch position has negligible impact. While the source-level dispatch uses recursive trait impls over nested `Coproduct::Inl`/`Inr` variants, the compiler monomorphizes and inlines the entire chain into a flat discriminant-based branch — the same code LLVM would emit for a plain `match` on a flat enum. The result is effectively O(1).
 
 ### State Management
 
