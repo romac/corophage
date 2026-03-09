@@ -176,18 +176,3 @@ where
         crate::asynk::run_stateful(self.co, state, &handlers).await
     }
 }
-
-/// Attach a handler for the next unhandled effect of a [`Program`].
-///
-/// This is a free-function equivalent of [`Program::handle`].
-pub fn handle<'a, Effs, R, L, Head, Tail, Handlers, F>(
-    program: Program<'a, Effs, R, L, Coproduct<Head, Tail>, Handlers>,
-    handler: F,
-) -> Program<'a, Effs, R, L, Tail, <Handlers as Add<HCons<F, HNil>>>::Output>
-where
-    Effs: Effects<'a>,
-    L: Locality,
-    Handlers: Add<HCons<F, HNil>>,
-{
-    program.handle(handler)
-}

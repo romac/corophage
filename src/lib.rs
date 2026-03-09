@@ -21,7 +21,7 @@ pub use control::{Cancelled, Control};
 pub use coroutine::Yielder;
 pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
-pub use program::{Program, handle};
+pub use program::Program;
 
 /// An uninhabited type for effects that never resume.
 ///
@@ -41,6 +41,7 @@ pub mod asynk {
     use super::*;
 
     /// Run a coroutine with an hlist of async handlers.
+    #[doc(hidden)]
     pub async fn run<'a, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
@@ -53,6 +54,7 @@ pub mod asynk {
     }
 
     /// Run a coroutine with an hlist of async handlers and shared mutable state.
+    #[doc(hidden)]
     pub async fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
@@ -78,6 +80,7 @@ pub mod sync {
     use super::*;
 
     /// Run a coroutine with an hlist of synchronous handlers.
+    #[doc(hidden)]
     pub fn run<'a, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
@@ -90,6 +93,7 @@ pub mod sync {
     }
 
     /// Run a coroutine with an hlist of synchronous handlers and shared mutable state.
+    #[doc(hidden)]
     pub fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,

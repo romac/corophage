@@ -1,4 +1,3 @@
-use corophage::handle;
 use corophage::prelude::*;
 
 #[allow(unused)]
@@ -40,8 +39,8 @@ fn sync_free_function_style() {
         (answer, n)
     });
 
-    let p = handle(p, |_: Counter| Control::resume(42u64));
-    let p = handle(p, |_: Ask| Control::resume("yes"));
+    let p = p.handle(|_: Counter| Control::resume(42u64));
+    let p = p.handle(|_: Ask| Control::resume("yes"));
     let result = p.run_sync();
 
     assert_eq!(result, Ok(("yes", 42)));
@@ -113,8 +112,8 @@ async fn async_free_function_style() {
         (answer, n)
     });
 
-    let p = handle(p, async |_: Counter| Control::resume(42u64));
-    let p = handle(p, async |_: Ask| Control::resume("yes"));
+    let p = p.handle(async |_: Counter| Control::resume(42u64));
+    let p = p.handle(async |_: Ask| Control::resume("yes"));
     let result = p.run().await;
 
     assert_eq!(result, Ok(("yes", 42)));

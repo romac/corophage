@@ -55,15 +55,8 @@ where
     _pin: PhantomPinned,
 }
 
-impl<'a, Effs, Return> Co<'a, Effs, Return>
-where
-    Effs: Effects<'a>,
-{
-    /// Create a new non-`Send` coroutine from a closure that receives a [`Yielder`].
-    pub fn new<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a) -> Self
-    where
-        F: Future<Output = Return>,
-    {
+macro_rules! make_co {
+    ($f:expr, $cast:ty) => {{
         let token = fauxgen::__private::token();
         let marker = token.marker();
 
@@ -73,14 +66,27 @@ where
             let start = token.argument().await;
             debug_assert!(matches!(start, CanStart::Inl(Start)));
 
-            f(Yielder::new(token)).await
-        }) as Pin<Box<dyn Future<Output = Return> + 'a>>;
+            $f(Yielder::new(token)).await
+        }) as $cast;
 
         let generator = fauxgen::__private::gen_sync(marker, fut);
         Self {
             generator,
             _pin: PhantomPinned,
         }
+    }};
+}
+
+impl<'a, Effs, Return> Co<'a, Effs, Return>
+where
+    Effs: Effects<'a>,
+{
+    /// Create a new non-`Send` coroutine from a closure that receives a [`Yielder`].
+    pub fn new<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a) -> Self
+    where
+        F: Future<Output = Return>,
+    {
+        make_co!(f, Pin<Box<dyn Future<Output = Return> + 'a>>)
     }
 }
 
@@ -94,23 +100,7 @@ where
     where
         F: Future<Output = Return> + Send,
     {
-        let token = fauxgen::__private::token();
-        let marker = token.marker();
-
-        let fut = Box::pin(async move {
-            let token = fauxgen::__private::register_owned(token).await;
-
-            let start = token.argument().await;
-            debug_assert!(matches!(start, CanStart::Inl(Start)));
-
-            f(Yielder::new(token)).await
-        }) as Pin<Box<dyn Future<Output = Return> + Send + 'a>>;
-
-        let generator = fauxgen::__private::gen_sync(marker, fut);
-        Self {
-            generator,
-            _pin: PhantomPinned,
-        }
+        make_co!(f, Pin<Box<dyn Future<Output = Return> + Send + 'a>>)
     }
 }
 

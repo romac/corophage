@@ -120,17 +120,6 @@ let result = Program::new(|y: Yielder<'_, Effs>| async move {
 assert_eq!(result, Ok("contents of data.txt".to_string()));
 ```
 
-A free function `handle` is available in the `program` module as an alternative style:
-
-```rust,ignore
-use corophage::program::handle;
-
-let p = Program::new(|y: Yielder<'_, Effs>| async move { /* ... */ });
-let p = handle(p, |Log(msg)| { println!("{msg}"); Control::resume(()) });
-let p = handle(p, |FileRead(path)| Control::resume(format!("contents of {path}")));
-let result = p.run_sync();
-```
-
 > [!IMPORTANT]
 > Handlers must be attached in the same order as the effects appear in the `Effects![...]` list. This is enforced by the type system — attaching handlers in the wrong order is a compile error.
 
