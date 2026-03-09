@@ -14,35 +14,102 @@ macro_rules! Effects {
     };
 }
 
-macro_rules! run {
-    ($lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
-        let mut co = ::std::pin::pin!($co);
+/// Declare an effect type.
+///
+/// # Supported forms
+///
+/// **No fields** — creates a unit struct:
+/// ```ignore
+/// declare_effect!(MyEffect -> ());
+/// ```
+///
+/// **Tuple fields**:
+/// ```ignore
+/// declare_effect!(MyEffect(pub String) -> bool);
+/// ```
+///
+/// **Named fields**:
+/// ```ignore
+/// declare_effect!(MyEffect { path: String, recursive: bool } -> Vec<u8>);
+/// ```
+///
+/// **Lifetime parameter** — the lifetime is added to the struct and impl:
+/// ```ignore
+/// declare_effect!(MyEffect<'a>(&'a str) -> bool);
+/// ```
+///
+/// **Generic type parameter** — `Sync + Send` bounds are added automatically
+/// on the impl:
+/// ```ignore
+/// declare_effect!(MyEffect<T: std::fmt::Debug>(T) -> T);
+/// ```
+///
+/// The resume type may reference the GAT lifetime `'r` to return borrowed data:
+/// ```ignore
+/// declare_effect!(MyEffect(i32) -> &'r str);
+/// ```
+#[macro_export]
+macro_rules! declare_effect {
+    // No fields: declare_effect!(Name -> ResumeType)
+    ($name:ident -> $resume:ty) => {
+        struct $name;
 
-        let mut yielded = co.as_mut().resume_with($crate::effect::Start);
-
-        loop {
-            match yielded {
-                ::fauxgen::GeneratorState::Complete(value) => break Ok(value),
-
-                ::fauxgen::GeneratorState::Yielded(effect) => {
-                    let $effect = match effect {
-                        ::frunk_core::coproduct::Coproduct::Inl(_) => unreachable!(),
-                        ::frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
-                    };
-
-                    let resume: $crate::control::CoControl<$lt, $effs> = $handle;
-                    match resume {
-                        $crate::control::CoControl::Cancel => {
-                            break Err($crate::control::Cancelled);
-                        }
-                        $crate::control::CoControl::Resume(r) => {
-                            yielded = co
-                                .as_mut()
-                                .resume(::frunk_core::coproduct::Coproduct::Inr(r))
-                        }
-                    }
-                }
-            }
+        impl $crate::Effect for $name {
+            type Resume<'r> = $resume;
         }
-    }};
+    };
+
+    // With fields: declare_effect!(Name(fields) -> ResumeType)
+    ($name:ident($($field:tt)*) -> $resume:ty) => {
+        struct $name($($field)*);
+
+        impl $crate::Effect for $name {
+            type Resume<'r> = $resume;
+        }
+    };
+
+    // With named fields: declare_effect!(Name { field: Type } -> ResumeType)
+    ($name:ident { $($field:tt)* } -> $resume:ty) => {
+        struct $name { $($field)* }
+
+        impl $crate::Effect for $name {
+            type Resume<'r> = $resume;
+        }
+    };
+
+    // With lifetime and tuple fields: declare_effect!(Name<'a>(fields) -> ResumeType)
+    ($name:ident<$lt:lifetime>($($field:tt)*) -> $resume:ty) => {
+        struct $name<$lt>($($field)*);
+
+        impl<$lt> $crate::Effect for $name<$lt> {
+            type Resume<'r> = $resume;
+        }
+    };
+
+    // With lifetime and named fields: declare_effect!(Name<'a> { field: Type } -> ResumeType)
+    ($name:ident<$lt:lifetime> { $($field:tt)* } -> $resume:ty) => {
+        struct $name<$lt> { $($field)* }
+
+        impl<$lt> $crate::Effect for $name<$lt> {
+            type Resume<'r> = $resume;
+        }
+    };
+
+    // With generic and tuple fields: declare_effect!(Name<T: Bound>(fields) -> ResumeType)
+    ($name:ident<$T:ident : $bound:path>($($field:tt)*) -> $resume:ty) => {
+        struct $name<$T: $bound>($($field)*);
+
+        impl<$T: $bound + Sync + Send> $crate::Effect for $name<$T> {
+            type Resume<'r> = $resume;
+        }
+    };
+
+    // With generic and named fields: declare_effect!(Name<T: Bound> { field: Type } -> ResumeType)
+    ($name:ident<$T:ident : $bound:path> { $($field:tt)* } -> $resume:ty) => {
+        struct $name<$T: $bound> { $($field)* }
+
+        impl<$T: $bound + Sync + Send> $crate::Effect for $name<$T> {
+            type Resume<'r> = $resume;
+        }
+    };
 }

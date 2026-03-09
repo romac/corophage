@@ -23,6 +23,40 @@ pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
 pub use program::Program;
 
+/// Internal macro for running a coroutine with effect handlers.
+macro_rules! run {
+    ($lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
+        let mut co = ::std::pin::pin!($co);
+
+        let mut yielded = co.as_mut().resume_with($crate::effect::Start);
+
+        loop {
+            match yielded {
+                ::fauxgen::GeneratorState::Complete(value) => break Ok(value),
+
+                ::fauxgen::GeneratorState::Yielded(effect) => {
+                    let $effect = match effect {
+                        ::frunk_core::coproduct::Coproduct::Inl(_) => unreachable!(),
+                        ::frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
+                    };
+
+                    let resume: $crate::control::CoControl<$lt, $effs> = $handle;
+                    match resume {
+                        $crate::control::CoControl::Cancel => {
+                            break Err($crate::control::Cancelled);
+                        }
+                        $crate::control::CoControl::Resume(r) => {
+                            yielded = co
+                                .as_mut()
+                                .resume(::frunk_core::coproduct::Coproduct::Inr(r))
+                        }
+                    }
+                }
+            }
+        }
+    }};
+}
+
 /// An uninhabited type for effects that never resume.
 ///
 /// Use this as `Effect::Resume` for effects that always cancel the computation

@@ -3,6 +3,7 @@ mod cancel;
 mod common;
 mod error;
 mod gat_resume;
+mod macros;
 mod non_static;
 mod program;
 mod resume;
