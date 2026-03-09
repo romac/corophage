@@ -1,4 +1,5 @@
 use frunk_core::coproduct::{CNil, Coproduct};
+use frunk_core::indices::{Here, There};
 
 /// An algebraic effect that can be yielded from a computation.
 ///
@@ -41,6 +42,33 @@ impl<'a, E> Effects<'a> for E where E: MapResume + Send + Sync + 'a {}
 /// Given `E = Effects![A, B, C]`, `Resumes<'r, E>` is
 /// `Coproduct<A::Resume<'r>, Coproduct<B::Resume<'r>, Coproduct<C::Resume<'r>, CNil>>>`.
 pub type Resumes<'r, E> = <E as MapResume>::Output<'r>;
+
+/// Inject a resume value into the resume coproduct at the position
+/// corresponding to effect `E`.
+///
+/// This trait resolves the coproduct index from the *effect type* rather than
+/// the resume type, avoiding ambiguity when multiple effects share the same
+/// resume type.
+pub trait InjectResume<'a, E: Effect, Index>: MapResume {
+    /// Inject the resume value at the correct position.
+    fn inject_resume(r: E::Resume<'a>) -> Resumes<'a, Self>;
+}
+
+impl<'a, E: Effect, T: MapResume> InjectResume<'a, E, Here> for Coproduct<E, T> {
+    fn inject_resume(r: E::Resume<'a>) -> Resumes<'a, Self> {
+        Coproduct::Inl(r)
+    }
+}
+
+impl<'a, H: Effect, E: Effect, T: MapResume, TailIndex> InjectResume<'a, E, There<TailIndex>>
+    for Coproduct<H, T>
+where
+    T: InjectResume<'a, E, TailIndex>,
+{
+    fn inject_resume(r: E::Resume<'a>) -> Resumes<'a, Self> {
+        Coproduct::Inr(T::inject_resume(r))
+    }
+}
 
 /// Internal start signal used to kick off a coroutine.
 ///

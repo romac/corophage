@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`CoControl::resume_for`** — disambiguates effects that share the same `Resume` type. When multiple effects have identical resume types (e.g., both resume with `()`), `CoControl::resume()` cannot infer the correct coproduct index. `resume_for::<E, _>(value)` resolves the index from the effect type instead:
+
+  ```rust
+  // Before: ambiguous when Foo and Bar both have Resume = ()
+  CoControl::resume(())  // error: type annotations needed
+
+  // After: specify which effect to resume for
+  CoControl::resume_for::<Foo, _>(())  // unambiguous
+  ```
+
+  The existing `CoControl::resume()` continues to work when resume types are distinct.
+
+- **`InjectResume` trait** — maps effect types to their position in the resume coproduct, backing `resume_for`. Automatically implemented for all effect coproducts.
+
 ## v0.2.0 (2026-03-08)
 
 ### Added

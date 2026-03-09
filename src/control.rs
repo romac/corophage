@@ -2,7 +2,7 @@ use std::fmt;
 
 use frunk_core::coproduct::CoprodInjector;
 
-use crate::effect::{Effects, Resumes};
+use crate::effect::{Effect, Effects, InjectResume, Resumes};
 
 /// The control flow decision returned by an effect handler.
 ///
@@ -30,11 +30,34 @@ where
 
     /// Create a [`Resume`](CoControl::Resume) control flow value
     /// by injecting the resume value into the correct coproduct position.
+    ///
+    /// This works when each effect in `Effs` has a distinct resume type.
+    /// If multiple effects share the same resume type, use
+    /// [`resume_for`](CoControl::resume_for) instead to disambiguate.
     pub fn resume<R, Index>(r: R) -> Self
     where
         Resumes<'a, Effs>: CoprodInjector<R, Index>,
     {
         Self::Resume(Resumes::<'a, Effs>::inject(r))
+    }
+
+    /// Create a [`Resume`](CoControl::Resume) control flow value,
+    /// using the effect type `E` to determine the correct coproduct position.
+    ///
+    /// This is needed when multiple effects share the same resume type,
+    /// making [`resume`](CoControl::resume) ambiguous.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// CoControl::resume_for::<MyEffect>(value)
+    /// ```
+    pub fn resume_for<E, Index>(r: E::Resume<'a>) -> Self
+    where
+        E: Effect,
+        Effs: InjectResume<'a, E, Index>,
+    {
+        Self::Resume(Effs::inject_resume(r))
     }
 }
 
