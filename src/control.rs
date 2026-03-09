@@ -30,6 +30,12 @@ impl<R> Control<R> {
     }
 }
 
+impl<R> From<R> for Control<R> {
+    fn from(r: R) -> Self {
+        Control::Resume(r)
+    }
+}
+
 #[doc(hidden)]
 pub enum CoControl<'a, Effs>
 where
