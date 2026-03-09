@@ -12,18 +12,18 @@ async fn run_mut() {
         x: u64,
     }
 
-    async fn cancel(_c: Cancel) -> CoControl<'static, CoEffs> {
-        CoControl::cancel()
+    async fn cancel(_c: Cancel) -> Control<Never> {
+        Control::cancel()
     }
 
-    async fn log(Log(msg): Log<'_>) -> CoControl<'static, CoEffs> {
+    async fn log(Log(msg): Log<'_>) -> Control<()> {
         println!("LOG: {msg}");
-        CoControl::resume(())
+        Control::resume(())
     }
 
-    async fn file_read(FileRead(file): FileRead) -> CoControl<'static, CoEffs> {
+    async fn file_read(FileRead(file): FileRead) -> Control<String> {
         println!("Reading file: {file}");
-        CoControl::resume("file content".to_string())
+        Control::resume("file content".to_string())
     }
 
     let state = RefCell::new(State { x: 42 });
@@ -34,10 +34,10 @@ async fn run_mut() {
             cancel,
             log,
             file_read,
-            async |_g: GetState<u64>| CoControl::resume(state.borrow().x),
+            async |_g: GetState<u64>| Control::resume(state.borrow().x),
             async |SetState(x)| {
                 state.borrow_mut().x = x;
-                CoControl::resume(((), ()))
+                Control::resume(())
             },
         ],
     )
@@ -55,18 +55,18 @@ async fn run_stateful() {
         x: u64,
     }
 
-    async fn cancel(_: &mut State, _c: Cancel) -> CoControl<'static, CoEffs> {
-        CoControl::cancel()
+    async fn cancel(_: &mut State, _c: Cancel) -> Control<Never> {
+        Control::cancel()
     }
 
-    async fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<'static, CoEffs> {
+    async fn log(_: &mut State, Log(msg): Log<'_>) -> Control<()> {
         println!("LOG: {msg}");
-        CoControl::resume(())
+        Control::resume(())
     }
 
-    async fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<'static, CoEffs> {
+    async fn file_read(_: &mut State, FileRead(file): FileRead) -> Control<String> {
         println!("Reading file: {file}");
-        CoControl::resume("file content".to_string())
+        Control::resume("file content".to_string())
     }
 
     let mut state = State { x: 42 };
@@ -78,10 +78,10 @@ async fn run_stateful() {
             cancel,
             log,
             file_read,
-            async |s: &mut State, _g: GetState<u64>| CoControl::resume(s.x),
+            async |s: &mut State, _g: GetState<u64>| Control::resume(s.x),
             async |s: &mut State, SetState(x)| {
                 s.x = x;
-                CoControl::resume(((), ()))
+                Control::resume(())
             },
         ],
     )

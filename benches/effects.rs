@@ -116,8 +116,7 @@ mod sync_benches {
     fn empty_coroutine(bencher: divan::Bencher) {
         bencher.bench(|| {
             let co = empty_co();
-            let mut handler =
-                hlist![|_: Noop| -> CoControl<'static, OneEffect> { CoControl::resume(()) }];
+            let mut handler = hlist![|_: Noop| Control::resume(())];
             divan::black_box(corophage::sync::run(co, &mut handler))
         });
     }
@@ -126,8 +125,7 @@ mod sync_benches {
     fn single_yield(bencher: divan::Bencher) {
         bencher.bench(|| {
             let co = single_yield_co();
-            let mut handler =
-                hlist![|_: Noop| -> CoControl<'static, OneEffect> { CoControl::resume(()) }];
+            let mut handler = hlist![|_: Noop| Control::resume(())];
             divan::black_box(corophage::sync::run(co, &mut handler))
         });
     }
@@ -136,8 +134,7 @@ mod sync_benches {
     fn yield_scaling(bencher: divan::Bencher, n: usize) {
         bencher.bench(|| {
             let co = multi_yield_co(n);
-            let mut handler =
-                hlist![|_: Noop| -> CoControl<'static, OneEffect> { CoControl::resume(()) }];
+            let mut handler = hlist![|_: Noop| Control::resume(())];
             divan::black_box(corophage::sync::run(co, &mut handler))
         });
     }
@@ -146,8 +143,7 @@ mod sync_benches {
     fn stateless_handler(bencher: divan::Bencher) {
         bencher.bench(|| {
             let co = single_yield_co();
-            let mut handler =
-                hlist![|_: Noop| -> CoControl<'static, OneEffect> { CoControl::resume(()) }];
+            let mut handler = hlist![|_: Noop| Control::resume(())];
             divan::black_box(corophage::sync::run(co, &mut handler))
         });
     }
@@ -158,15 +154,9 @@ mod sync_benches {
             let co = stateful_co();
             let mut state = 42u64;
             let mut handler = hlist![
-                |_s: &mut u64, _: Noop| -> CoControl<'static, ThreeEffects> {
-                    CoControl::resume(())
-                },
-                |s: &mut u64, _: GetValue| -> CoControl<'static, ThreeEffects> {
-                    CoControl::resume(*s)
-                },
-                |_s: &mut u64, _: Alloc| -> CoControl<'static, ThreeEffects> {
-                    CoControl::resume(String::new())
-                },
+                |_s: &mut u64, _: Noop| Control::resume(()),
+                |s: &mut u64, _: GetValue| Control::resume(*s),
+                |_s: &mut u64, _: Alloc| Control::resume(String::new()),
             ];
             divan::black_box(corophage::sync::run_stateful(co, &mut state, &mut handler))
         });
@@ -178,11 +168,9 @@ mod sync_benches {
             let co = stateful_co();
             let state = RefCell::new(42u64);
             let mut handler = hlist![
-                |_: Noop| -> CoControl<'static, ThreeEffects> { CoControl::resume(()) },
-                |_: GetValue| -> CoControl<'static, ThreeEffects> {
-                    CoControl::resume(*state.borrow())
-                },
-                |_: Alloc| -> CoControl<'static, ThreeEffects> { CoControl::resume(String::new()) },
+                |_: Noop| Control::resume(()),
+                |_: GetValue| Control::resume(*state.borrow()),
+                |_: Alloc| Control::resume(String::new()),
             ];
             divan::black_box(corophage::sync::run(co, &mut handler))
         });
@@ -207,9 +195,7 @@ mod async_benches {
         bencher.bench(|| {
             rt.block_on(async {
                 let co = single_yield_co();
-                let mut handler = hlist![async |_: Noop| -> CoControl<'static, OneEffect> {
-                    CoControl::resume(())
-                }];
+                let mut handler = hlist![async |_: Noop| Control::resume(())];
                 divan::black_box(corophage::asynk::run(co, &mut handler).await)
             })
         });
@@ -221,9 +207,7 @@ mod async_benches {
         bencher.bench(|| {
             rt.block_on(async {
                 let co = multi_yield_co(n);
-                let mut handler = hlist![async |_: Noop| -> CoControl<'static, OneEffect> {
-                    CoControl::resume(())
-                }];
+                let mut handler = hlist![async |_: Noop| Control::resume(())];
                 divan::black_box(corophage::asynk::run(co, &mut handler).await)
             })
         });
@@ -237,15 +221,9 @@ mod async_benches {
                 let co = stateful_co();
                 let mut state = 42u64;
                 let mut handler = hlist![
-                    async |_s: &mut u64, _: Noop| -> CoControl<'static, ThreeEffects> {
-                        CoControl::resume(())
-                    },
-                    async |s: &mut u64, _: GetValue| -> CoControl<'static, ThreeEffects> {
-                        CoControl::resume(*s)
-                    },
-                    async |_s: &mut u64, _: Alloc| -> CoControl<'static, ThreeEffects> {
-                        CoControl::resume(String::new())
-                    },
+                    async |_s: &mut u64, _: Noop| Control::resume(()),
+                    async |s: &mut u64, _: GetValue| Control::resume(*s),
+                    async |_s: &mut u64, _: Alloc| Control::resume(String::new()),
                 ];
                 divan::black_box(corophage::asynk::run_stateful(co, &mut state, &mut handler).await)
             })
@@ -261,22 +239,18 @@ mod dispatch_benches {
     use super::*;
 
     fn five_effect_handler() -> frunk::HList![
-        impl FnMut(Noop) -> CoControl<'static, FiveEffects>,
-        impl FnMut(GetValue) -> CoControl<'static, FiveEffects>,
-        impl FnMut(Alloc) -> CoControl<'static, FiveEffects>,
-        impl FnMut(Increment) -> CoControl<'static, FiveEffects>,
-        impl FnMut(Decrement) -> CoControl<'static, FiveEffects>,
+        impl FnMut(Noop) -> Control<()>,
+        impl FnMut(GetValue) -> Control<u64>,
+        impl FnMut(Alloc) -> Control<String>,
+        impl FnMut(Increment) -> Control<IncrementResult>,
+        impl FnMut(Decrement) -> Control<DecrementResult>,
     ] {
         hlist![
-            |_: Noop| -> CoControl<'static, FiveEffects> { CoControl::resume(()) },
-            |_: GetValue| -> CoControl<'static, FiveEffects> { CoControl::resume(42) },
-            |_: Alloc| -> CoControl<'static, FiveEffects> { CoControl::resume(String::new()) },
-            |_: Increment| -> CoControl<'static, FiveEffects> {
-                CoControl::resume(IncrementResult)
-            },
-            |_: Decrement| -> CoControl<'static, FiveEffects> {
-                CoControl::resume(DecrementResult)
-            },
+            |_: Noop| Control::resume(()),
+            |_: GetValue| Control::resume(42),
+            |_: Alloc| Control::resume(String::new()),
+            |_: Increment| Control::resume(IncrementResult),
+            |_: Decrement| Control::resume(DecrementResult),
         ]
     }
 
@@ -319,8 +293,7 @@ mod handler_complexity_benches {
     fn noop_handler(bencher: divan::Bencher) {
         bencher.bench(|| {
             let co = single_yield_co();
-            let mut handler =
-                hlist![|_: Noop| -> CoControl<'static, OneEffect> { CoControl::resume(()) }];
+            let mut handler = hlist![|_: Noop| Control::resume(())];
             divan::black_box(corophage::sync::run(co, &mut handler))
         });
     }
@@ -330,11 +303,9 @@ mod handler_complexity_benches {
         bencher.bench(|| {
             let co = alloc_co();
             let mut handler = hlist![
-                |_: Noop| -> CoControl<'static, ThreeEffects> { CoControl::resume(()) },
-                |_: GetValue| -> CoControl<'static, ThreeEffects> { CoControl::resume(42) },
-                |_: Alloc| -> CoControl<'static, ThreeEffects> {
-                    CoControl::resume("allocated string".to_string())
-                },
+                |_: Noop| Control::resume(()),
+                |_: GetValue| Control::resume(42),
+                |_: Alloc| Control::resume("allocated string".to_string()),
             ];
             divan::black_box(corophage::sync::run(co, &mut handler))
         });

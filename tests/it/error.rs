@@ -55,7 +55,7 @@ fn sync_single_effect_resume() {
     let co: Co<'_, AskEffects, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("q")).await });
 
-    let result = sync::run(co, &mut hlist![|Ask(_)| CoControl::resume("42")]);
+    let result = sync::run(co, &mut hlist![|Ask(_)| Control::resume("42")]);
     assert_eq!(result, Ok("42"));
 }
 
@@ -66,7 +66,7 @@ fn sync_single_effect_cancel() {
         "unreachable"
     });
 
-    let result = sync::run(co, &mut hlist![|_: Ask| CoControl::cancel()]);
+    let result = sync::run(co, &mut hlist![|_: Ask| Control::cancel()]);
     assert_eq!(result, Err(Cancelled));
 }
 
@@ -86,7 +86,7 @@ fn sync_single_effect_multiple_yields() {
         &mut state,
         &mut hlist![|s: &mut u32, _: Ask| {
             *s += 1;
-            CoControl::resume(match *s {
+            Control::resume(match *s {
                 1 => "one",
                 2 => "two",
                 _ => "three",
@@ -111,7 +111,7 @@ fn sync_handler_accumulates_effects() {
         co,
         &mut hlist![|Ask(q)| {
             log.push(q);
-            CoControl::resume("_")
+            Control::resume("_")
         }],
     );
 
@@ -131,7 +131,7 @@ async fn async_single_effect_with_real_sleep() {
         co,
         &mut hlist![async |_: Ask| {
             tokio::time::sleep(Duration::from_millis(1)).await;
-            CoControl::resume("answered")
+            Control::resume("answered")
         }],
     )
     .await;
@@ -155,7 +155,7 @@ async fn async_handler_accumulates_via_refcell() {
         co,
         &mut hlist![async |Ask(q): Ask| {
             log.borrow_mut().push(q);
-            CoControl::resume("_")
+            Control::resume("_")
         }],
     )
     .await;

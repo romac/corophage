@@ -34,10 +34,10 @@ fn sync_early_cancel_no_side_effects() {
         co,
         &mut state,
         &mut hlist![
-            |_s: &mut Vec<&str>, _: Trigger| CoControl::cancel(),
+            |_s: &mut Vec<&str>, _: Trigger| Control::cancel(),
             |s: &mut Vec<&str>, Log(m)| {
                 s.push(m);
-                CoControl::resume(())
+                Control::resume(())
             },
         ],
     );
@@ -59,9 +59,9 @@ fn sync_non_cancel_handler_cancels() {
         co,
         &mut hlist![|Fetch(path)| {
             if path == "restricted" {
-                CoControl::cancel()
+                Control::cancel()
             } else {
-                CoControl::resume("ok".to_string())
+                Control::resume("ok".to_string())
             }
         }],
     );
@@ -85,12 +85,12 @@ fn sync_cancel_mid_pipeline() {
         co,
         &mut state,
         &mut hlist![
-            |_s: &mut Vec<String>, _: Trigger| CoControl::cancel(),
+            |_s: &mut Vec<String>, _: Trigger| Control::cancel(),
             |s: &mut Vec<String>, Log(m)| {
                 s.push(m.to_string());
-                CoControl::resume(())
+                Control::resume(())
             },
-            |_s: &mut Vec<String>, Fetch(p)| CoControl::resume(format!("data:{p}")),
+            |_s: &mut Vec<String>, Fetch(p)| Control::resume(format!("data:{p}")),
         ],
     );
 
@@ -116,9 +116,9 @@ fn sync_cancel_preserves_state_before_cancel() {
         &mut hlist![
             |s: &mut u64, _: Fetch| {
                 *s += 1;
-                CoControl::resume(String::new())
+                Control::resume(String::new())
             },
-            |_s: &mut u64, _: Trigger| CoControl::cancel(),
+            |_s: &mut u64, _: Trigger| Control::cancel(),
         ],
     );
 
@@ -144,9 +144,9 @@ fn sync_refcell_cancel_no_borrow_leak() {
         &mut hlist![
             |Fetch(p)| {
                 state.borrow_mut().push(p.to_string());
-                CoControl::resume(String::new())
+                Control::resume(String::new())
             },
-            |_: Trigger| CoControl::cancel(),
+            |_: Trigger| Control::cancel(),
         ],
     );
 
@@ -164,7 +164,7 @@ async fn async_non_cancel_handler_cancels() {
         "unreachable"
     });
 
-    let result = asynk::run(co, &mut hlist![async |_: Fetch| CoControl::cancel()]).await;
+    let result = asynk::run(co, &mut hlist![async |_: Fetch| Control::cancel()]).await;
     assert_eq!(result, Err(Cancelled));
 }
 
@@ -180,9 +180,10 @@ async fn async_early_cancel() {
 
     let result = asynk::run(
         co,
-        &mut hlist![async |_: Trigger| CoControl::cancel(), async |_: Log| {
-            CoControl::resume(())
-        },],
+        &mut hlist![
+            async |_: Trigger| Control::cancel(),
+            async |_: Log| { Control::resume(()) },
+        ],
     )
     .await;
 

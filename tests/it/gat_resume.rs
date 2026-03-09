@@ -44,10 +44,13 @@ fn sync_gat_resume_borrows_local_data() {
     let mut logged: Vec<String> = vec![];
     let result = sync::run(
         co,
-        &mut hlist![|_: GetConfig| CoControl::resume(config_ref), |Log(msg)| {
-            logged.push(msg.to_string());
-            CoControl::resume(())
-        },],
+        &mut hlist![
+            |_: GetConfig| Control::resume(config_ref),
+            |Log(msg)| {
+                logged.push(msg.to_string());
+                Control::resume(())
+            },
+        ],
     );
 
     assert_eq!(result, Ok("local-config".to_string()));
@@ -80,9 +83,9 @@ fn sync_gat_resume_with_stateful_handler() {
             |s: &mut u32, _: GetConfig| {
                 *s += 1;
                 // Resume with a non-'static &str borrowed from local data
-                CoControl::resume(config_ref)
+                Control::resume(config_ref)
             },
-            |_s: &mut u32, Log(_)| CoControl::resume(()),
+            |_s: &mut u32, Log(_)| Control::resume(()),
         ],
     );
 
@@ -112,10 +115,10 @@ async fn async_gat_resume_borrows_local_data() {
     let result = asynk::run(
         co,
         &mut hlist![
-            async |_: GetConfig| CoControl::resume(config_ref),
+            async |_: GetConfig| Control::resume(config_ref),
             async |Log(msg)| {
                 logged.push(msg.to_string());
-                CoControl::resume(())
+                Control::resume(())
             },
         ],
     )
@@ -177,7 +180,7 @@ fn sync_gat_resume_borrows_from_effect() {
         co,
         &mut hlist![|Lookup { map, key }| {
             let value = map.get(key).unwrap();
-            CoControl::resume(value.as_str())
+            Control::resume(value.as_str())
         }],
     );
 
@@ -210,7 +213,7 @@ fn sync_gat_resume_borrows_from_effect_with_state() {
         &mut hlist![|s: &mut Vec<String>, Lookup { map, key }| {
             s.push(key.to_string());
             let value = map.get(key).unwrap();
-            CoControl::resume(value.as_str())
+            Control::resume(value.as_str())
         }],
     );
 

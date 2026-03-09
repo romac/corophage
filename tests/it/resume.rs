@@ -16,12 +16,12 @@ type CoEffs = Effects![Foo, Bar];
 
 #[test]
 fn same_resume() {
-    fn foo(_: Foo) -> CoControl<'static, CoEffs> {
-        CoControl::resume_for::<Foo, _>(())
+    fn foo(_: Foo) -> Control<()> {
+        Control::resume(())
     }
 
-    fn bar(_: Bar) -> CoControl<'static, CoEffs> {
-        CoControl::resume_for::<Bar, _>(())
+    fn bar(_: Bar) -> Control<()> {
+        Control::resume(())
     }
 
     pub fn co() -> Co<'static, CoEffs, ()> {

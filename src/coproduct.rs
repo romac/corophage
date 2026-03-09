@@ -3,149 +3,157 @@ use std::future::Future;
 pub use frunk_core::coproduct::{CNil, Coproduct};
 pub use frunk_core::hlist::{HCons, HNil};
 
-/// Fold a coproduct by dispatching to the matching handler in an hlist of `FnMut` closures.
-pub trait FoldMut<F, R> {
-    /// Consume the coproduct and dispatch to the matching handler.
-    fn fold_mut(self, f: &mut F) -> R;
+use crate::control::{CoControl, Control};
+use crate::effect::{Effect, Effects, InjectResume};
+
+#[doc(hidden)]
+pub trait HandleMut<'a, Effs: Effects<'a>, F, Indices> {
+    fn handle_mut(self, f: &mut F) -> CoControl<'a, Effs>;
 }
 
-impl<R> FoldMut<CNil, R> for CNil {
+impl<'a, Effs: Effects<'a>> HandleMut<'a, Effs, CNil, CNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fold_mut(self, _: &mut CNil) -> R {
+    fn handle_mut(self, _: &mut CNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<R> FoldMut<HNil, R> for CNil {
+impl<'a, Effs: Effects<'a>> HandleMut<'a, Effs, HNil, HNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fold_mut(self, _: &mut HNil) -> R {
+    fn handle_mut(self, _: &mut HNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<F, R, FTail, CH, CTail> FoldMut<HCons<F, FTail>, R> for Coproduct<CH, CTail>
+impl<'a, Effs, F, FTail, CH, CTail, Index, ITail>
+    HandleMut<'a, Effs, HCons<F, FTail>, HCons<Index, ITail>> for Coproduct<CH, CTail>
 where
-    F: FnMut(CH) -> R,
-    CTail: FoldMut<FTail, R>,
+    Effs: Effects<'a> + InjectResume<'a, CH, Index>,
+    CH: Effect,
+    F: FnMut(CH) -> Control<CH::Resume<'a>>,
+    CTail: HandleMut<'a, Effs, FTail, ITail>,
 {
-    fn fold_mut(self, f: &mut HCons<F, FTail>) -> R {
-        let f_head = &mut f.head;
-        let f_tail = &mut f.tail;
-
+    fn handle_mut(self, f: &mut HCons<F, FTail>) -> CoControl<'a, Effs> {
         match self {
-            Coproduct::Inl(r) => (f_head)(r),
-            Coproduct::Inr(rest) => rest.fold_mut(f_tail),
+            Coproduct::Inl(head) => match (f.head)(head) {
+                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
+                Control::Cancel => CoControl::Cancel,
+            },
+            Coproduct::Inr(rest) => rest.handle_mut(&mut f.tail),
         }
     }
 }
 
-/// Fold a coproduct by dispatching to the matching handler in an hlist of `Fn` closures,
-/// threading shared mutable state `S` through each handler call.
-pub trait FoldWith<F, S, R> {
-    /// Consume the coproduct and dispatch to the matching handler with shared state.
-    fn fold_with(self, s: &mut S, f: &F) -> R;
+#[doc(hidden)]
+pub trait HandleWith<'a, Effs: Effects<'a>, F, S, Indices> {
+    fn handle_with(self, s: &mut S, f: &F) -> CoControl<'a, Effs>;
 }
 
-impl<S, R> FoldWith<CNil, S, R> for CNil {
+impl<'a, Effs: Effects<'a>, S> HandleWith<'a, Effs, CNil, S, CNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fold_with(self, _: &mut S, _: &CNil) -> R {
+    fn handle_with(self, _: &mut S, _: &CNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<S, R> FoldWith<HNil, S, R> for CNil {
+impl<'a, Effs: Effects<'a>, S> HandleWith<'a, Effs, HNil, S, HNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fold_with(self, _: &mut S, _: &HNil) -> R {
+    fn handle_with(self, _: &mut S, _: &HNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<F, S, R, FTail, CH, CTail> FoldWith<HCons<F, FTail>, S, R> for Coproduct<CH, CTail>
+impl<'a, Effs, F, S, FTail, CH, CTail, Index, ITail>
+    HandleWith<'a, Effs, HCons<F, FTail>, S, HCons<Index, ITail>> for Coproduct<CH, CTail>
 where
-    F: Fn(&mut S, CH) -> R,
-    CTail: FoldWith<FTail, S, R>,
+    Effs: Effects<'a> + InjectResume<'a, CH, Index>,
+    CH: Effect,
+    F: Fn(&mut S, CH) -> Control<CH::Resume<'a>>,
+    CTail: HandleWith<'a, Effs, FTail, S, ITail>,
 {
-    fn fold_with(self, s: &mut S, f: &HCons<F, FTail>) -> R {
-        let f_head = &f.head;
-        let f_tail = &f.tail;
-
+    fn handle_with(self, s: &mut S, f: &HCons<F, FTail>) -> CoControl<'a, Effs> {
         match self {
-            Coproduct::Inl(r) => (f_head)(s, r),
-            Coproduct::Inr(rest) => rest.fold_with(s, f_tail),
+            Coproduct::Inl(head) => match (f.head)(s, head) {
+                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
+                Control::Cancel => CoControl::Cancel,
+            },
+            Coproduct::Inr(rest) => rest.handle_with(s, &f.tail),
         }
     }
 }
 
-/// Async version of [`FoldMut`]. Dispatches to the matching async handler in an hlist
-/// of `AsyncFnMut` closures.
-pub trait AsyncFoldMut<F, R> {
-    /// Consume the coproduct and dispatch to the matching async handler.
-    fn fold_mut(self, f: &mut F) -> impl Future<Output = R>;
+#[doc(hidden)]
+pub trait AsyncHandleMut<'a, Effs: Effects<'a>, F, Indices> {
+    fn handle_mut(self, f: &mut F) -> impl Future<Output = CoControl<'a, Effs>>;
 }
 
-impl<R> AsyncFoldMut<CNil, R> for CNil {
+impl<'a, Effs: Effects<'a>> AsyncHandleMut<'a, Effs, CNil, CNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    async fn fold_mut(self, _: &mut CNil) -> R {
+    async fn handle_mut(self, _: &mut CNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<R> AsyncFoldMut<HNil, R> for CNil {
+impl<'a, Effs: Effects<'a>> AsyncHandleMut<'a, Effs, HNil, HNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    async fn fold_mut(self, _: &mut HNil) -> R {
+    async fn handle_mut(self, _: &mut HNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<F, R, FTail, CH, CTail> AsyncFoldMut<HCons<F, FTail>, R> for Coproduct<CH, CTail>
+impl<'a, Effs, F, FTail, CH, CTail, Index, ITail>
+    AsyncHandleMut<'a, Effs, HCons<F, FTail>, HCons<Index, ITail>> for Coproduct<CH, CTail>
 where
-    F: AsyncFnMut(CH) -> R,
-    CTail: AsyncFoldMut<FTail, R>,
+    Effs: Effects<'a> + InjectResume<'a, CH, Index>,
+    CH: Effect,
+    F: AsyncFnMut(CH) -> Control<CH::Resume<'a>>,
+    CTail: AsyncHandleMut<'a, Effs, FTail, ITail>,
 {
-    async fn fold_mut(self, f: &mut HCons<F, FTail>) -> R {
-        let f_head = &mut f.head;
-        let f_tail = &mut f.tail;
-
+    async fn handle_mut(self, f: &mut HCons<F, FTail>) -> CoControl<'a, Effs> {
         match self {
-            Coproduct::Inl(r) => (f_head)(r).await,
-            Coproduct::Inr(rest) => rest.fold_mut(f_tail).await,
+            Coproduct::Inl(head) => match (f.head)(head).await {
+                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
+                Control::Cancel => CoControl::Cancel,
+            },
+            Coproduct::Inr(rest) => rest.handle_mut(&mut f.tail).await,
         }
     }
 }
 
-/// Async version of [`FoldWith`]. Dispatches to the matching async handler in an hlist
-/// of `AsyncFn` closures, threading shared mutable state `S` through each handler call.
-pub trait AsyncFoldWith<F, S, R> {
-    /// Consume the coproduct and dispatch to the matching async handler with shared state.
-    fn fold_with(self, s: &mut S, f: &F) -> impl Future<Output = R>;
+#[doc(hidden)]
+pub trait AsyncHandleWith<'a, Effs: Effects<'a>, F, S, Indices> {
+    fn handle_with(self, s: &mut S, f: &F) -> impl Future<Output = CoControl<'a, Effs>>;
 }
 
-impl<S, R> AsyncFoldWith<CNil, S, R> for CNil {
+impl<'a, Effs: Effects<'a>, S> AsyncHandleWith<'a, Effs, CNil, S, CNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    async fn fold_with(self, _: &mut S, _: &CNil) -> R {
+    async fn handle_with(self, _: &mut S, _: &CNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<S, R> AsyncFoldWith<HNil, S, R> for CNil {
+impl<'a, Effs: Effects<'a>, S> AsyncHandleWith<'a, Effs, HNil, S, HNil> for CNil {
     #[cfg_attr(coverage_nightly, coverage(off))]
-    async fn fold_with(self, _: &mut S, _: &HNil) -> R {
+    async fn handle_with(self, _: &mut S, _: &HNil) -> CoControl<'a, Effs> {
         match self {}
     }
 }
 
-impl<F, S, R, FTail, CH, CTail> AsyncFoldWith<HCons<F, FTail>, S, R> for Coproduct<CH, CTail>
+impl<'a, Effs, F, S, FTail, CH, CTail, Index, ITail>
+    AsyncHandleWith<'a, Effs, HCons<F, FTail>, S, HCons<Index, ITail>> for Coproduct<CH, CTail>
 where
-    F: AsyncFn(&mut S, CH) -> R,
-    CTail: AsyncFoldWith<FTail, S, R>,
+    Effs: Effects<'a> + InjectResume<'a, CH, Index>,
+    CH: Effect,
+    F: AsyncFn(&mut S, CH) -> Control<CH::Resume<'a>>,
+    CTail: AsyncHandleWith<'a, Effs, FTail, S, ITail>,
 {
-    async fn fold_with(self, s: &mut S, f: &HCons<F, FTail>) -> R {
-        let f_head = &f.head;
-        let f_tail = &f.tail;
-
+    async fn handle_with(self, s: &mut S, f: &HCons<F, FTail>) -> CoControl<'a, Effs> {
         match self {
-            Coproduct::Inl(r) => (f_head)(s, r).await,
-            Coproduct::Inr(rest) => rest.fold_with(s, f_tail).await,
+            Coproduct::Inl(head) => match (f.head)(s, head).await {
+                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
+                Control::Cancel => CoControl::Cancel,
+            },
+            Coproduct::Inr(rest) => rest.handle_with(s, &f.tail).await,
         }
     }
 }

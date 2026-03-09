@@ -36,7 +36,7 @@ where
 pub struct SetState<S>(pub S);
 
 impl<S> Effect for SetState<S> {
-    type Resume<'r> = ((), ());
+    type Resume<'r> = ();
 }
 
 pub type CoEffs = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];

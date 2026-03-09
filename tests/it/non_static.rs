@@ -28,7 +28,7 @@ fn sync_non_static_log() {
         co,
         &mut hlist![|Log(m)| {
             logged.push(m.to_string());
-            CoControl::resume(())
+            Control::resume(())
         }],
     );
 
@@ -55,7 +55,7 @@ fn sync_non_static_log_with_state() {
         &mut count,
         &mut hlist![|s: &mut u32, Log(_)| {
             *s += 1;
-            CoControl::resume(())
+            Control::resume(())
         }],
     );
 
@@ -81,7 +81,7 @@ async fn async_non_static_log() {
         co,
         &mut hlist![async |Log(m)| {
             logged.push(m.to_string());
-            CoControl::resume(())
+            Control::resume(())
         }],
     )
     .await;

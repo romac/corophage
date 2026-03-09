@@ -1,64 +1,42 @@
 use std::fmt;
 
-use frunk_core::coproduct::CoprodInjector;
+use crate::effect::{Effects, Resumes};
 
-use crate::effect::{Effect, Effects, InjectResume, Resumes};
-
-/// The control flow decision returned by an effect handler.
+/// The result returned by an effect handler.
 ///
 /// After handling an effect, the handler returns either:
-/// - [`Cancel`](CoControl::Cancel) to abort the computation, or
-/// - [`Resume`](CoControl::Resume) to continue the computation with a value.
+/// - [`Resume`](Control::Resume) to continue the computation with a value, or
+/// - [`Cancel`](Control::Cancel) to abort the computation.
+///
+/// Unlike the internal [`CoControl`] type, `Control` is parameterized
+/// by the resume type `R` rather than the full effect set, making handlers
+/// reusable across different effect sets.
+pub enum Control<R> {
+    /// Resume the computation with the given value.
+    Resume(R),
+    /// Cancel the computation. The runner will return [`Err(Cancelled)`](Cancelled).
+    Cancel,
+}
+
+impl<R> Control<R> {
+    /// Create a [`Resume`](Control::Resume) result to continue the computation.
+    pub fn resume(r: R) -> Self {
+        Self::Resume(r)
+    }
+
+    /// Create a [`Cancel`](Control::Cancel) result to abort the computation.
+    pub fn cancel() -> Self {
+        Self::Cancel
+    }
+}
+
+#[doc(hidden)]
 pub enum CoControl<'a, Effs>
 where
     Effs: Effects<'a>,
 {
-    /// Cancel the computation. The runner will return [`Err(Cancelled)`](Cancelled).
     Cancel,
-    /// Resume the computation with the given value.
     Resume(Resumes<'a, Effs>),
-}
-
-impl<'a, Effs> CoControl<'a, Effs>
-where
-    Effs: Effects<'a>,
-{
-    /// Create a [`Cancel`](CoControl::Cancel) control flow value.
-    pub fn cancel() -> Self {
-        Self::Cancel
-    }
-
-    /// Create a [`Resume`](CoControl::Resume) control flow value
-    /// by injecting the resume value into the correct coproduct position.
-    ///
-    /// This works when each effect in `Effs` has a distinct resume type.
-    /// If multiple effects share the same resume type, use
-    /// [`resume_for`](CoControl::resume_for) instead to disambiguate.
-    pub fn resume<R, Index>(r: R) -> Self
-    where
-        Resumes<'a, Effs>: CoprodInjector<R, Index>,
-    {
-        Self::Resume(Resumes::<'a, Effs>::inject(r))
-    }
-
-    /// Create a [`Resume`](CoControl::Resume) control flow value,
-    /// using the effect type `E` to determine the correct coproduct position.
-    ///
-    /// This is needed when multiple effects share the same resume type,
-    /// making [`resume`](CoControl::resume) ambiguous.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// CoControl::resume_for::<MyEffect>(value)
-    /// ```
-    pub fn resume_for<E, Index>(r: E::Resume<'a>) -> Self
-    where
-        E: Effect,
-        Effs: InjectResume<'a, E, Index>,
-    {
-        Self::Resume(Effs::inject_resume(r))
-    }
 }
 
 /// Error returned when a computation is cancelled by a handler.

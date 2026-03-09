@@ -28,7 +28,7 @@ async fn co_send_can_be_spawned() {
             co(),
             &mut hlist![|FileRead(file)| {
                 println!("Reading file: {file}");
-                CoControl::<'static, Effects![FileRead]>::resume("file content".to_string())
+                Control::resume("file content".to_string())
             }],
         )
     });

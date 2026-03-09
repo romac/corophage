@@ -44,10 +44,10 @@ let result = Program::new(|y: Yielder<'_, MyEffects>| async move {
     let state = y.yield_(GetState).await;
     // ...and so on
 })
-.handle(|Log(msg)| { println!("{msg}"); CoControl::resume(()) })
-.handle(|FileRead(f)| CoControl::resume(std::fs::read_to_string(f).unwrap()))
-.handle(|_: GetState| CoControl::resume(42u64))
-.handle(|SetState(x)| { /* ... */ CoControl::resume(()) })
+.handle(|Log(msg)| { println!("{msg}"); Control::resume(()) })
+.handle(|FileRead(f)| Control::resume(std::fs::read_to_string(f).unwrap()))
+.handle(|_: GetState| Control::resume(42u64))
+.handle(|SetState(x)| { /* ... */ Control::resume(()) })
 .run_sync();
 ```
 
@@ -113,8 +113,8 @@ let result = Program::new(|y: Yielder<'_, Effs>| async move {
     y.yield_(Log("fetching...")).await;
     y.yield_(FileRead("data.txt".to_string())).await
 })
-.handle(|Log(msg)| { println!("{msg}"); CoControl::resume(()) })
-.handle(|FileRead(path)| CoControl::resume(format!("contents of {path}")))
+.handle(|Log(msg)| { println!("{msg}"); Control::resume(()) })
+.handle(|FileRead(path)| Control::resume(format!("contents of {path}")))
 .run_sync();
 
 assert_eq!(result, Ok("contents of data.txt".to_string()));
@@ -126,8 +126,8 @@ A free function `handle` is available in the `program` module as an alternative 
 use corophage::program::handle;
 
 let p = Program::new(|y: Yielder<'_, Effs>| async move { /* ... */ });
-let p = handle(p, |Log(msg)| { println!("{msg}"); CoControl::resume(()) });
-let p = handle(p, |FileRead(path)| CoControl::resume(format!("contents of {path}")));
+let p = handle(p, |Log(msg)| { println!("{msg}"); Control::resume(()) });
+let p = handle(p, |FileRead(path)| Control::resume(format!("contents of {path}")));
 let result = p.run_sync();
 ```
 
@@ -136,22 +136,22 @@ let result = p.run_sync();
 
 ### 3. Handlers
 
-A **Handler** is a function (sync or async) that implements the logic for a specific effect. It receives the `Effect` instance and returns a `CoControl`, which tells the runner what to do next:
+A **Handler** is a function (sync or async) that implements the logic for a specific effect. It receives the `Effect` instance and returns a `Control<R>` (where `R` is the effect's `Resume` type), which tells the runner what to do next:
 
-*   `CoControl::resume(value)`: Resumes the computation, passing `value` back as the result of the `yield_`. The type of `value` must match the effect's `Resume` type.
-*   `CoControl::cancel()`: Aborts the entire computation immediately. The final result of the run will be `Err(Cancelled)`.
+*   `Control::resume(value)`: Resumes the computation, passing `value` back as the result of the `yield_`. The type of `value` must match the effect's `Resume` type.
+*   `Control::cancel()`: Aborts the entire computation immediately. The final result of the run will be `Err(Cancelled)`.
 
 ```rust,ignore
 // Sync handler — a regular closure
 |Log(msg)| {
     println!("LOG: {msg}");
-    CoControl::resume(())
+    Control::resume(())
 }
 
 // Async handler — an async closure
 async |FileRead(file)| {
     let content = tokio::fs::read_to_string(file).await.unwrap();
-    CoControl::resume(content)
+    Control::resume(content)
 }
 ```
 
@@ -169,7 +169,7 @@ let result = Program::new(|y: Yielder<'_, Effects![Counter]>| async move {
 })
 .handle(|s: &mut u64, _: Counter| {
     *s += 1;
-    CoControl::resume(*s)
+    Control::resume(*s)
 })
 .run_sync_stateful(&mut count);
 
@@ -185,7 +185,7 @@ assert_eq!(count, 2);
 For cases where you need to pass a computation around before attaching handlers (e.g., returning it from a function, or storing it in a data structure), you can use `Co` and `CoSend` directly.
 
 ```rust,ignore
-use corophage::{Co, CoSend, sync, CoControl};
+use corophage::{Co, CoSend, sync, Control};
 use corophage::prelude::*;
 
 // Co — the computation type (not Send)
@@ -195,7 +195,7 @@ let co: Co<'_, Effects![FileRead], String> = Co::new(|y| async move {
 
 // Run directly with all handlers at once via hlist
 let result = sync::run(co, &mut hlist![
-    |FileRead(f)| CoControl::resume(format!("contents of {f}"))
+    |FileRead(f)| Control::resume(format!("contents of {f}"))
 ]);
 
 // Or wrap in a Program for incremental handling
@@ -214,7 +214,7 @@ fn my_computation() -> CoSend<'static, Effects![FileRead], String> {
 // Can be spawned on tokio
 tokio::spawn(async move {
     let result = Program::from_co(my_computation())
-        .handle(async |FileRead(f)| CoControl::resume(format!("contents of {f}")))
+        .handle(async |FileRead(f)| Control::resume(format!("contents of {f}")))
         .run()
         .await;
 });
@@ -240,7 +240,7 @@ let msg_ref = msg.as_str();
 let result = Program::new(move |y: Yielder<'_, Effects![Log<'_>]>| async move {
     y.yield_(Log(msg_ref)).await;
 })
-.handle(|Log(m)| { println!("{m}"); CoControl::resume(()) })
+.handle(|Log(m)| { println!("{m}"); Control::resume(()) })
 .run_sync();
 
 assert_eq!(result, Ok(()));
@@ -279,7 +279,7 @@ let result = Program::new({
 })
 .handle(|Lookup { map, key }| {
     let value = map.get(key).unwrap();
-    CoControl::resume(value.as_str())
+    Control::resume(value.as_str())
 })
 .run_sync();
 

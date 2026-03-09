@@ -5,9 +5,8 @@ use std::ops::Add;
 use frunk_core::coproduct::{CNil, Coproduct};
 use frunk_core::hlist::{HCons, HNil};
 
-use crate::CoControl;
 use crate::control::Cancelled;
-use crate::coproduct::{AsyncFoldMut, AsyncFoldWith, FoldMut, FoldWith};
+use crate::coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
 use crate::coroutine::{Co, CoSend, GenericCo, Yielder};
 use crate::effect::{CanStart, Effects, Resumes};
 use crate::locality::{Local, Locality, Sendable};
@@ -100,36 +99,36 @@ where
     L: Locality,
 {
     /// Run the computation synchronously.
-    pub fn run_sync(self) -> Result<R, Cancelled>
+    pub fn run_sync<Indices>(self) -> Result<R, Cancelled>
     where
-        Effs: FoldMut<Handlers, CoControl<'a, Effs>>,
+        Effs: HandleMut<'a, Effs, Handlers, Indices>,
     {
         let mut handlers = self.handlers;
         crate::sync::run(self.co, &mut handlers)
     }
 
     /// Run the computation synchronously with shared state.
-    pub fn run_sync_stateful<S>(self, state: &mut S) -> Result<R, Cancelled>
+    pub fn run_sync_stateful<S, Indices>(self, state: &mut S) -> Result<R, Cancelled>
     where
-        Effs: FoldWith<Handlers, S, CoControl<'a, Effs>>,
+        Effs: HandleWith<'a, Effs, Handlers, S, Indices>,
     {
         let mut handlers = self.handlers;
         crate::sync::run_stateful(self.co, state, &mut handlers)
     }
 
     /// Run the computation asynchronously.
-    pub async fn run(self) -> Result<R, Cancelled>
+    pub async fn run<Indices>(self) -> Result<R, Cancelled>
     where
-        Effs: AsyncFoldMut<Handlers, CoControl<'a, Effs>>,
+        Effs: AsyncHandleMut<'a, Effs, Handlers, Indices>,
     {
         let mut handlers = self.handlers;
         crate::asynk::run(self.co, &mut handlers).await
     }
 
     /// Run the computation asynchronously with shared state.
-    pub async fn run_stateful<S>(self, state: &mut S) -> Result<R, Cancelled>
+    pub async fn run_stateful<S, Indices>(self, state: &mut S) -> Result<R, Cancelled>
     where
-        Effs: AsyncFoldWith<Handlers, S, CoControl<'a, Effs>>,
+        Effs: AsyncHandleWith<'a, Effs, Handlers, S, Indices>,
     {
         let mut handlers = self.handlers;
         crate::asynk::run_stateful(self.co, state, &mut handlers).await

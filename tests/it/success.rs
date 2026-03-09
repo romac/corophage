@@ -29,7 +29,7 @@ fn sync_ok_unit_return() {
         let _: &'static str = yielder.yield_(Ask("q")).await;
     });
 
-    let result = sync::run(co, &mut hlist![|_: Ask| CoControl::resume("_")]);
+    let result = sync::run(co, &mut hlist![|_: Ask| Control::resume("_")]);
     assert_eq!(result, Ok(()));
 }
 
@@ -40,7 +40,7 @@ fn sync_ok_value_return() {
     let co: Co<'_, Effs, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("the question")).await });
 
-    let result = sync::run(co, &mut hlist![|Ask(_)| CoControl::resume("42")]);
+    let result = sync::run(co, &mut hlist![|Ask(_)| Control::resume("42")]);
     assert_eq!(result, Ok("42"));
 }
 
@@ -50,7 +50,7 @@ fn sync_ok_no_yields() {
 
     let co: Co<'_, Effs, u64> = Co::new(|_yielder| async move { 99u64 });
 
-    let result = sync::run(co, &mut hlist![|_: Ask| CoControl::resume("")]);
+    let result = sync::run(co, &mut hlist![|_: Ask| Control::resume("")]);
     assert_eq!(result, Ok(99u64));
 }
 
@@ -70,7 +70,7 @@ fn sync_ok_multiple_yields() {
         &mut state,
         &mut hlist![|s: &mut u64, _: Counter| {
             *s += 1;
-            CoControl::resume(*s)
+            Control::resume(*s)
         }],
     );
 
@@ -90,8 +90,8 @@ fn sync_ok_struct_return() {
 
     let result = sync::run(
         co,
-        &mut hlist![|_: Counter| CoControl::resume(7u64), |_: Ask| {
-            CoControl::resume("hello")
+        &mut hlist![|_: Counter| Control::resume(7u64), |_: Ask| {
+            Control::resume("hello")
         },],
     );
     assert_eq!(
@@ -113,7 +113,7 @@ fn sync_run_stateful_ok() {
     let result = sync::run_stateful(
         co,
         &mut state,
-        &mut hlist![|s: &mut u64, _: Counter| CoControl::resume(*s)],
+        &mut hlist![|s: &mut u64, _: Counter| Control::resume(*s)],
     );
 
     assert_eq!(result, Ok(10u64));
@@ -127,7 +127,11 @@ async fn async_ok_value_return() {
     let co: Co<'_, Effs, &'static str> =
         Co::new(|yielder| async move { yielder.yield_(Ask("async")).await });
 
-    let result = asynk::run(co, &mut hlist![async |_: Ask| CoControl::resume("done")]).await;
+    let result = asynk::run(
+        co,
+        &mut hlist![async |_: Ask| Control::resume("done")],
+    )
+    .await;
     assert_eq!(result, Ok("done"));
 }
 
@@ -144,7 +148,7 @@ async fn async_run_stateful_ok() {
         &mut state,
         &mut hlist![async |s: &mut u64, _: Counter| {
             *s += 10;
-            CoControl::resume(*s)
+            Control::resume(*s)
         }],
     )
     .await;

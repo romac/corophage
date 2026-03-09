@@ -36,7 +36,7 @@ where
 pub struct SetState<S>(pub S);
 
 impl<S> Effect for SetState<S> {
-    type Resume<'r> = ((), ());
+    type Resume<'r> = ();
 }
 
 pub type CoEffs = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];
@@ -68,18 +68,18 @@ fn main() {
         x: u64,
     }
 
-    fn cancel(_: &mut State, _c: Cancel) -> CoControl<'static, CoEffs> {
-        CoControl::cancel()
+    fn cancel(_: &mut State, _c: Cancel) -> Control<Never> {
+        Control::cancel()
     }
 
-    fn log(_: &mut State, Log(msg): Log<'_>) -> CoControl<'static, CoEffs> {
+    fn log(_: &mut State, Log(msg): Log<'_>) -> Control<()> {
         println!("LOG: {msg}");
-        CoControl::resume(())
+        Control::resume(())
     }
 
-    fn file_read(_: &mut State, FileRead(file): FileRead) -> CoControl<'static, CoEffs> {
+    fn file_read(_: &mut State, FileRead(file): FileRead) -> Control<String> {
         println!("Reading file: {file}");
-        CoControl::resume("file content".to_string())
+        Control::resume("file content".to_string())
     }
 
     let mut state = State { x: 42 };
@@ -91,10 +91,10 @@ fn main() {
             cancel,
             log,
             file_read,
-            |s: &mut State, _g: GetState<u64>| CoControl::resume(s.x),
+            |s: &mut State, _g: GetState<u64>| Control::resume(s.x),
             |s: &mut State, SetState(x)| {
                 s.x = x;
-                CoControl::resume(((), ()))
+                Control::resume(())
             },
         ],
     );

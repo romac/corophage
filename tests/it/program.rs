@@ -23,8 +23,8 @@ fn sync_builder_style() {
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
     })
-    .handle(|_: Counter| CoControl::resume(42u64))
-    .handle(|_: Ask| CoControl::resume("yes"))
+    .handle(|_: Counter| Control::resume(42u64))
+    .handle(|_: Ask| Control::resume("yes"))
     .run_sync();
 
     assert_eq!(result, Ok(("yes", 42)));
@@ -40,8 +40,8 @@ fn sync_free_function_style() {
         (answer, n)
     });
 
-    let p = handle(p, |_: Counter| CoControl::resume(42u64));
-    let p = handle(p, |_: Ask| CoControl::resume("yes"));
+    let p = handle(p, |_: Counter| Control::resume(42u64));
+    let p = handle(p, |_: Ask| Control::resume("yes"));
     let result = p.run_sync();
 
     assert_eq!(result, Ok(("yes", 42)));
@@ -55,7 +55,7 @@ fn sync_single_effect() {
         Program::new(
             |yielder: Yielder<'_, Effs>| async move { yielder.yield_(Ask("hello")).await },
         )
-        .handle(|_: Ask| CoControl::resume("world"))
+        .handle(|_: Ask| Control::resume("world"))
         .run_sync();
 
     assert_eq!(result, Ok("world"));
@@ -66,7 +66,7 @@ fn sync_no_yields() {
     type Effs = Effects![Ask];
 
     let result = Program::new(|_: Yielder<'_, Effs>| async move { 99u64 })
-        .handle(|_: Ask| CoControl::resume(""))
+        .handle(|_: Ask| Control::resume(""))
         .run_sync();
 
     assert_eq!(result, Ok(99));
@@ -78,7 +78,7 @@ fn sync_cancel() {
 
     let result =
         Program::new(|yielder: Yielder<'_, Effs>| async move { yielder.yield_(Ask("q")).await })
-            .handle(|_: Ask| CoControl::cancel())
+            .handle(|_: Ask| Control::<&'static str>::cancel())
             .run_sync();
 
     assert_eq!(result, Err(Cancelled));
@@ -94,8 +94,8 @@ async fn async_builder_style() {
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
     })
-    .handle(async |_: Counter| CoControl::resume(42u64))
-    .handle(async |_: Ask| CoControl::resume("yes"))
+    .handle(async |_: Counter| Control::resume(42u64))
+    .handle(async |_: Ask| Control::resume("yes"))
     .run()
     .await;
 
@@ -113,8 +113,8 @@ async fn async_free_function_style() {
         (answer, n)
     });
 
-    let p = handle(p, async |_: Counter| CoControl::resume(42u64));
-    let p = handle(p, async |_: Ask| CoControl::resume("yes"));
+    let p = handle(p, async |_: Counter| Control::resume(42u64));
+    let p = handle(p, async |_: Ask| Control::resume("yes"));
     let result = p.run().await;
 
     assert_eq!(result, Ok(("yes", 42)));
@@ -132,7 +132,7 @@ fn sync_run_stateful_state() {
     })
     .handle(|s: &mut u64, _: Counter| {
         *s += 1;
-        CoControl::resume(*s)
+        Control::resume(*s)
     })
     .run_sync_stateful(&mut state);
 
@@ -150,7 +150,7 @@ async fn async_run_stateful_state() {
         Program::new(|yielder: Yielder<'_, Effs>| async move { yielder.yield_(Counter).await })
             .handle(async |s: &mut u64, _: Counter| {
                 *s += 10;
-                CoControl::resume(*s)
+                Control::resume(*s)
             })
             .run_stateful(&mut state)
             .await;
@@ -169,7 +169,7 @@ fn from_co() {
         Co::new(|yielder| async move { yielder.yield_(Ask("hello")).await });
 
     let result = Program::from_co(co)
-        .handle(|_: Ask| CoControl::resume("world"))
+        .handle(|_: Ask| Control::resume("world"))
         .run_sync();
 
     assert_eq!(result, Ok("world"));

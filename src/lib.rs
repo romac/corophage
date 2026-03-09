@@ -2,7 +2,7 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod coproduct;
-use coproduct::{FoldMut, FoldWith};
+use coproduct::{HandleMut, HandleWith};
 
 mod control;
 mod effect;
@@ -17,7 +17,7 @@ pub mod prelude;
 
 pub mod coroutine;
 
-pub use control::{Cancelled, CoControl};
+pub use control::{Cancelled, Control};
 pub use coroutine::Yielder;
 pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
@@ -34,7 +34,7 @@ pub enum Never {}
 /// Use these functions to run a coroutine with async effect handlers.
 /// For most use cases, prefer [`Program::run`] instead.
 pub mod asynk {
-    use crate::coproduct::{AsyncFoldMut, AsyncFoldWith};
+    use crate::coproduct::{AsyncHandleMut, AsyncHandleWith};
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
     use crate::locality::Locality;
@@ -42,28 +42,28 @@ pub mod asynk {
     use super::*;
 
     /// Run a coroutine with an hlist of async handlers.
-    pub async fn run<'a, ES, R, L, F>(
+    pub async fn run<'a, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,
-        ES: Effects<'a> + AsyncFoldMut<F, CoControl<'a, ES>>,
+        ES: Effects<'a> + AsyncHandleMut<'a, ES, F, Indices>,
     {
-        run!('a, ES, co, effect => effect.fold_mut(handler).await)
+        run!('a, ES, co, effect => effect.handle_mut(handler).await)
     }
 
     /// Run a coroutine with an hlist of async handlers and shared mutable state.
-    pub async fn run_stateful<'a, ES, R, L, S, F>(
+    pub async fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
         handler: &mut F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,
-        ES: Effects<'a> + AsyncFoldWith<F, S, CoControl<'a, ES>>,
+        ES: Effects<'a> + AsyncHandleWith<'a, ES, F, S, Indices>,
     {
-        run!('a, ES, co, effect => effect.fold_with(state, handler).await)
+        run!('a, ES, co, effect => effect.handle_with(state, handler).await)
     }
 }
 
@@ -79,27 +79,27 @@ pub mod sync {
     use super::*;
 
     /// Run a coroutine with an hlist of synchronous handlers.
-    pub fn run<'a, ES, R, L, F>(
+    pub fn run<'a, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,
-        ES: Effects<'a> + FoldMut<F, CoControl<'a, ES>>,
+        ES: Effects<'a> + HandleMut<'a, ES, F, Indices>,
     {
-        run!('a, ES, co, effect => effect.fold_mut(handler))
+        run!('a, ES, co, effect => effect.handle_mut(handler))
     }
 
     /// Run a coroutine with an hlist of synchronous handlers and shared mutable state.
-    pub fn run_stateful<'a, ES, R, L, S, F>(
+    pub fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
         handler: &mut F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,
-        ES: Effects<'a> + FoldWith<F, S, CoControl<'a, ES>>,
+        ES: Effects<'a> + HandleWith<'a, ES, F, S, Indices>,
     {
-        run!('a, ES, co, effect => effect.fold_with(state, handler))
+        run!('a, ES, co, effect => effect.handle_with(state, handler))
     }
 }

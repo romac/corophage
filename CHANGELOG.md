@@ -4,19 +4,22 @@
 
 ### Added
 
-- **`CoControl::resume_for`** — disambiguates effects that share the same `Resume` type. When multiple effects have identical resume types (e.g., both resume with `()`), `CoControl::resume()` cannot infer the correct coproduct index. `resume_for::<E, _>(value)` resolves the index from the effect type instead:
+- **`Control<R>`** — new return type for effect handlers, parameterized by the resume type `R` instead of the full effect set. Handlers now return `Control::resume(value)` or `Control::cancel()`, making them reusable across different effect sets.
 
   ```rust
-  // Before: ambiguous when Foo and Bar both have Resume = ()
-  CoControl::resume(())  // error: type annotations needed
+  // Before: handler was coupled to the full effect set
+  |_: Counter| CoControl::resume(42u64)
+  |_: Ask| CoControl::<'static, Effects![Counter, Ask]>::cancel()
 
-  // After: specify which effect to resume for
-  CoControl::resume_for::<Foo, _>(())  // unambiguous
+  // After: handler only knows its own resume type
+  |_: Counter| Control::resume(42u64)
+  |_: Ask| Control::<&str>::cancel()
   ```
 
-  The existing `CoControl::resume()` continues to work when resume types are distinct.
+### Changed
 
-- **`InjectResume` trait** — maps effect types to their position in the resume coproduct, backing `resume_for`. Automatically implemented for all effect coproducts.
+- **`CoControl` is now internal** — replaced by `Control<R>` in user-facing code. `CoControl` is still used internally by the runner loop but is no longer exported.
+- **Prelude updated** — `CoControl` removed from prelude, `Control` added.
 
 ## v0.2.0 (2026-03-08)
 
