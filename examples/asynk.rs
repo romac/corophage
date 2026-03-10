@@ -1,25 +1,10 @@
 use std::marker::PhantomData;
 
-use corophage::coroutine::Co;
 use corophage::prelude::*;
 
-pub struct Cancel;
-
-impl Effect for Cancel {
-    type Resume<'r> = Never;
-}
-
-pub struct Log<'a>(pub &'a str);
-
-impl<'a> Effect for Log<'a> {
-    type Resume<'r> = ();
-}
-
-pub struct FileRead(pub String);
-
-impl Effect for FileRead {
-    type Resume<'r> = String;
-}
+declare_effect!(Cancel -> Never);
+declare_effect!(Log<'a>(pub &'a str) -> ());
+declare_effect!(FileRead(pub String) -> String);
 
 #[derive(Default)]
 pub struct GetState<S> {
@@ -39,66 +24,58 @@ impl<S> Effect for SetState<S> {
     type Resume<'r> = ();
 }
 
-pub type CoEffs = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];
+type Effs = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];
 
-pub fn co() -> Co<'static, CoEffs, ()> {
-    Co::new(|yielder| async move {
-        println!("Logging...");
-        let () = yielder.yield_(Log("Hello, world!")).await;
+async fn cancel(_: &mut State, _c: Cancel) -> Control<Never> {
+    Control::cancel()
+}
 
-        println!("Reading file...");
-        let text = yielder.yield_(FileRead("example.txt".to_string())).await;
-        println!("Read file: {text}");
+async fn log(_: &mut State, Log(msg): Log<'_>) -> Control<()> {
+    println!("LOG: {msg}");
+    Control::resume(())
+}
 
-        let state = yielder.yield_(GetState::default()).await;
-        println!("State: {state}");
-        yielder.yield_(SetState(state * 2)).await;
-        let state = yielder.yield_(GetState::default()).await;
-        println!("State: {state}");
+async fn file_read(_: &mut State, FileRead(file): FileRead) -> Control<String> {
+    println!("Reading file: {file}");
+    Control::resume("file content".to_string())
+}
 
-        println!("Cancelling...");
-        yielder.yield_(Cancel).await;
-        println!("Cancelled!");
-    })
+#[derive(Debug, PartialEq, Eq)]
+struct State {
+    x: u64,
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    #[derive(Debug, PartialEq, Eq)]
-    struct State {
-        x: u64,
-    }
-
-    async fn cancel(_: &mut State, _c: Cancel) -> Control<Never> {
-        Control::cancel()
-    }
-
-    async fn log(_: &mut State, Log(msg): Log<'_>) -> Control<()> {
-        println!("LOG: {msg}");
-        Control::resume(())
-    }
-
-    async fn file_read(_: &mut State, FileRead(file): FileRead) -> Control<String> {
-        println!("Reading file: {file}");
-        Control::resume("file content".to_string())
-    }
-
     let mut state = State { x: 42 };
 
-    let result = corophage::asynk::run_stateful(
-        co(),
-        &mut state,
-        &mut hlist![
-            cancel,
-            log,
-            file_read,
-            async |s: &mut State, _g: GetState<u64>| Control::resume(s.x),
-            async |s: &mut State, SetState(x)| {
-                s.x = x;
-                Control::resume(())
-            },
-        ],
-    )
+    let result = Program::new(|y: Yielder<'_, Effs>| async move {
+        println!("Logging...");
+        let () = y.yield_(Log("Hello, world!")).await;
+
+        println!("Reading file...");
+        let text = y.yield_(FileRead("example.txt".to_string())).await;
+        println!("Read file: {text}");
+
+        let state = y.yield_(GetState::default()).await;
+        println!("State: {state}");
+        y.yield_(SetState(state * 2)).await;
+        let state = y.yield_(GetState::default()).await;
+        println!("State: {state}");
+
+        println!("Cancelling...");
+        y.yield_(Cancel).await;
+        println!("Cancelled!");
+    })
+    .handle(cancel)
+    .handle(log)
+    .handle(file_read)
+    .handle(async |s: &mut State, _g: GetState<u64>| Control::resume(s.x))
+    .handle(async |s: &mut State, SetState(x)| {
+        s.x = x;
+        Control::resume(())
+    })
+    .run_stateful(&mut state)
     .await;
 
     assert_eq!(result, Err(Cancelled));
