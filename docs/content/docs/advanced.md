@@ -1,49 +1,8 @@
 +++
 title = "Advanced Usage"
 weight = 6
-description = "Co, CoSend, borrowed data, and the direct API."
+description = "Borrowed data, borrowed resume types, and other advanced patterns."
 +++
-
-## `Co` and `CoSend`
-
-For cases where you need to pass a computation around before attaching handlers, you can use `Co` and `CoSend` directly.
-
-```rust
-use corophage::{Co, CoSend, sync, Control};
-use corophage::prelude::*;
-
-declare_effect!(FileRead(pub String) -> String);
-
-// Co — the computation type (not Send)
-let co: Co<'_, Effects![FileRead], String> = Co::new(|y| async move {
-    y.yield_(FileRead("data.txt".to_string())).await
-});
-
-// Run directly with all handlers at once via hlist
-let result = sync::run(co, &mut hlist![
-    |FileRead(f)| Control::resume(format!("contents of {f}"))
-]);
-
-assert_eq!(result, Ok("contents of data.txt".to_string()));
-```
-
-`CoSend` is the `Send`-able variant for multi-threaded runtimes:
-
-```rust
-fn my_computation() -> CoSend<'static, Effects![FileRead], String> {
-    CoSend::new(|y| async move {
-        y.yield_(FileRead("test".to_string())).await
-    })
-}
-
-// Can be spawned on tokio
-tokio::spawn(async move {
-    let result = Program::from_co(my_computation())
-        .handle(async |FileRead(f)| Control::resume(format!("contents of {f}")))
-        .run()
-        .await;
-});
-```
 
 ## Borrowing non-`'static` data
 
@@ -108,7 +67,3 @@ let result = Program::new({
 
 assert_eq!(result, Ok("localhost:5432".to_string()));
 ```
-
-## Direct API
-
-The direct API (`sync::run`, `sync::run_stateful`, `asynk::run`, `asynk::run_stateful`) accepts a `Co`/`CoSend` and an `hlist!` of all handlers at once. This is useful for concise one-shot execution but requires providing all handlers together in the correct `Effects![...]` order.

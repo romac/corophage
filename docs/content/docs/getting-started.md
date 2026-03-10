@@ -37,31 +37,106 @@ The responsibility of *implementing* these effects is given to a set of **handle
 use corophage::prelude::*;
 
 // 1. Declare effects
-declare_effect!(Log(String) -> ());
-declare_effect!(FileRead(String) -> String);
+struct Log(String);
+impl Effect for Log {
+    type Resume<'r> = ();
+}
+
+struct FileRead(String);
+impl Effect for FileRead {
+    type Resume<'r> = String;
+}
 
 // 2. Define the effect set
 type MyEffects = Effects![Log, FileRead];
 
 // 3. Write the computation
-let result = Program::new(|y: Yielder<'_, MyEffects>| async move {
+let program = Program::new(|y: Yielder<'_, MyEffects>| async move {
     y.yield_(Log("Starting...".into())).await;
     let config = y.yield_(FileRead("config.toml".into())).await;
     config
-})
+});
+
 // 4. Attach handlers
-.handle(|Log(msg)| {
-    println!("{msg}");
-    Control::resume(())
-})
-.handle(|FileRead(f)| {
-    Control::resume(format!("contents of {f}"))
-})
+let program = program
+    .handle(|Log(msg)| {
+        println!("{msg}");
+        Control::resume(())
+    })
+    .handle(|FileRead(f)| {
+        Control::resume(format!("contents of {f}"))
+    });
+
 // 5. Run
-.run_sync();
+let result = program.run_sync();
 
 assert_eq!(result, Ok("contents of config.toml".to_string()));
 ```
+
+Let's walk through each step.
+
+### Step 1: Declare effects
+
+```rust
+struct Log(String);
+impl Effect for Log {
+    type Resume<'r> = ();
+}
+
+struct FileRead(String);
+impl Effect for FileRead {
+    type Resume<'r> = String;
+}
+```
+
+An effect is a plain struct that implements the `Effect` trait. The struct's fields carry the request data — `Log` carries the message to log, `FileRead` carries the path to read.
+
+The associated type `Resume<'r>` defines what the handler sends back. `Log` resumes with `()` because logging doesn't produce a value. `FileRead` resumes with a `String` — the file's contents.
+
+### Step 2: Define the effect set
+
+```rust
+type MyEffects = Effects![Log, FileRead];
+```
+
+`Effects!` groups your effects into a type-level set. The compiler uses this set to track which effects a computation requires and which have been handled.
+
+### Step 3: Write the computation
+
+```rust
+let program = Program::new(|y: Yielder<'_, MyEffects>| async move {
+    y.yield_(Log("Starting...".into())).await;
+    let config = y.yield_(FileRead("config.toml".into())).await;
+    config
+});
+```
+
+`Program::new` takes an async closure that receives a `Yielder`. The computation calls `y.yield_(effect).await` to perform an effect — this pauses execution, hands the effect to its handler, and resumes with the handler's return value.
+
+The computation doesn't know *how* logging or file reading work. It just describes what it needs.
+
+### Step 4: Attach handlers
+
+```rust
+let program = program
+    .handle(|Log(msg)| {
+        println!("{msg}");
+        Control::resume(())
+    })
+    .handle(|FileRead(f)| {
+        Control::resume(format!("contents of {f}"))
+    });
+```
+
+Each `.handle()` call attaches a handler for one effect. The handler receives the effect by value, does its work, and returns `Control::resume(value)` to send a value back to the computation. Handlers can be attached in any order.
+
+### Step 5: Run
+
+```rust
+let result = program.run_sync();
+```
+
+Once all effects are handled, `.run_sync()` executes the computation and returns a `Result<R, Cancelled>`. If you try to call `.run_sync()` before all effects are handled, you'll get a compile error.
 
 ## Benefits
 
