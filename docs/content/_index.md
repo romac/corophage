@@ -67,7 +67,8 @@ No nightly required. Built on async coroutines via [fauxgen](https://github.com/
 
 #### Define your effects
 
-Each effect is a struct that implements the `Effect` trait. The `Resume` type defines what the handler sends back.
+Each effect is a struct that implements the `Effect` trait.  
+The `Resume` type defines what the handler sends back.
 
 ```rust
 use corophage::prelude::*;
@@ -95,7 +96,8 @@ type Effs = Effects![Cancel, Log<'static>, Read];
 
 #### Describe what to do
 
-Your program yields effects and receives their results. It doesn't know or care how they are handled.
+Your program yields effects and receives their results.  
+It doesn't know or care how they are handled.
 
 ```rust
 let program = Program::new(
@@ -209,9 +211,11 @@ use corophage::prelude::*;
 
 declare_effect!(Counter -> u64);
 
+type Effs = Effect![Counter];
+
 let mut count: u64 = 0;
 
-let result = Program::new(|y: Yielder<'_, Effects![Counter]>| async move {
+let result = Program::new(|y: Yielder<'_, Effs>| async move {
     let a = y.yield_(Counter).await;
     let b = y.yield_(Counter).await;
     a + b
@@ -247,6 +251,8 @@ impl<'a> Effect for Lookup<'a> {
     type Resume<'r> = &'r str;
 }
 
+type Effs = Effect![Lookup];
+
 let map = HashMap::from([
     ("host".into(), "localhost".into()),
     ("port".into(), "5432".into()),
@@ -254,7 +260,7 @@ let map = HashMap::from([
 
 let result = Program::new({
     let map = &map;
-    move |y: Yielder<'_, Effects![Lookup<'_>]>| async move {
+    move |y: Yielder<'_, Effs>| async move {
         let host: &str = y.yield_(Lookup { map, key: "host" }).await;
         let port: &str = y.yield_(Lookup { map, key: "port" }).await;
         format!("{host}:{port}")
@@ -278,6 +284,8 @@ Effects can borrow data from the local scope by using a non-_`'static`_ lifetime
 ```rust
 use corophage::prelude::*;
 
+type Effs<'a> = Effect![Log<'a>];
+
 struct Log<'a>(pub &'a str);
 impl<'a> Effect for Log<'a> {
     type Resume<'r> = ();
@@ -286,7 +294,7 @@ impl<'a> Effect for Log<'a> {
 let msg = String::from("hello from a local string");
 let msg_ref = msg.as_str();
 
-let result = Program::new(move |y: Yielder<'_, Effects![Log<'_>]>| async move {
+let result = Program::new(move |y: Yielder<'_, Effs<'a>>| async move {
     y.yield_(Log(msg_ref)).await;
 })
 .handle(|Log(m)| { println!("{m}"); Control::resume(()) })
