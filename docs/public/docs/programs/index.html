@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Programs — corophage</title>
+  <meta name="description" content="An effect handler library for stable Rust">
+  <link rel="stylesheet" href="https://romac.github.io/corophage/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://romac.github.io/corophage" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://romac.github.io/corophage/docs/_index.md">Docs</a>
+        <a href="https:&#x2F;&#x2F;docs.rs&#x2F;corophage">API</a>
+        <a href="https:&#x2F;&#x2F;github.com&#x2F;romac&#x2F;corophage">GitHub</a>
+        <a href="https:&#x2F;&#x2F;crates.io&#x2F;crates&#x2F;corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;getting-started&#x2F;" >Getting Started</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;effects&#x2F;" >Effects</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;programs&#x2F;" class="active">Programs</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;handlers&#x2F;" >Handlers</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;state&#x2F;" >Shared State</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;advanced&#x2F;" >Advanced Usage</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;performance&#x2F;" >Performance</a></li>
+        
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>Programs</h1>
+    <p>A <strong>Program</strong> combines a computation with its effect handlers. This is the primary API for using corophage.</p>
+<h2 id="creating-a-program">Creating a program</h2>
+<p>Use <code>Program::new</code> to create a program from an async closure that receives a <code>Yielder</code>:</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">use</span><span> corophage</span><span style="color: #FF79C6;">::</span><span>prelude</span><span style="color: #FF79C6;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #50FA7B;">declare_effect!</span><span>(</span><span style="color: #50FA7B;">Log</span><span>(</span><span style="color: #8BE9FD;font-style: italic;">String</span><span>)</span><span style="color: #FF79C6;"> -&gt;</span><span> ());</span></span>
+<span class="giallo-l"><span style="color: #50FA7B;">declare_effect!</span><span>(</span><span style="color: #8BE9FD;font-style: italic;">Counter</span><span style="color: #FF79C6;"> -&gt;</span><span style="color: #8BE9FD;font-style: italic;"> u64</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #FF79C6;">type</span><span style="color: #8BE9FD;font-style: italic;"> Effs</span><span style="color: #FF79C6;"> =</span><span style="color: #8BE9FD;font-style: italic;"> Effects!</span><span>[</span><span style="color: #8BE9FD;font-style: italic;">Log</span><span>,</span><span style="color: #8BE9FD;font-style: italic;"> Counter</span><span>];</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #FF79C6;">let</span><span> program</span><span style="color: #FF79C6;"> =</span><span style="color: #8BE9FD;font-style: italic;"> Program</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">new</span><span>(</span><span style="color: #FF79C6;">|</span><span>y</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Yielder</span><span>&lt;&#39;</span><span style="color: #8BE9FD;font-style: italic;">_</span><span>,</span><span style="color: #8BE9FD;font-style: italic;"> Effs</span><span>&gt;</span><span style="color: #FF79C6;">| async move</span><span> {</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">yield_</span><span>(</span><span style="color: #50FA7B;">Log</span><span>(</span><span style="color: #F1FA8C;">&quot;hello&quot;</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">into</span><span>()))</span><span style="color: #FF79C6;">.await</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    let</span><span> n</span><span style="color: #FF79C6;"> =</span><span> y</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">yield_</span><span>(</span><span style="color: #8BE9FD;font-style: italic;">Counter</span><span>)</span><span style="color: #FF79C6;">.await</span><span>;</span></span>
+<span class="giallo-l"><span>    n</span><span style="color: #FF79C6;"> *</span><span style="color: #BD93F9;"> 2</span></span>
+<span class="giallo-l"><span>});</span></span></code></pre>
+<p>When you <code>await</code> the result of <code>y.yield_(some_effect)</code>, the computation pauses, the effect is handled, and the <code>await</code> resolves to the value provided by the handler.</p>
+<h2 id="attaching-handlers">Attaching handlers</h2>
+<p>Handlers are attached one at a time with <code>.handle()</code>. Handlers can be attached in any order — the type system tracks which effects remain unhandled.</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">let</span><span> result</span><span style="color: #FF79C6;"> =</span><span> program</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    .</span><span style="color: #50FA7B;">handle</span><span>(</span><span style="color: #FF79C6;">|</span><span style="color: #50FA7B;">Log</span><span>(msg)</span><span style="color: #FF79C6;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #50FA7B;">        println!</span><span>(</span><span style="color: #F1FA8C;">&quot;{msg}&quot;</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #8BE9FD;font-style: italic;">        Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    .</span><span style="color: #50FA7B;">handle</span><span>(</span><span style="color: #FF79C6;">|</span><span>_</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Counter</span><span style="color: #FF79C6;">|</span><span> Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(</span><span style="color: #BD93F9;">42</span><span style="color: #8BE9FD;font-style: italic;">u64</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    .</span><span style="color: #50FA7B;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #50FA7B;">assert_eq!</span><span>(result,</span><span style="color: #8BE9FD;font-style: italic;"> Ok</span><span>(</span><span style="color: #BD93F9;">84</span><span>));</span></span></code></pre>
+<p>You can also attach multiple handlers at once with <code>.handle_all()</code>:</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">let</span><span> result</span><span style="color: #FF79C6;"> =</span><span style="color: #8BE9FD;font-style: italic;"> Program</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">new</span><span>(</span><span style="color: #FF79C6;">|</span><span>y</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Yielder</span><span>&lt;&#39;</span><span style="color: #8BE9FD;font-style: italic;">_</span><span>, Effects</span><span style="color: #FF79C6;">!</span><span>[</span><span style="color: #8BE9FD;font-style: italic;">Counter</span><span>,</span><span style="color: #8BE9FD;font-style: italic;"> Log</span><span>]&gt;</span><span style="color: #FF79C6;">| async move</span><span> {</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">yield_</span><span>(</span><span style="color: #50FA7B;">Log</span><span>(</span><span style="color: #F1FA8C;">&quot;start&quot;</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">into</span><span>()))</span><span style="color: #FF79C6;">.await</span><span>;</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">yield_</span><span>(</span><span style="color: #8BE9FD;font-style: italic;">Counter</span><span>)</span><span style="color: #FF79C6;">.await</span></span>
+<span class="giallo-l"><span>})</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">handle_all</span><span>(</span><span style="color: #50FA7B;">hlist!</span><span>[</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    |</span><span>_</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Counter</span><span style="color: #FF79C6;">|</span><span> Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(</span><span style="color: #BD93F9;">42</span><span style="color: #8BE9FD;font-style: italic;">u64</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    |</span><span style="color: #50FA7B;">Log</span><span>(msg)</span><span style="color: #FF79C6;">|</span><span> {</span><span style="color: #50FA7B;"> println!</span><span>(</span><span style="color: #F1FA8C;">&quot;{msg}&quot;</span><span>);</span><span style="color: #8BE9FD;font-style: italic;"> Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(()) },</span></span>
+<span class="giallo-l"><span>])</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">run_sync</span><span>();</span></span></code></pre><h2 id="running-programs">Running programs</h2>
+<p>Once all effects are handled, you can run the program:</p>
+<ul>
+<li><code>.run_sync()</code> — execute synchronously, returns <code>Result&lt;R, Cancelled&gt;</code></li>
+<li><code>.run().await</code> — execute asynchronously</li>
+<li><code>.run_sync_stateful(&amp;mut state)</code> — synchronous with shared mutable state</li>
+<li><code>.run_stateful(&amp;mut state).await</code> — async with shared mutable state</li>
+</ul>
+<h2 id="partially-handled-programs">Partially-handled programs</h2>
+<p>A partially-handled program is a first-class value you can pass around, store, or extend later:</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">fn</span><span style="color: #50FA7B;"> add_logging</span><span>&lt;</span><span style="color: #8BE9FD;font-style: italic;">Effs</span><span>&gt;(program</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Program</span><span>&lt;</span><span style="color: #6272A4;">/* ... */</span><span>&gt;)</span><span style="color: #FF79C6;"> -&gt;</span><span style="color: #8BE9FD;font-style: italic;"> Program</span><span>&lt;</span><span style="color: #6272A4;">/* ... */</span><span>&gt; {</span></span>
+<span class="giallo-l"><span>    program</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">handle</span><span>(</span><span style="color: #FF79C6;">|</span><span style="color: #50FA7B;">Log</span><span>(msg)</span><span style="color: #FF79C6;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #50FA7B;">        println!</span><span>(</span><span style="color: #F1FA8C;">&quot;{msg}&quot;</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #8BE9FD;font-style: italic;">        Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The compiler enforces at the type level that you can only call <code>.run_sync()</code> when all effects have been handled — attempting to run a partially-handled program is a compile error.</p>
+<h2 id="send-able-programs"><code>Send</code>-able programs</h2>
+<p>For use with multi-threaded runtimes like tokio, use <code>Program::new_send</code>:</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">let</span><span> program</span><span style="color: #FF79C6;"> =</span><span style="color: #8BE9FD;font-style: italic;"> Program</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">new_send</span><span>(</span><span style="color: #FF79C6;">|</span><span>y</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Yielder</span><span>&lt;&#39;</span><span style="color: #8BE9FD;font-style: italic;">_</span><span>,</span><span style="color: #8BE9FD;font-style: italic;"> Effs</span><span>&gt;</span><span style="color: #FF79C6;">| async move</span><span> {</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">yield_</span><span>(</span><span style="color: #8BE9FD;font-style: italic;">Counter</span><span>)</span><span style="color: #FF79C6;">.await</span></span>
+<span class="giallo-l"><span>});</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #6272A4;">// Can be spawned on tokio</span></span>
+<span class="giallo-l"><span>tokio</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">spawn</span><span>(</span><span style="color: #FF79C6;">async move</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    let</span><span> result</span><span style="color: #FF79C6;"> =</span><span> program</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">        .</span><span style="color: #50FA7B;">handle</span><span>(</span><span style="color: #FF79C6;">async |</span><span>_</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Counter</span><span style="color: #FF79C6;">|</span><span> Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(</span><span style="color: #BD93F9;">42</span><span style="color: #8BE9FD;font-style: italic;">u64</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">        .</span><span style="color: #50FA7B;">run</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">        .await</span><span>;</span></span>
+<span class="giallo-l"><span>});</span></span></code></pre>
+
+    <div class="docs-pagination">
+      
+        <a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;effects&#x2F;" class="docs-prev">&larr; Effects</a>
+      
+      
+        <a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;handlers&#x2F;" class="docs-next">Handlers &rarr;</a>
+      
+    </div>
+  </article>
+</div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

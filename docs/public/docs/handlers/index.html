@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Handlers — corophage</title>
+  <meta name="description" content="An effect handler library for stable Rust">
+  <link rel="stylesheet" href="https://romac.github.io/corophage/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://romac.github.io/corophage" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://romac.github.io/corophage/docs/_index.md">Docs</a>
+        <a href="https:&#x2F;&#x2F;docs.rs&#x2F;corophage">API</a>
+        <a href="https:&#x2F;&#x2F;github.com&#x2F;romac&#x2F;corophage">GitHub</a>
+        <a href="https:&#x2F;&#x2F;crates.io&#x2F;crates&#x2F;corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;getting-started&#x2F;" >Getting Started</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;effects&#x2F;" >Effects</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;programs&#x2F;" >Programs</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;handlers&#x2F;" class="active">Handlers</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;state&#x2F;" >Shared State</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;advanced&#x2F;" >Advanced Usage</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;performance&#x2F;" >Performance</a></li>
+        
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>Handlers</h1>
+    <p>A <strong>Handler</strong> is a function that implements the logic for a specific effect. It receives the effect instance and returns a <code>Control&lt;R&gt;</code>, which tells the runner what to do next.</p>
+<h2 id="control-flow">Control flow</h2>
+<p><code>Control&lt;R&gt;</code> has two variants:</p>
+<ul>
+<li><code>Control::resume(value)</code> — resumes the computation, passing <code>value</code> back as the result of <code>yield_</code>. The type of <code>value</code> must match the effect's <code>Resume</code> type.</li>
+<li><code>Control::cancel()</code> — aborts the entire computation immediately. The final result will be <code>Err(Cancelled)</code>.</li>
+</ul>
+<h2 id="sync-handlers">Sync handlers</h2>
+<p>A sync handler is a regular closure:</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">|</span><span style="color: #50FA7B;">Log</span><span>(msg)</span><span style="color: #FF79C6;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #50FA7B;">    println!</span><span>(</span><span style="color: #F1FA8C;">&quot;LOG: {msg}&quot;</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #8BE9FD;font-style: italic;">    Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h2 id="async-handlers">Async handlers</h2>
+<p>An async handler is an async closure (requires Rust 1.85+):</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">async |</span><span style="color: #50FA7B;">FileRead</span><span>(file)</span><span style="color: #FF79C6;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">    let</span><span> content</span><span style="color: #FF79C6;"> =</span><span> tokio</span><span style="color: #FF79C6;">::</span><span>fs</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">read_to_string</span><span>(file)</span><span style="color: #FF79C6;">.await.</span><span style="color: #50FA7B;">unwrap</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #8BE9FD;font-style: italic;">    Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(content)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h2 id="named-function-handlers">Named function handlers</h2>
+<p>Handlers can also be named functions:</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #FF79C6;">fn</span><span style="color: #50FA7B;"> log</span><span>(_</span><span style="color: #FF79C6;">: &amp;mut</span><span style="color: #8BE9FD;font-style: italic;"> State</span><span>,</span><span style="color: #50FA7B;"> Log</span><span>(msg)</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Log</span><span>&lt;&#39;</span><span style="color: #8BE9FD;font-style: italic;">_</span><span>&gt;)</span><span style="color: #FF79C6;"> -&gt;</span><span style="color: #8BE9FD;font-style: italic;"> Control</span><span>&lt;()&gt; {</span></span>
+<span class="giallo-l"><span style="color: #50FA7B;">    println!</span><span>(</span><span style="color: #F1FA8C;">&quot;LOG: {msg}&quot;</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #8BE9FD;font-style: italic;">    Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #FF79C6;">fn</span><span style="color: #50FA7B;"> file_read</span><span>(_</span><span style="color: #FF79C6;">: &amp;mut</span><span style="color: #8BE9FD;font-style: italic;"> State</span><span>,</span><span style="color: #50FA7B;"> FileRead</span><span>(file)</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> FileRead</span><span>)</span><span style="color: #FF79C6;"> -&gt;</span><span style="color: #8BE9FD;font-style: italic;"> Control</span><span>&lt;</span><span style="color: #8BE9FD;font-style: italic;">String</span><span>&gt; {</span></span>
+<span class="giallo-l"><span style="color: #50FA7B;">    println!</span><span>(</span><span style="color: #F1FA8C;">&quot;Reading file: {file}&quot;</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #8BE9FD;font-style: italic;">    Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">resume</span><span>(</span><span style="color: #F1FA8C;">&quot;file content&quot;</span><span style="color: #FF79C6;">.</span><span style="color: #50FA7B;">to_string</span><span>())</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h2 id="cancellation">Cancellation</h2>
+<p>Use <code>Control::cancel()</code> when an effect should abort the entire computation:</p>
+<pre class="giallo" style="color: #F8F8F2; background-color: #282A36;"><code data-lang="rust"><span class="giallo-l"><span style="color: #50FA7B;">declare_effect!</span><span>(</span><span style="color: #8BE9FD;font-style: italic;">Cancel</span><span style="color: #FF79C6;"> -&gt;</span><span style="color: #8BE9FD;font-style: italic;"> Never</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #6272A4;">// The handler cancels the computation</span></span>
+<span class="giallo-l"><span style="color: #FF79C6;">|</span><span>_</span><span style="color: #FF79C6;">:</span><span style="color: #8BE9FD;font-style: italic;"> Cancel</span><span style="color: #FF79C6;">|</span><span style="color: #8BE9FD;font-style: italic;"> Control</span><span style="color: #FF79C6;">::</span><span style="color: #50FA7B;">cancel</span><span>()</span></span></code></pre>
+<p>The <code>Never</code> resume type indicates this effect can never resume — the handler must always cancel.</p>
+
+
+    <div class="docs-pagination">
+      
+        <a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;programs&#x2F;" class="docs-prev">&larr; Programs</a>
+      
+      
+        <a href="https:&#x2F;&#x2F;romac.github.io&#x2F;corophage&#x2F;docs&#x2F;state&#x2F;" class="docs-next">Shared State &rarr;</a>
+      
+    </div>
+  </article>
+</div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

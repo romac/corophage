@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section.title }} — {{ config.title }}{% endblock %}
+
+{% block content %}
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        {% set docs_section = get_section(path="docs/_index.md") %}
+        {% for page in docs_section.pages %}
+          <li><a href="{{ page.permalink }}" {% if current_path == page.path %}class="active"{% endif %}>{{ page.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>{{ section.title }}</h1>
+    {{ section.content | safe }}
+    {% if section.pages %}
+      <div class="docs-overview">
+        {% for page in section.pages %}
+          <a href="{{ page.permalink }}" class="docs-card">
+            <h3>{{ page.title }}</h3>
+            {% if page.description %}
+              <p>{{ page.description }}</p>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </article>
+</div>
+{% endblock %}

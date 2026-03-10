@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>corophage — Algebraic Effect Handlers for Rust</title>
+  <meta name="description" content="An effect handler library for stable Rust">
+  <link rel="stylesheet" href="https://romac.github.io/corophage/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://romac.github.io/corophage" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://romac.github.io/corophage/docs/_index.md">Docs</a>
+        <a href="https:&#x2F;&#x2F;docs.rs&#x2F;corophage">API</a>
+        <a href="https:&#x2F;&#x2F;github.com&#x2F;romac&#x2F;corophage">GitHub</a>
+        <a href="https:&#x2F;&#x2F;crates.io&#x2F;crates&#x2F;corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<section class="hero">
+  <div class="hero-inner">
+    <h1>corophage</h1>
+    <p class="hero-tagline">Algebraic effect handlers for stable Rust.<br>Separate <em>what</em> your program does from <em>how</em> it gets done.</p>
+    <div class="hero-buttons">
+      <a href="https://romac.github.io/corophage/docs/_index.md" class="btn btn-primary">Get Started</a>
+      <a href="https:&#x2F;&#x2F;docs.rs&#x2F;corophage" class="btn btn-secondary">API Docs</a>
+    </div>
+    <div class="hero-install">
+      <code>cargo add corophage</code>
+    </div>
+  </div>
+</section>
+
+<section class="features">
+  <div class="features-inner">
+    <div class="feature">
+      <h3>Testable</h3>
+      <p>Swap in mock handlers for testing without touching the real world. Your business logic stays pure and easy to verify.</p>
+    </div>
+    <div class="feature">
+      <h3>Composable</h3>
+      <p>Attach handlers incrementally with the <code>Program</code> API. Partially-handled programs are first-class values you can pass around and extend.</p>
+    </div>
+    <div class="feature">
+      <h3>Stable Rust</h3>
+      <p>No nightly required. Built on async coroutines via <a href="https://github.com/jmkr/fauxgen">fauxgen</a> and heterogeneous lists via <a href="https://github.com/lloydmeta/frunk">frunk</a>.</p>
+    </div>
+    <div class="feature">
+      <h3>Fast</h3>
+      <p>~10 ns per yield. Zero-cost dispatch — the compiler monomorphizes and inlines effect dispatch into flat branches.</p>
+    </div>
+  </div>
+</section>
+
+<section class="example-section">
+  <div class="example-inner">
+    <h2>Define effects, write logic, attach handlers</h2>
+    <div class="example-grid">
+      <div class="example-step">
+        <h4>1. Declare your effects</h4>
+        <pre><code class="language-rust">use corophage::prelude::*;
+
+declare_effect!(Log&lt;'a&gt;(pub &amp;'a str) -&gt; ());
+declare_effect!(FileRead(pub String) -&gt; String);
+declare_effect!(Cancel -&gt; Never);</code></pre>
+      </div>
+      <div class="example-step">
+        <h4>2. Write your business logic</h4>
+        <pre><code class="language-rust">type Effs = Effects![Cancel, Log&lt;'static&gt;, FileRead];
+
+let program = Program::new(|y: Yielder&lt;'_, Effs&gt;| async move {
+    y.yield_(Log("Starting...")).await;
+    let text = y.yield_(FileRead("data.txt".into())).await;
+    text.len()
+});</code></pre>
+      </div>
+      <div class="example-step">
+        <h4>3. Attach handlers and run</h4>
+        <pre><code class="language-rust">let result = program
+    .handle(|_: Cancel| Control::cancel())
+    .handle(|Log(msg)| {
+        println!("{msg}");
+        Control::resume(())
+    })
+    .handle(|FileRead(path)| {
+        let content = std::fs::read_to_string(path).unwrap();
+        Control::resume(content)
+    })
+    .run_sync();
+
+assert!(result.is_ok());</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="highlight-section">
+  <div class="highlight-inner">
+    <h2>Borrowed resume types with GATs</h2>
+    <p>Handlers can resume computations with <em>borrowed</em> data — no cloning needed.</p>
+    <pre><code class="language-rust">use corophage::prelude::*;
+use std::collections::HashMap;
+
+struct Lookup&lt;'a&gt; {
+    map: &amp;'a HashMap&lt;String, String&gt;,
+    key: &amp;'a str,
+}
+
+impl&lt;'a&gt; Effect for Lookup&lt;'a&gt; {
+    // The handler resumes with a &amp;str borrowed from the map
+    type Resume&lt;'r&gt; = &amp;'r str;
+}
+
+let map = HashMap::from([
+    ("host".into(), "localhost".into()),
+    ("port".into(), "5432".into()),
+]);
+
+let result = Program::new({
+    let map = &amp;map;
+    move |y: Yielder&lt;'_, Effects![Lookup&lt;'_&gt;]&gt;| async move {
+        let host: &amp;str = y.yield_(Lookup { map, key: "host" }).await;
+        let port: &amp;str = y.yield_(Lookup { map, key: "port" }).await;
+        format!("{host}:{port}")
+    }
+})
+.handle(|Lookup { map, key }| {
+    let value = map.get(key).unwrap();
+    Control::resume(value.as_str())
+})
+.run_sync();
+
+assert_eq!(result, Ok("localhost:5432".to_string()));</code></pre>
+  </div>
+</section>
+
+<section class="cta-section">
+  <div class="cta-inner">
+    <h2>Ready to get started?</h2>
+    <div class="hero-buttons">
+      <a href="https://romac.github.io/corophage/docs/_index.md" class="btn btn-primary">Read the Guide</a>
+      <a href="https:&#x2F;&#x2F;github.com&#x2F;romac&#x2F;corophage" class="btn btn-secondary">View on GitHub</a>
+    </div>
+  </div>
+</section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

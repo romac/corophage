@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ config.title }}{% endblock %}</title>
+  <meta name="description" content="{{ config.description }}">
+  <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="{{ get_url(path='/') }}" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="{{ get_url(path='docs/_index.md') }}">Docs</a>
+        <a href="{{ config.extra.docs_rs_url }}">API</a>
+        <a href="{{ config.extra.repo_url }}">GitHub</a>
+        <a href="{{ config.extra.crates_url }}">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>
