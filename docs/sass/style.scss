@@ -1,20 +1,23 @@
 :root {
-  --bg: #1e1e2e; // Base
-  --bg-secondary: #181825; // Mantle
-  --bg-tertiary: #11111b; // Crust
-  --surface: #313244; // Surface0
-  --border: #45475a; // Surface1
-  --text: #cdd6f4; // Text
-  --text-muted: #a6adc8; // Subtext0
-  --text-subtle: #6c7086; // Overlay0
-  --accent: #89b4fa; // Blue
-  --accent-hover: #b4d0fb; // Blue (lighter)
-  --accent-bg: rgba(137, 180, 250, 0.1);
-  --yellow: #f9e2af; // Yellow
-  --mauve: #cba6f7; // Mauve
-  --green: #a6e3a1; // Green
-  --orange: #fab387; // Peach
-  --code-bg: #181825; // Mantle
+  --bg: #1c1916;
+  --bg-secondary: #15120f;
+  --bg-tertiary: #0e0c0a;
+  --surface: #2d2721;
+  --border: #443b32;
+  --text: #e8ddd0;
+  --text-muted: #b5a898;
+  --text-subtle: #766a5c;
+  --accent: #e87b4a;
+  --accent-hover: #f0a07a;
+  --accent-bg: rgba(232, 123, 74, 0.1);
+  --yellow: #f2d06b;
+  --mauve: #d4916e;
+  --green: #8cbe5e;
+  --orange: #e8a040;
+  --code-bg: #15120f;
+  --navbar-bg: rgba(28, 25, 22, 0.8);
+  --blockquote-bg: rgba(212, 145, 110, 0.1);
+  --hero-glow: rgba(212, 145, 110, 0.08);
   --font-sans:
     "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
@@ -67,6 +70,10 @@ pre code * {
   font-style: normal !important;
 }
 
+pre.giallo {
+  background-color: var(--code-bg) !important;
+}
+
 h1,
 h2,
 h3,
@@ -81,7 +88,7 @@ h6 {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--navbar-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
@@ -124,7 +131,7 @@ h6 {
   text-align: center;
   background: radial-gradient(
     ellipse at 50% 0%,
-    rgba(203, 166, 247, 0.08) 0%,
+    var(--hero-glow) 0%,
     transparent 70%
   );
 }
@@ -523,7 +530,7 @@ h6 {
     border-left: 3px solid var(--mauve);
     padding: 0.75rem 1rem;
     margin-bottom: 1.5rem;
-    background: rgba(203, 166, 247, 0.1);
+    background: var(--blockquote-bg);
     border-radius: 0 8px 8px 0;
     p {
       margin-bottom: 0;
