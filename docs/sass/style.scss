@@ -290,8 +290,19 @@ h1, h2, h3, h4, h5, h6 {
     text-align: left;
   }
 
+  .tab-description {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+  }
+
   #tab-sync:checked ~ #panel-sync,
-  #tab-async:checked ~ #panel-async {
+  #tab-async:checked ~ #panel-async,
+  #tab-testing:checked ~ #panel-testing,
+  #tab-borrow:checked ~ #panel-borrow,
+  #tab-borrowed-effects:checked ~ #panel-borrowed-effects,
+  #tab-stateful:checked ~ #panel-stateful {
     display: block;
   }
 }

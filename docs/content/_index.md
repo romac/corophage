@@ -42,7 +42,7 @@ Attach handlers incrementally with the `Program` API. Partially-handled programs
 
 ### Stable Rust
 
-No nightly required. Built on async coroutines via [fauxgen](https://github.com/jmkr/fauxgen) and heterogeneous lists via [frunk](https://github.com/lloydmeta/frunk).
+No nightly required. Built on async coroutines via [fauxgen](https://github.com/jmkr/fauxgen) and hlists/coproducts via [frunk](https://github.com/lloydmeta/frunk).
 
 </div>
 <div class="feature">
@@ -65,8 +65,11 @@ No nightly required. Built on async coroutines via [fauxgen](https://github.com/
 <label for="tab-sync">Sync</label>
 <input type="radio" name="example-tabs" id="tab-async">
 <label for="tab-async">Async</label>
+<input type="radio" name="example-tabs" id="tab-testing">
+<label for="tab-testing">Testing</label>
 
 <div class="tab-panel" id="panel-sync">
+<p class="tab-description">Run effectful programs synchronously with plain closures as handlers.</p>
 <div class="example-grid">
 <div class="example-step">
 
@@ -130,6 +133,7 @@ assert_eq!(result, Ok(42));
 </div>
 
 <div class="tab-panel" id="panel-async">
+<p class="tab-description">Use async closures as handlers and <code>.await</code> real async I/O inside them.</p>
 <div class="example-grid">
 <div class="example-step">
 
@@ -193,6 +197,72 @@ assert_eq!(result, Ok(42));
 </div>
 </div>
 
+<div class="tab-panel" id="panel-testing">
+<p class="tab-description">Swap in mock handlers to test your business logic without side effects.</p>
+<div class="example-grid">
+<div class="example-step">
+
+#### 1. Same effects, same logic
+
+```rust
+use corophage::prelude::*;
+
+declare_effect!(Log<'a>(&'a str) -> ());
+declare_effect!(Read(String) -> String);
+declare_effect!(Cancel -> Never);
+
+type Effs = Effects![Cancel, Log<'static>, Read];
+```
+
+</div>
+<div class="example-step">
+
+#### 2. Reuse the same program
+
+```rust
+fn my_program() -> Program</* ... */> {
+    Program::new(
+        |y: Yielder<'_, Effs>| async move {
+            y.yield_(Log("Starting...")).await;
+            let data = y.yield_(Read("config.toml".into())).await;
+            data.len()
+        },
+    )
+}
+```
+
+</div>
+<div class="example-step">
+
+#### 3. Swap in mock handlers
+
+```rust
+let result = my_program()
+    .handle(|_: Cancel| Control::cancel())
+    .handle(|Log(_)| Control::resume(())) // silent
+    .handle(|Read(_)| {
+        // Return fake data instead of reading from disk
+        Control::resume("mock content!".into())
+    });
+```
+
+</div>
+<div class="example-step">
+
+#### 4. Assert without side effects
+
+```rust
+let result = result.run_sync();
+
+// Business logic is tested without touching
+// the filesystem or printing to stdout
+assert_eq!(result, Ok(13));
+```
+
+</div>
+</div>
+</div>
+
 </div>
 </div>
 </section>
@@ -200,9 +270,48 @@ assert_eq!(result, Ok(42));
 <section class="highlight-section">
 <div class="highlight-inner">
 
-## Borrowed resume types with GATs
+## More features
 
-Handlers can resume computations with *borrowed* data — no cloning needed.
+<div class="tabs">
+<input type="radio" name="highlight-tabs" id="tab-stateful" checked>
+<label for="tab-stateful">Shared state</label>
+<input type="radio" name="highlight-tabs" id="tab-borrow">
+<label for="tab-borrow">Borrowed resume types</label>
+<input type="radio" name="highlight-tabs" id="tab-borrowed-effects">
+<label for="tab-borrowed-effects">Borrowed effects</label>
+
+<div class="tab-panel" id="panel-stateful">
+
+Handlers can share mutable state. The state is passed as an argument to every handler.
+
+```rust
+use corophage::prelude::*;
+
+declare_effect!(Counter -> u64);
+
+let mut count: u64 = 0;
+
+let result = Program::new(|y: Yielder<'_, Effects![Counter]>| async move {
+    let a = y.yield_(Counter).await;
+    let b = y.yield_(Counter).await;
+    a + b
+})
+.handle(|s: &mut u64, _: Counter| {
+    *s += 1;
+    Control::resume(*s)
+})
+.run_sync_stateful(&mut count);
+
+assert_eq!(result, Ok(3));  // 1 + 2
+assert_eq!(count, 2);       // handler was called twice
+```
+
+</div>
+
+<div class="tab-panel" id="panel-borrow">
+
+Handlers can resume computations with *borrowed* data — no cloning needed.  
+Because _`Effect::Resume<'r>`_ is a GAT, handlers can return references instead of owned values.
 
 ```rust
 use corophage::prelude::*;
@@ -240,6 +349,35 @@ let result = Program::new({
 assert_eq!(result, Ok("localhost:5432".to_string()));
 ```
 
+</div>
+
+<div class="tab-panel" id="panel-borrowed-effects">
+
+Effects can borrow data from the local scope by using a non-_`'static`_ lifetime.
+
+```rust
+use corophage::prelude::*;
+
+struct Log<'a>(pub &'a str);
+impl<'a> Effect for Log<'a> {
+    type Resume<'r> = ();
+}
+
+let msg = String::from("hello from a local string");
+let msg_ref = msg.as_str();
+
+let result = Program::new(move |y: Yielder<'_, Effects![Log<'_>]>| async move {
+    y.yield_(Log(msg_ref)).await;
+})
+.handle(|Log(m)| { println!("{m}"); Control::resume(()) })
+.run_sync();
+
+assert_eq!(result, Ok(()));
+```
+
+</div>
+
+</div>
 </div>
 </section>
 
