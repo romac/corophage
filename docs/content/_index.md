@@ -60,27 +60,32 @@ No nightly required. Built on async coroutines via [fauxgen](https://github.com/
 
 ## Define effects, write logic, attach handlers
 
-<div class="tabs">
-<input type="radio" name="example-tabs" id="tab-sync" checked>
-<label for="tab-sync">Sync</label>
-<input type="radio" name="example-tabs" id="tab-async">
-<label for="tab-async">Async</label>
-<input type="radio" name="example-tabs" id="tab-testing">
-<label for="tab-testing">Testing</label>
+<p class="section-intro">Your program describes <em>what</em> to do by yielding effects.</p>
 
-<div class="tab-panel" id="panel-sync">
-<p class="tab-description">Run effectful programs synchronously with plain closures as handlers.</p>
-<div class="example-grid">
+<div class="example-shared">
 <div class="example-step">
 
-#### 1. Define your effects
+#### Define your effects
+
+Each effect is a struct that implements the `Effect` trait. The `Resume` type defines what the handler sends back.
 
 ```rust
 use corophage::prelude::*;
 
-declare_effect!(Log<'a>(&'a str) -> ());
-declare_effect!(Read(String) -> String);
-declare_effect!(Cancel -> Never);
+struct Log<'a>(&'a str);
+impl<'a> Effect for Log<'a> {
+    type Resume<'r> = ();
+}
+
+struct Read(String);
+impl Effect for Read {
+    type Resume<'r> = String;
+}
+
+struct Cancel;
+impl Effect for Cancel {
+    type Resume<'r> = Never;
+}
 
 type Effs = Effects![Cancel, Log<'static>, Read];
 ```
@@ -88,7 +93,9 @@ type Effs = Effects![Cancel, Log<'static>, Read];
 </div>
 <div class="example-step">
 
-#### 2. Describe what to do
+#### Describe what to do
+
+Your program yields effects and receives their results. It doesn't know or care how they are handled.
 
 ```rust
 let program = Program::new(
@@ -101,12 +108,23 @@ let program = Program::new(
 ```
 
 </div>
-<div class="example-step">
+</div>
 
-#### 3. Decide how to do it
+<p class="section-transition">Now decide <em>how</em> to handle each effect.</p>
+
+<div class="tabs">
+<input type="radio" name="example-tabs" id="tab-sync" checked>
+<label for="tab-sync">Sync</label>
+<input type="radio" name="example-tabs" id="tab-async">
+<label for="tab-async">Async</label>
+<input type="radio" name="example-tabs" id="tab-testing">
+<label for="tab-testing">Mocks</label>
+
+<div class="tab-panel" id="panel-sync">
+<p class="tab-description">Run with plain closures as handlers.</p>
 
 ```rust
-let program = program
+let result = program
     .handle(|_: Cancel| Control::cancel())
     .handle(|Log(msg)| {
         println!("{msg}");
@@ -114,63 +132,19 @@ let program = program
     })
     .handle(|Read(path)| {
         Control::resume(std::fs::read_to_string(path).unwrap())
-    });
-```
-
-</div>
-<div class="example-step">
-
-#### 4. Run it
-
-```rust
-let result = program.run_sync();
+    })
+    .run_sync();
 
 assert_eq!(result, Ok(42));
 ```
 
 </div>
-</div>
-</div>
 
 <div class="tab-panel" id="panel-async">
-<p class="tab-description">Use async closures as handlers and <code>.await</code> real async I/O inside them.</p>
-<div class="example-grid">
-<div class="example-step">
-
-#### 1. Define your effects
+<p class="tab-description">Use async closures and <code>.await</code> real I/O.</p>
 
 ```rust
-use corophage::prelude::*;
-
-declare_effect!(Log<'a>(&'a str) -> ());
-declare_effect!(Read(String) -> String);
-declare_effect!(Cancel -> Never);
-
-type Effs = Effects![Cancel, Log<'static>, Read];
-```
-
-</div>
-<div class="example-step">
-
-#### 2. Describe what to do
-
-```rust
-let program = Program::new(
-    |y: Yielder<'_, Effs>| async move {
-        y.yield_(Log("Starting...")).await;
-        let data = y.yield_(Read("config.toml".into())).await;
-        data.len()
-    },
-);
-```
-
-</div>
-<div class="example-step">
-
-#### 3. Decide how to do it
-
-```rust
-let program = program
+let result = program
     .handle(async |_: Cancel| Control::cancel())
     .handle(async |Log(msg)| {
         println!("{msg}");
@@ -179,92 +153,38 @@ let program = program
     .handle(async |Read(path)| {
         let data = tokio::fs::read_to_string(path).await.unwrap();
         Control::resume(data)
-    });
-```
-
-</div>
-<div class="example-step">
-
-#### 4. Run it
-
-```rust
-let result = program.run().await;
+    })
+    .run().await;
 
 assert_eq!(result, Ok(42));
 ```
 
 </div>
-</div>
-</div>
 
 <div class="tab-panel" id="panel-testing">
-<p class="tab-description">Swap in mock handlers to test your business logic without side effects.</p>
-<div class="example-grid">
-<div class="example-step">
-
-#### 1. Same effects, same logic
+<p class="tab-description">Swap in mock handlers, test without side effects.</p>
 
 ```rust
-use corophage::prelude::*;
-
-declare_effect!(Log<'a>(&'a str) -> ());
-declare_effect!(Read(String) -> String);
-declare_effect!(Cancel -> Never);
-
-type Effs = Effects![Cancel, Log<'static>, Read];
-```
-
-</div>
-<div class="example-step">
-
-#### 2. Reuse the same program
-
-```rust
-fn my_program() -> Program</* ... */> {
-    Program::new(
-        |y: Yielder<'_, Effs>| async move {
-            y.yield_(Log("Starting...")).await;
-            let data = y.yield_(Read("config.toml".into())).await;
-            data.len()
-        },
-    )
-}
-```
-
-</div>
-<div class="example-step">
-
-#### 3. Swap in mock handlers
-
-```rust
-let result = my_program()
+let result = program
     .handle(|_: Cancel| Control::cancel())
     .handle(|Log(_)| Control::resume(())) // silent
     .handle(|Read(_)| {
-        // Return fake data instead of reading from disk
+        // Fake data instead of reading from disk
         Control::resume("mock content!".into())
-    });
-```
+    })
+    .run_sync();
 
-</div>
-<div class="example-step">
-
-#### 4. Assert without side effects
-
-```rust
-let result = result.run_sync();
-
-// Business logic is tested without touching
-// the filesystem or printing to stdout
+// No filesystem access, no stdout output
 assert_eq!(result, Ok(13));
 ```
 
 </div>
-</div>
-</div>
 
 </div>
 </div>
+
+<p class="section-transition">The effects and logic stay the same — only the handlers change.</p>
+
 </section>
 
 <section class="highlight-section">

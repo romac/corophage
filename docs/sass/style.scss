@@ -288,6 +288,18 @@ h1, h2, h3, h4, h5, h6 {
   .tab-panel {
     display: none;
     text-align: left;
+
+    > pre {
+      max-width: 640px;
+      margin: 0 auto;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
   }
 
   .tab-description {
@@ -307,20 +319,51 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-.example-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.section-intro {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  margin-bottom: 2rem;
+  em {
+    color: var(--yellow);
+    font-style: normal;
+  }
+}
+
+.section-transition {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin-top: 3rem;
+  margin-bottom: 0.5rem;
+  em {
+    color: var(--yellow);
+    font-style: normal;
+  }
+}
+
+.example-shared {
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
+  max-width: 640px;
+  margin: 0 auto 1.5rem;
 }
 
 .example-step {
   h4 {
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--yellow);
+    color: var(--text-subtle);
+    margin-bottom: 0.5rem;
+  }
+  > p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
     margin-bottom: 0.75rem;
+    line-height: 1.6;
   }
   pre {
     background: var(--code-bg);
@@ -551,8 +594,8 @@ h1, h2, h3, h4, h5, h6 {
   .features-inner {
     grid-template-columns: repeat(2, 1fr);
   }
-  .example-grid {
-    grid-template-columns: 1fr;
+  .example-shared {
+    max-width: 100%;
   }
   .docs-layout {
     grid-template-columns: 1fr;
