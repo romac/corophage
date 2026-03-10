@@ -50,7 +50,15 @@ a {
 
 code {
   font-family: var(--font-mono);
-  font-size: 0.875em;
+  font-size: 1em;
+}
+
+pre code * {
+  font-style: normal !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-mono);
 }
 
 // Navbar
@@ -239,9 +247,51 @@ code {
   font-size: 1.05rem;
 }
 
+// Tabs
+.tabs {
+  position: relative;
+  text-align: center;
+
+  input[type="radio"] {
+    display: none;
+  }
+
+  label {
+    display: inline-block;
+    padding: 0.5rem 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    margin-bottom: 1.5rem;
+
+    &:hover {
+      color: var(--text);
+    }
+  }
+
+  input[type="radio"]:checked + label {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-panel {
+    display: none;
+    text-align: left;
+  }
+
+  #tab-sync:checked ~ #panel-sync,
+  #tab-async:checked ~ #panel-async {
+    display: block;
+  }
+}
+
 .example-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
 }
 

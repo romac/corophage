@@ -12,7 +12,7 @@ include_content = true
 
 [markdown.highlighting]
 enabled = true
-theme = "dracula"
+theme = "catppuccin-mocha"
 
 [extra]
 repo_url = "https://github.com/romac/corophage"
