@@ -8,9 +8,9 @@ use crate::effect::{Effects, Resumes};
 /// - [`Resume`](Control::Resume) to continue the computation with a value, or
 /// - [`Cancel`](Control::Cancel) to abort the computation.
 ///
-/// Unlike the internal [`CoControl`] type, `Control` is parameterized
-/// by the resume type `R` rather than the full effect set, making handlers
-/// reusable across different effect sets.
+// NOTE: Unlike the internal `CoControl` type, `Control` is parameterized
+// by the resume type `R` rather than the full effect set, making handlers
+// reusable across different effect sets.
 pub enum Control<R> {
     /// Resume the computation with the given value.
     Resume(R),
