@@ -233,7 +233,7 @@ assert_eq!(count, 2);       // handler was called twice
 
 <div class="tab-panel" id="panel-borrow">
 
-Handlers can resume computations with *borrowed* data — no cloning needed.  
+Handlers can resume computations with *borrowed* data — no cloning needed.
 Because _`Effect::Resume<'r>`_ is a GAT, handlers can return references instead of owned values.
 
 ```rust
@@ -246,25 +246,27 @@ struct Lookup<'a> {
     key: &'a str,
 }
 
+// Pass borrowed data as function parameters.
+// For inline use or fine-grained capture control,
+// use Program::new directly instead.
+#[effectful(Lookup<'a>)]
+fn lookup<'a>(map: &'a HashMap<String, String>) -> String {
+    let host: &str = yield_!(Lookup { map, key: "host" });
+    let port: &str = yield_!(Lookup { map, key: "port" });
+    format!("{host}:{port}")
+}
+
 let map = HashMap::from([
     ("host".into(), "localhost".into()),
     ("port".into(), "5432".into()),
 ]);
 
-// Borrowed effects need Program::new for explicit capture
-let result = Program::new({
-    let map = &map;
-    move |y: Yielder<'_, Effects![Lookup<'_>]>| async move {
-        let host: &str = y.yield_(Lookup { map, key: "host" }).await;
-        let port: &str = y.yield_(Lookup { map, key: "port" }).await;
-        format!("{host}:{port}")
-    }
-})
-.handle(|Lookup { map, key }| {
-    let value = map.get(key).unwrap();
-    Control::resume(value.as_str())
-})
-.run_sync();
+let result = lookup(&map)
+    .handle(|Lookup { map, key }| {
+        let value = map.get(key).unwrap();
+        Control::resume(value.as_str())
+    })
+    .run_sync();
 
 assert_eq!(result, Ok("localhost:5432".to_string()));
 ```
@@ -281,15 +283,19 @@ use corophage::prelude::*;
 #[effect(())]
 struct Log<'a>(pub &'a str);
 
-let msg = String::from("hello from a local string");
-let msg_ref = msg.as_str();
+// Pass borrowed data as function parameters.
+// For inline use or fine-grained capture control,
+// use Program::new directly instead.
+#[effectful(Log<'a>)]
+fn greet<'a>(msg: &'a str) {
+    yield_!(Log(msg));
+}
 
-// Borrowed effects need Program::new for explicit capture
-let result = Program::new(move |y: Yielder<'_, Effects![Log<'_>]>| async move {
-    y.yield_(Log(msg_ref)).await;
-})
-.handle(|Log(m)| { println!("{m}"); Control::resume(()) })
-.run_sync();
+let msg = String::from("hello from a local string");
+
+let result = greet(&msg)
+    .handle(|Log(m)| { println!("{m}"); Control::resume(()) })
+    .run_sync();
 
 assert_eq!(result, Ok(()));
 ```

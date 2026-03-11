@@ -5,6 +5,8 @@ fn compile_fail_tests() {
     t.compile_fail("tests/compile_fail/*.rs");
 }
 
+use std::collections::HashMap;
+
 use corophage::prelude::*;
 
 // --- #[effect] tests ---
@@ -201,4 +203,64 @@ async fn test_async_effectful() {
         .await;
 
     assert_eq!(result, Ok(true));
+}
+
+// --- Borrowed effects with #[effectful] ---
+
+// Effect that borrows non-'static data from the caller's scope.
+// #[effectful] works here because the borrowed data is passed
+// as a function parameter rather than captured from an enclosing scope.
+#[effectful(Log<'a>)]
+fn log_borrowed<'a>(msg: &'a str) {
+    yield_!(Log(msg));
+}
+
+#[test]
+fn test_effectful_borrowed_effects() {
+    let msg = String::from("hello from a local string");
+    let result = log_borrowed(&msg)
+        .handle(|Log(m)| {
+            println!("{m}");
+            Control::resume(())
+        })
+        .run_sync();
+
+    assert_eq!(result, Ok(()));
+}
+
+// --- Borrowed resume types (GAT) with #[effectful] ---
+
+#[effect(&'r str)]
+struct Lookup<'a> {
+    map: &'a HashMap<String, String>,
+    key: &'a str,
+}
+
+// Effect with a GAT resume type (`&'r str`). The handler resumes
+// with borrowed data instead of an owned value.
+// #[effectful] works here because the HashMap reference is passed
+// as a function parameter. Use Program::new directly when you need
+// to capture borrows from an enclosing scope instead.
+#[effectful(Lookup<'a>)]
+fn lookup<'a>(map: &'a HashMap<String, String>) -> String {
+    let host: &str = yield_!(Lookup { map, key: "host" });
+    let port: &str = yield_!(Lookup { map, key: "port" });
+    format!("{host}:{port}")
+}
+
+#[test]
+fn test_effectful_gat_resume() {
+    let map = HashMap::from([
+        ("host".into(), "localhost".into()),
+        ("port".into(), "5432".into()),
+    ]);
+
+    let result = lookup(&map)
+        .handle(|Lookup { map, key }| {
+            let value = map.get(key).unwrap();
+            Control::resume(value.as_str())
+        })
+        .run_sync();
+
+    assert_eq!(result, Ok("localhost:5432".to_string()));
 }
