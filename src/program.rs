@@ -11,19 +11,39 @@ use crate::coroutine::{Co, CoSend, GenericCo, Yielder};
 use crate::effect::{CanStart, Effects, Resumes};
 use crate::locality::{Local, Locality, Sendable};
 
+/// An effectful computation with no handlers attached.
+///
+/// This is a convenience alias for [`Program`] where all effects in `Effs`
+/// still need to be handled. Use this as the return type of functions that
+/// create programs:
+///
+/// ```ignore
+/// use corophage::prelude::*;
+///
+/// type MyEffs = Effects![Counter, Ask];
+///
+/// fn my_computation<'a>() -> Eff<'a, MyEffs, String> {
+///     Program::new(|y: Yielder<'_, MyEffs>| async move {
+///         // ...
+///         "result".to_string()
+///     })
+/// }
+/// ```
+pub type Eff<'a, Effs, R, L = Local> = Program<'a, Effs, R, L, Effs, HNil>;
+
 /// A computation with incrementally attached effect handlers.
 ///
 /// Handlers are added one at a time via [`handle`](Program::handle),
 /// or in bulk via [`handle_all`](Program::handle_all).
 /// Once all effects are handled (`Remaining = CNil`), the computation
 /// can be executed via [`run`](Program::run) or [`run_sync`](Program::run_sync).
-pub struct Program<'a, Effs: Effects<'a>, R, L: Locality, Remaining, Handlers> {
-    co: GenericCo<'a, Effs, R, L>,
+pub struct Program<'a, Effs: Effects<'a>, Result, L: Locality, Remaining, Handlers> {
+    co: GenericCo<'a, Effs, Result, L>,
     handlers: Handlers,
     _remaining: PhantomData<Remaining>,
 }
 
-impl<'a, R> Program<'a, CNil, R, Local, CNil, HNil> {
+impl<'a, Result> Program<'a, CNil, Result, Local, CNil, HNil> {
     /// Create a new program from a computation closure.
     ///
     /// The effect set can be inferred from the closure parameter annotation,
@@ -38,16 +58,16 @@ impl<'a, R> Program<'a, CNil, R, Local, CNil, HNil> {
     /// ```
     pub fn new<Effs, F>(
         f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a,
-    ) -> Program<'a, Effs, R, Local, Effs, HNil>
+    ) -> Program<'a, Effs, Result, Local, Effs, HNil>
     where
         Effs: Effects<'a>,
-        F: Future<Output = R>,
+        F: Future<Output = Result>,
     {
         Program::from_co(Co::new(f))
     }
 }
 
-impl<'a, R> Program<'a, CNil, R, Sendable, CNil, HNil> {
+impl<'a, Result> Program<'a, CNil, Result, Sendable, CNil, HNil> {
     /// Create a new `Send`-able program from a computation closure.
     ///
     /// The effect set can be inferred from the closure parameter annotation,
@@ -62,11 +82,11 @@ impl<'a, R> Program<'a, CNil, R, Sendable, CNil, HNil> {
     /// ```
     pub fn new_send<Effs, F>(
         f: impl FnOnce(Yielder<'a, Effs>) -> F + Send + 'a,
-    ) -> Program<'a, Effs, R, Sendable, Effs, HNil>
+    ) -> Program<'a, Effs, Result, Sendable, Effs, HNil>
     where
         Effs: Effects<'a>,
         for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
-        F: Future<Output = R> + Send,
+        F: Future<Output = Result> + Send,
     {
         Program::from_co(CoSend::new(f))
     }

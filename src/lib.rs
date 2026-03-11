@@ -21,7 +21,7 @@ pub use control::{Cancelled, Control};
 pub use coroutine::Yielder;
 pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
-pub use program::Program;
+pub use program::{Eff, Program};
 
 /// Internal macro for running a coroutine with effect handlers.
 macro_rules! run {
