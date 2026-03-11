@@ -54,7 +54,7 @@ checksum = "baf0a07a401f374238ab8e2f11a104d2851bf9ce711ec69804834de8af45c7af"
 
 [[package]]
 name = "corophage"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "corophage-macros",
  "divan",
@@ -66,7 +66,7 @@ dependencies = [
 
 [[package]]
 name = "corophage-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
