@@ -14,14 +14,16 @@ use corophage::prelude::*;
 #[effect(())]
 struct Log<'a>(pub &'a str);
 
-let msg = String::from("hello from a local string");
-let msg_ref = msg.as_str();
+#[effectful(Log<'a>)]
+fn log_it<'a>(msg: &'a str) -> () {
+    yield_!(Log(msg));
+}
 
-let result = Program::new(move |y: Yielder<'_, Effects![Log<'_>]>| async move {
-    y.yield_(Log(msg_ref)).await;
-})
-.handle(|Log(m)| { println!("{m}"); Control::resume(()) })
-.run_sync();
+let msg = String::from("hello from a local string");
+
+let result = log_it(&msg)
+    .handle(|Log(m)| { println!("{m}"); Control::resume(()) })
+    .run_sync();
 
 assert_eq!(result, Ok(()));
 ```
@@ -40,24 +42,24 @@ struct Lookup<'a> {
     key: &'a str,
 }
 
+#[effectful(Lookup<'a>)]
+fn lookup_config<'a>(map: &'a HashMap<String, String>) -> String {
+    let host: &str = yield_!(Lookup { map, key: "host" });
+    let port: &str = yield_!(Lookup { map, key: "port" });
+    format!("{host}:{port}")
+}
+
 let map = HashMap::from([
     ("host".to_string(), "localhost".to_string()),
     ("port".to_string(), "5432".to_string()),
 ]);
 
-let result = Program::new({
-    let map = &map;
-    move |y: Yielder<'_, Effects![Lookup<'_>]>| async move {
-        let host: &str = y.yield_(Lookup { map, key: "host" }).await;
-        let port: &str = y.yield_(Lookup { map, key: "port" }).await;
-        format!("{host}:{port}")
-    }
-})
-.handle(|Lookup { map, key }| {
-    let value = map.get(key).unwrap();
-    Control::resume(value.as_str())
-})
-.run_sync();
+let result = lookup_config(&map)
+    .handle(|Lookup { map, key }| {
+        let value = map.get(key).unwrap();
+        Control::resume(value.as_str())
+    })
+    .run_sync();
 
 assert_eq!(result, Ok("localhost:5432".to_string()));
 ```

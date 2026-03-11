@@ -6,38 +6,9 @@ description = "Define effects — the building blocks of your effectful programs
 
 An **Effect** is a struct that represents a request for a side effect. It's a message from your computation to the outside world.
 
-## The `Effect` trait
+## Defining effects with `#[effect]`
 
-To define an effect, implement the `Effect` trait. The most important part is the associated type `Resume<'r>` (a generic associated type), which defines the type of value the computation receives back after the effect is handled.
-
-```rust
-use corophage::{Effect, Never};
-
-// An effect to request logging a message.
-// It doesn't need any data back, so we resume with `()`.
-pub struct Log<'a>(pub &'a str);
-impl<'a> Effect for Log<'a> {
-    type Resume<'r> = ();
-}
-
-// An effect to request reading a file.
-// It expects the file's contents back, so we resume with `String`.
-pub struct FileRead(pub String);
-impl Effect for FileRead {
-    type Resume<'r> = String;
-}
-
-// An effect that cancels the computation.
-// It will never resume, so we use the special `Never` type.
-pub struct Cancel;
-impl Effect for Cancel {
-    type Resume<'r> = Never;
-}
-```
-
-## The `#[effect]` attribute macro
-
-The easiest way to define effects is with the `#[effect(ResumeType)]` attribute macro:
+To define an effect, annotate a struct with `#[effect(ResumeType)]`. The resume type defines what value the computation receives back after the effect is handled.
 
 ```rust
 use corophage::prelude::*;

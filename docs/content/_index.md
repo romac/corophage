@@ -209,20 +209,21 @@ use corophage::prelude::*;
 #[effect(u64)]
 struct Counter;
 
-type Effs = Effects![Counter];
+#[effectful(Counter)]
+fn count_up() -> u64 {
+    let a = yield_!(Counter);
+    let b = yield_!(Counter);
+    a + b
+}
 
 let mut count: u64 = 0;
 
-let result = Program::new(|y: Yielder<'_, Effs>| async move {
-    let a = y.yield_(Counter).await;
-    let b = y.yield_(Counter).await;
-    a + b
-})
-.handle(|s: &mut u64, _: Counter| {
-    *s += 1;
-    Control::resume(*s)
-})
-.run_sync_stateful(&mut count);
+let result = count_up()
+    .handle(|s: &mut u64, _: Counter| {
+        *s += 1;
+        Control::resume(*s)
+    })
+    .run_sync_stateful(&mut count);
 
 assert_eq!(result, Ok(3));  // 1 + 2
 assert_eq!(count, 2);       // handler was called twice
@@ -239,26 +240,21 @@ Because _`Effect::Resume<'r>`_ is a GAT, handlers can return references instead 
 use corophage::prelude::*;
 use std::collections::HashMap;
 
+#[effect(&'r str)]
 struct Lookup<'a> {
     map: &'a HashMap<String, String>,
     key: &'a str,
 }
-
-impl<'a> Effect for Lookup<'a> {
-    // The handler resumes with a &str borrowed from the map
-    type Resume<'r> = &'r str;
-}
-
-type Effs = Effect![Lookup];
 
 let map = HashMap::from([
     ("host".into(), "localhost".into()),
     ("port".into(), "5432".into()),
 ]);
 
+// Borrowed effects need Program::new for explicit capture
 let result = Program::new({
     let map = &map;
-    move |y: Yielder<'_, Effs>| async move {
+    move |y: Yielder<'_, Effects![Lookup<'_>]>| async move {
         let host: &str = y.yield_(Lookup { map, key: "host" }).await;
         let port: &str = y.yield_(Lookup { map, key: "port" }).await;
         format!("{host}:{port}")
@@ -282,17 +278,14 @@ Effects can borrow data from the local scope by using a non-_`'static`_ lifetime
 ```rust
 use corophage::prelude::*;
 
-type Effs<'a> = Effect![Log<'a>];
-
+#[effect(())]
 struct Log<'a>(pub &'a str);
-impl<'a> Effect for Log<'a> {
-    type Resume<'r> = ();
-}
 
 let msg = String::from("hello from a local string");
 let msg_ref = msg.as_str();
 
-let result = Program::new(move |y: Yielder<'_, Effs<'a>>| async move {
+// Borrowed effects need Program::new for explicit capture
+let result = Program::new(move |y: Yielder<'_, Effects![Log<'_>]>| async move {
     y.yield_(Log(msg_ref)).await;
 })
 .handle(|Log(m)| { println!("{m}"); Control::resume(()) })

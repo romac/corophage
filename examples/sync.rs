@@ -2,9 +2,14 @@ use std::marker::PhantomData;
 
 use corophage::prelude::*;
 
-declare_effect!(Cancel -> Never);
-declare_effect!(Log<'a>(pub &'a str) -> ());
-declare_effect!(FileRead(pub String) -> String);
+#[effect(Never)]
+struct Cancel;
+
+#[effect(())]
+pub struct Log<'a>(pub &'a str);
+
+#[effect(String)]
+pub struct FileRead(pub String);
 
 #[derive(Default)]
 pub struct GetState<S> {
@@ -23,8 +28,6 @@ pub struct SetState<S>(pub S);
 impl<S> Effect for SetState<S> {
     type Resume<'r> = ();
 }
-
-type Effs = Effects![Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>];
 
 fn cancel(_: &mut State, _c: Cancel) -> Control<Never> {
     Control::cancel()
@@ -45,36 +48,39 @@ struct State {
     x: u64,
 }
 
+#[effectful(Cancel, Log<'static>, FileRead, GetState<u64>, SetState<u64>)]
+fn my_program() -> () {
+    println!("Logging...");
+    let () = yield_!(Log("Hello, world!"));
+
+    println!("Reading file...");
+    let text = yield_!(FileRead("example.txt".to_string()));
+    println!("Read file: {text}");
+
+    let state = yield_!(GetState::default());
+    println!("State: {state}");
+    yield_!(SetState(state * 2));
+    let state = yield_!(GetState::default());
+    println!("State: {state}");
+
+    println!("Cancelling...");
+    yield_!(Cancel);
+    println!("Cancelled!");
+}
+
 fn main() {
     let mut state = State { x: 42 };
 
-    let result = Program::new(|y: Yielder<'_, Effs>| async move {
-        println!("Logging...");
-        let () = y.yield_(Log("Hello, world!")).await;
-
-        println!("Reading file...");
-        let text = y.yield_(FileRead("example.txt".to_string())).await;
-        println!("Read file: {text}");
-
-        let state = y.yield_(GetState::default()).await;
-        println!("State: {state}");
-        y.yield_(SetState(state * 2)).await;
-        let state = y.yield_(GetState::default()).await;
-        println!("State: {state}");
-
-        println!("Cancelling...");
-        y.yield_(Cancel).await;
-        println!("Cancelled!");
-    })
-    .handle(cancel)
-    .handle(log)
-    .handle(file_read)
-    .handle(|s: &mut State, _g: GetState<u64>| Control::resume(s.x))
-    .handle(|s: &mut State, SetState(x)| {
-        s.x = x;
-        Control::resume(())
-    })
-    .run_sync_stateful(&mut state);
+    let result = my_program()
+        .handle(cancel)
+        .handle(log)
+        .handle(file_read)
+        .handle(|s: &mut State, _g: GetState<u64>| Control::resume(s.x))
+        .handle(|s: &mut State, SetState(x)| {
+            s.x = x;
+            Control::resume(())
+        })
+        .run_sync_stateful(&mut state);
 
     assert_eq!(result, Err(Cancelled));
     assert_eq!(state, State { x: 84 });

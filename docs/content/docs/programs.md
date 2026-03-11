@@ -92,7 +92,7 @@ When you `await` the result of `y.yield_(some_effect)`, the computation pauses, 
 Handlers are attached one at a time with `.handle()`. Handlers can be attached in any order — the type system tracks which effects remain unhandled.
 
 ```rust
-let result = program
+let result = my_program()
     .handle(|Log(msg)| {
         println!("{msg}");
         Control::resume(())
@@ -106,15 +106,18 @@ assert_eq!(result, Ok(84));
 You can also attach multiple handlers at once with `.handle_all()`:
 
 ```rust
-let result = Program::new(|y: Yielder<'_, Effects![Counter, Log]>| async move {
-    y.yield_(Log("start".into())).await;
-    y.yield_(Counter).await
-})
-.handle_all(hlist![
-    |_: Counter| Control::resume(42u64),
-    |Log(msg)| { println!("{msg}"); Control::resume(()) },
-])
-.run_sync();
+#[effectful(Counter, Log)]
+fn my_program() -> u64 {
+    yield_!(Log("start".into()));
+    yield_!(Counter)
+}
+
+let result = my_program()
+    .handle_all(hlist![
+        |_: Counter| Control::resume(42u64),
+        |Log(msg)| { println!("{msg}"); Control::resume(()) },
+    ])
+    .run_sync();
 ```
 
 ## Running programs
