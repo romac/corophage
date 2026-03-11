@@ -5,6 +5,7 @@ mod error;
 mod gat_resume;
 mod macros;
 mod non_static;
+mod proc_macros;
 mod program;
 mod resume;
 mod send;

@@ -23,6 +23,9 @@ pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
 pub use program::{Eff, Program};
 
+#[cfg(feature = "macros")]
+pub use corophage_macros::{effect, effectful};
+
 /// Internal macro for running a coroutine with effect handlers.
 macro_rules! run {
     ($lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{

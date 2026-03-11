@@ -56,7 +56,8 @@ fn file_read(_: &mut State, FileRead(file): FileRead) -> Control<String> {
 Use `Control::cancel()` when an effect should abort the entire computation:
 
 ```rust
-declare_effect!(Cancel -> Never);
+#[effect(Never)]
+struct Cancel;
 
 // The handler cancels the computation
 |_: Cancel| Control::cancel()

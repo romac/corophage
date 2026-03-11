@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "corophage-macros"]
+
 [package]
 name = "corophage"
 version = "0.2.0"
@@ -14,10 +17,16 @@ categories = ["rust-patterns"]
 [dependencies]
 fauxgen = { version = "0.1", default-features = false }
 frunk_core = { version = "0.4", default-features = false }
+corophage-macros = { path = "corophage-macros", optional = true }
+
+[features]
+default = ["macros"]
+macros = ["dep:corophage-macros"]
 
 [dev-dependencies]
 divan = "0.1"
 tokio = { version = "1", default-features = false, features = ["macros", "rt", "time"] }
+trybuild = "1"
 
 [[bench]]
 name = "effects"

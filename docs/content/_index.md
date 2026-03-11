@@ -71,26 +71,20 @@ No nightly required. Built on async coroutines via [fauxgen](https://github.com/
 
 #### Define your effects
 
-Each effect is a struct that implements the `Effect` trait.  
-The `Resume` type defines what the handler sends back.
+Each effect is a struct annotated with `#[effect(ResumeType)]`.
+The resume type defines what the handler sends back.
 
 ```rust
 use corophage::prelude::*;
 
+#[effect(())]
 struct Log<'a>(&'a str);
-impl<'a> Effect for Log<'a> {
-    type Resume<'r> = ();
-}
 
+#[effect(String)]
 struct Read(String);
-impl Effect for Read {
-    type Resume<'r> = String;
-}
 
+#[effect(Never)]
 struct Cancel;
-impl Effect for Cancel {
-    type Resume<'r> = Never;
-}
 
 type Effs = Effects![Cancel, Log<'static>, Read];
 ```
@@ -100,17 +94,16 @@ type Effs = Effects![Cancel, Log<'static>, Read];
 
 #### Describe what to do
 
-Your program yields effects and receives their results.  
-It doesn't know or care how they are handled.
+Use `#[effectful]` to write effectful functions with `yield_!()`.
+Your program doesn't know or care how effects are handled.
 
 ```rust
-let program = Program::new(
-    |y: Yielder<'_, Effs>| async move {
-        y.yield_(Log("Starting...")).await;
-        let data = y.yield_(Read("config.toml".into())).await;
-        data.len()
-    },
-);
+#[effectful(Cancel, Log<'static>, Read)]
+fn program() -> usize {
+    yield_!(Log("Starting..."));
+    let data = yield_!(Read("config.toml".into()));
+    data.len()
+}
 ```
 
 </div>
@@ -130,7 +123,7 @@ let program = Program::new(
 <p class="tab-description">Run with plain closures as handlers.</p>
 
 ```rust
-let result = program
+let result = program()
     .handle(|_: Cancel| Control::cancel())
     .handle(|Log(msg)| {
         println!("{msg}");
@@ -150,7 +143,7 @@ assert_eq!(result, Ok(42));
 <p class="tab-description">Use async closures and <code>.await</code> real I/O.</p>
 
 ```rust
-let result = program
+let result = program()
     .handle(async |_: Cancel| Control::cancel())
     .handle(async |Log(msg)| {
         println!("{msg}");
@@ -171,7 +164,7 @@ assert_eq!(result, Ok(42));
 <p class="tab-description">Swap in mock handlers, test without side effects.</p>
 
 ```rust
-let result = program
+let result = program()
     .handle(|_: Cancel| Control::cancel())
     .handle(|Log(_)| Control::resume(())) // silent
     .handle(|Read(_)| {
@@ -213,9 +206,10 @@ Handlers can share mutable state. The state is passed as an argument to every ha
 ```rust
 use corophage::prelude::*;
 
-declare_effect!(Counter -> u64);
+#[effect(u64)]
+struct Counter;
 
-type Effs = Effect![Counter];
+type Effs = Effects![Counter];
 
 let mut count: u64 = 0;
 

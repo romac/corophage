@@ -1,0 +1,5 @@
+error: #[effectful] cannot be applied to async functions; the macro already generates the async machinery internally
+ --> tests/compile_fail/effectful_async_fn.rs:7:1
+  |
+7 | async fn bad(x: i32) -> bool {
+  | ^^^^^

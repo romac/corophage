@@ -35,9 +35,46 @@ impl Effect for Cancel {
 }
 ```
 
+## The `#[effect]` attribute macro
+
+The easiest way to define effects is with the `#[effect(ResumeType)]` attribute macro:
+
+```rust
+use corophage::prelude::*;
+
+#[effect(())]
+pub struct Log(pub String);
+
+#[effect(String)]
+pub struct FileRead(pub String);
+
+#[effect(Never)]
+pub struct Cancel;
+```
+
+The macro supports lifetimes, generics, named fields, and borrowed resume types:
+
+```rust
+// Lifetime parameters
+#[effect(bool)]
+pub struct Borrow<'a>(pub &'a str);
+
+// Generic parameters
+#[effect(T)]
+pub struct Generic<T: std::fmt::Debug + Send + Sync>(pub T);
+
+// Named fields
+#[effect(Vec<u8>)]
+pub struct ReadDir { pub path: String, pub recursive: bool }
+
+// The resume type may reference the GAT lifetime 'r
+#[effect(&'r str)]
+pub struct Lookup(pub String);
+```
+
 ## The `declare_effect!` macro
 
-For convenience, you can use the `declare_effect!` macro instead of implementing the trait manually:
+Alternatively, you can use the `declare_effect!` macro for a more concise syntax:
 
 ```rust
 use corophage::prelude::*;

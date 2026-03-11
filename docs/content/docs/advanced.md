@@ -11,10 +11,8 @@ Effects can borrow data from the local scope by using a non-`'static` lifetime:
 ```rust
 use corophage::prelude::*;
 
+#[effect(())]
 struct Log<'a>(pub &'a str);
-impl<'a> Effect for Log<'a> {
-    type Resume<'r> = ();
-}
 
 let msg = String::from("hello from a local string");
 let msg_ref = msg.as_str();
@@ -36,14 +34,10 @@ Because `Effect::Resume<'r>` is a generic associated type (GAT), handlers can re
 use corophage::prelude::*;
 use std::collections::HashMap;
 
+#[effect(&'r str)]
 struct Lookup<'a> {
     map: &'a HashMap<String, String>,
     key: &'a str,
-}
-
-impl<'a> Effect for Lookup<'a> {
-    // The handler can resume with a &str borrowed from the map
-    type Resume<'r> = &'r str;
 }
 
 let map = HashMap::from([

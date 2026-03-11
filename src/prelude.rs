@@ -1,4 +1,9 @@
 pub use frunk::hlist;
 pub use frunk_core as frunk;
 
-pub use crate::{Cancelled, Control, Eff, Effect, Effects, Never, Program, Yielder, declare_effect};
+pub use crate::{
+    Cancelled, Control, Eff, Effect, Effects, Never, Program, Yielder, declare_effect,
+};
+
+#[cfg(feature = "macros")]
+pub use crate::{effect, effectful};

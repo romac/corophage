@@ -11,7 +11,8 @@ Handlers can share mutable state via `run_sync_stateful` / `run_stateful`. The s
 ```rust
 use corophage::prelude::*;
 
-declare_effect!(Counter -> u64);
+#[effect(u64)]
+struct Counter;
 
 let mut count: u64 = 0;
 
@@ -38,7 +39,8 @@ All handlers in a stateful run share the same `&mut S`:
 use corophage::prelude::*;
 use std::marker::PhantomData;
 
-declare_effect!(Log<'a>(pub &'a str) -> ());
+#[effect(())]
+pub struct Log<'a>(pub &'a str);
 
 #[derive(Default)]
 pub struct GetState<S> {

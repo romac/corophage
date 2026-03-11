@@ -96,7 +96,30 @@ impl Effect for Cancel {
 }
 ```
 
-You can also use the `declare_effect!` macro instead of implementing the trait manually:
+You can also use the `#[effect]` attribute macro to derive the `Effect` impl:
+
+```rust,ignore
+use corophage::prelude::*;
+
+#[effect(())]
+pub struct Log<'a>(pub &'a str);
+
+#[effect(String)]
+pub struct FileRead(pub String);
+
+#[effect(Never)]
+pub struct Cancel;
+
+// The resume type may reference the GAT lifetime `'r`:
+#[effect(&'r str)]
+pub struct Lookup(pub String);
+
+// Generics work too:
+#[effect(T)]
+pub struct Identity<T: Debug + Send + Sync>(pub T);
+```
+
+Or use the `declare_effect!` macro for a more concise syntax:
 
 ```rust,ignore
 use corophage::prelude::*;
@@ -118,11 +141,26 @@ declare_effect!(Lookup(String) -> &'r str);
 
 ### 2. Programs
 
-A **Program** combines a computation with its effect handlers. You create one with `Program::new`, which takes an async closure that receives a `Yielder` — the interface for performing effects.
+A **Program** combines a computation with its effect handlers. The simplest way to create one is with the `#[effectful]` attribute macro:
 
-When you `await` the result of `yielder.yield_(some_effect)`, the computation pauses, the effect is handled, and the `await` resolves to the value provided by the handler (which must match the effect's `Resume<'r>` type).
+```rust,ignore
+use corophage::prelude::*;
 
-You attach handlers one at a time with `.handle()`, in the same order as the effects in `Effects![...]`. Once all effects are handled, you can run the program.
+#[effectful(Log<'static>, FileRead)]
+fn fetch_data() -> String {
+    yield_!(Log("fetching..."));
+    yield_!(FileRead("data.txt".to_string()))
+}
+
+let result = fetch_data()
+    .handle(|Log(msg)| { println!("{msg}"); Control::resume(()) })
+    .handle(|FileRead(path)| Control::resume(format!("contents of {path}")))
+    .run_sync();
+
+assert_eq!(result, Ok("contents of data.txt".to_string()));
+```
+
+The `#[effectful]` macro transforms your function to return a `Program` and lets you use `yield_!(effect)` to perform effects. You can also create programs manually with `Program::new`:
 
 ```rust,ignore
 use corophage::prelude::*;
@@ -139,6 +177,8 @@ let result = Program::new(|y: Yielder<'_, Effs>| async move {
 
 assert_eq!(result, Ok("contents of data.txt".to_string()));
 ```
+
+When you call `yield_!` (or `y.yield_(...).await` in the manual style), the computation pauses, the effect is handled, and execution resumes with the value provided by the handler.
 
 > [!IMPORTANT]
 > Handlers must be attached in the same order as the effects appear in the `Effects![...]` list. This is enforced by the type system — attaching handlers in the wrong order is a compile error.

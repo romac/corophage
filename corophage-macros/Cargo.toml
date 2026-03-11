@@ -1,0 +1,18 @@
+[package]
+name = "corophage-macros"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+authors = ["Romain Ruetschi <github@romac.me>"]
+description = "Proc macros for corophage effect handler library"
+homepage = "https://github.com/romac/corophage"
+repository = "https://github.com/romac/corophage"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"

@@ -4,6 +4,37 @@
 
 ### Added
 
+- **`#[effect(ResumeType)]` proc macro** — derive an `Effect` impl by annotating a struct. Supports lifetimes, generics, and GAT resume types via `'r`.
+
+  ```rust
+  #[effect(bool)]
+  pub struct Ask(i32);
+
+  #[effect(&'r str)]
+  pub struct GetConfig;
+
+  #[effect(())]
+  pub struct Log<'a>(pub &'a str);
+  ```
+
+- **`#[effectful(Eff1, Eff2, ...)]` proc macro** — mark a function as an effectful computation. The macro transforms the return type to `Eff<...>`, wraps the body in `Program::new`, and enables `yield_!(expr)` syntax inside the function.
+
+  ```rust
+  #[effectful(Ask, Log<'a>)]
+  fn my_prog<'a>(msg: &'a str) -> bool {
+      yield_!(Log(msg));
+      yield_!(Ask(42))
+  }
+  ```
+
+  Supports a `send` flag for `Send`-able programs (`#[effectful(Ask, send)]`), automatic lifetime inference, and explicit lifetime annotation as the first argument.
+
+- **`yield_!()` fallback macro** — emits a clear compile error when used outside an `#[effectful]` function.
+
+- **`corophage-macros` crate** — new proc-macro crate, added as a workspace member. Re-exported from `corophage` behind the `macros` feature (enabled by default).
+
+- **`macros` feature flag** — controls whether the proc macros are available. Enabled by default; disable with `default-features = false` to opt out.
+
 - **`Control<R>`** — new return type for effect handlers, parameterized by the resume type `R` instead of the full effect set. Handlers now return `Control::resume(value)` or `Control::cancel()`, making them reusable across different effect sets.
 
   ```rust
