@@ -22,11 +22,23 @@ struct GetConfig;
 
 #[effect(T)]
 #[allow(dead_code)]
-struct Identity<T: std::fmt::Debug + Send + Sync>(T);
+struct Identity<T: std::fmt::Debug>(T);
 
 #[effect(())]
 #[allow(dead_code)]
 struct Unit;
+
+// Generic effects where the resume type references a type parameter.
+// The macro automatically adds Send + Sync bounds on the impl
+// for type parameters that appear in the resume type.
+#[derive(Default)]
+#[effect(S)]
+pub struct GetState<S> {
+    _marker: std::marker::PhantomData<S>,
+}
+
+#[effect(())]
+pub struct SetState<S>(pub S);
 
 #[effect(Vec<u8>)]
 #[allow(dead_code)]
@@ -263,4 +275,31 @@ fn test_effectful_gat_resume() {
         .run_sync();
 
     assert_eq!(result, Ok("localhost:5432".to_string()));
+}
+
+// --- Generic effects with #[effectful] ---
+
+#[effectful(GetState<u64>, SetState<u64>)]
+fn count_up() -> u64 {
+    let a: u64 = yield_!(GetState::default());
+    yield_!(SetState(a + 1));
+    let b: u64 = yield_!(GetState::default());
+    yield_!(SetState(b + 1));
+    a + b
+}
+
+#[test]
+fn test_effectful_generic_effects() {
+    let mut state: u64 = 0;
+
+    let result = count_up()
+        .handle(|s: &mut u64, _: GetState<u64>| Control::resume(*s))
+        .handle(|s: &mut u64, SetState(v)| {
+            *s = v;
+            Control::resume(())
+        })
+        .run_sync_stateful(&mut state);
+
+    assert_eq!(result, Ok(1)); // 0 + 1
+    assert_eq!(state, 2);
 }

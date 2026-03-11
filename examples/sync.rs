@@ -12,22 +12,13 @@ pub struct Log<'a>(pub &'a str);
 pub struct FileRead(pub String);
 
 #[derive(Default)]
+#[effect(S)]
 pub struct GetState<S> {
     _marker: PhantomData<S>,
 }
 
-impl<S> Effect for GetState<S>
-where
-    S: Send + Sync,
-{
-    type Resume<'r> = S;
-}
-
+#[effect(())]
 pub struct SetState<S>(pub S);
-
-impl<S> Effect for SetState<S> {
-    type Resume<'r> = ();
-}
 
 fn cancel(_: &mut State, _c: Cancel) -> Control<Never> {
     Control::cancel()

@@ -46,17 +46,13 @@ use std::marker::PhantomData;
 pub struct Log<'a>(pub &'a str);
 
 #[derive(Default)]
+#[effect(S)]
 pub struct GetState<S> {
     _marker: PhantomData<S>,
 }
-impl<S: Send + Sync> Effect for GetState<S> {
-    type Resume<'r> = S;
-}
 
+#[effect(())]
 pub struct SetState<S>(pub S);
-impl<S> Effect for SetState<S> {
-    type Resume<'r> = ();
-}
 
 #[effectful(Log<'static>, GetState<u64>, SetState<u64>)]
 fn my_program() -> u64 {
