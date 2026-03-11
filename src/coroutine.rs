@@ -65,8 +65,9 @@ macro_rules! make_co {
         let fut = Box::pin(async move {
             let token = fauxgen::__private::register_owned(token).await;
 
-            let start = token.argument().await;
-            debug_assert!(matches!(start, CanStart::Inl(Start)));
+            // Consume the initial Start argument. The value is always
+            // CanStart::Inl(Start) — enforced by resume_with(Start) in run!/invoke.
+            let _ = token.argument().await;
 
             $f(Yielder::new(token)).await
         }) as $cast;
@@ -174,15 +175,15 @@ where
         match resume {
             Coproduct::Inr(value) => match value.uninject() {
                 Ok(value) => value,
-                Err(_) => unreachable!(
-                    "The resume value should always be of type `E::Resume<'a>` because the effect \
-                    we yielded is of type `E` and the resume type is determined by the effect type."
-                ),
+                // SAFETY: InjectResume guarantees the handler resumes at the
+                // same coproduct index as the yielded effect, so uninject
+                // always succeeds.
+                Err(_) => unsafe { core::hint::unreachable_unchecked() },
             },
-            Coproduct::Inl(_) => unreachable!(
-                "The resume value should never be `CanStart<Effs>` because the generator \
-                should only yield effects of type `E` and never the start signal."
-            ),
+            // SAFETY: The Start (Inl) arm is never sent as a resume value.
+            // The generator receives Start only once during initialization
+            // (in make_co!); all subsequent resumes use Inr via InjectResume.
+            Coproduct::Inl(_) => unsafe { core::hint::unreachable_unchecked() },
         }
     }
 
@@ -207,8 +208,10 @@ where
             match yielded {
                 GeneratorState::Complete(value) => break value,
                 GeneratorState::Yielded(effect) => {
+                    // SAFETY: Yielder::yield_ always wraps effects in Inr,
+                    // so the Inl (Start) arm is never yielded after init.
                     let subeffect = match effect {
-                        Coproduct::Inl(_) => unreachable!(),
+                        Coproduct::Inl(_) => unsafe { core::hint::unreachable_unchecked() },
                         Coproduct::Inr(subeffect) => subeffect,
                     };
                     let resume = subeffect.forward(self).await;

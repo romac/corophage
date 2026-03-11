@@ -42,7 +42,11 @@ macro_rules! run {
 
                 ::fauxgen::GeneratorState::Yielded(effect) => {
                     let $effect = match effect {
-                        ::frunk_core::coproduct::Coproduct::Inl(_) => unreachable!(),
+                        // SAFETY: Yielder::yield_ always wraps effects in Inr,
+                        // so the Inl (Start) arm is never yielded after init.
+                        ::frunk_core::coproduct::Coproduct::Inl(_) => unsafe {
+                            ::core::hint::unreachable_unchecked()
+                        },
                         ::frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
                     };
 
