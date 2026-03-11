@@ -631,6 +631,15 @@ h6 {
   }
 }
 
+// Hamburger menu (hidden on desktop)
+.docs-menu-checkbox {
+  display: none;
+}
+
+.docs-menu-btn {
+  display: none;
+}
+
 // Responsive
 @media (max-width: 900px) {
   .features-inner {
@@ -641,9 +650,65 @@ h6 {
   }
   .docs-layout {
     grid-template-columns: 1fr;
+    gap: 0;
+    position: relative;
+    padding: 1rem;
+  }
+  .docs-content {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    pre {
+      overflow-x: auto;
+      max-width: 100%;
+    }
   }
   .docs-sidebar {
     position: static;
+    display: none;
+  }
+  .docs-menu-btn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-self: start;
+    margin-left: auto;
+    margin-bottom: 0;
+    gap: 5px;
+    width: 36px;
+    height: 36px;
+    padding: 6px;
+    cursor: pointer;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    transition: background 0.15s;
+    &:hover {
+      background: var(--border);
+    }
+    span {
+      display: block;
+      height: 2px;
+      background: var(--text-muted);
+      border-radius: 1px;
+      transition: all 0.2s;
+    }
+  }
+  .docs-menu-checkbox:checked {
+    ~ .docs-sidebar {
+      display: block;
+    }
+    ~ .docs-menu-btn {
+      span:nth-child(1) {
+        transform: translateY(7px) rotate(45deg);
+      }
+      span:nth-child(2) {
+        opacity: 0;
+      }
+      span:nth-child(3) {
+        transform: translateY(-7px) rotate(-45deg);
+      }
+    }
   }
   .hero h1 {
     font-size: 2.75rem;
