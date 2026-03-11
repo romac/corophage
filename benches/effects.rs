@@ -1,4 +1,4 @@
-//! Benchmarks for corophage effect handler library.
+//! Benchmarks for corophage.
 
 use std::cell::RefCell;
 

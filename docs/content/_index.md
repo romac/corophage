@@ -12,7 +12,7 @@ template = "index.html"
 
 # corophage
 
-<p class="hero-tagline">Algebraic effect handlers for stable Rust.<br>Separate <em>what</em> your program does from <em>how</em> it gets done.</p>
+<p class="hero-tagline">Algebraic effects for stable Rust.<br>Separate <em>what</em> your program does from <em>how</em> it gets done.</p>
 
 <div class="hero-buttons">
 <a href="docs/" class="btn btn-primary">Get Started</a>

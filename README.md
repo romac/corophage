@@ -5,7 +5,7 @@
 ![Stable Rust](https://img.shields.io/badge/rust-stable-orange)
 [![Coverage](https://codecov.io/github/romac/corophage/graph/badge.svg?token=U8FVD3HT2X)](https://codecov.io/github/romac/corophage)
 
-**An effect handler library for Rust**
+**Algebraic effects for stable Rust**
 
 `corophage` provides a way to separate the *description* of what your program should do from the *implementation* of how it gets done. This allows you to write clean, testable, and composable business logic.
 

@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 authors = ["Romain Ruetschi <github@romac.me>"]
-description = "Proc macros for corophage effect handler library"
+description = "Proc macros for corophage"
 homepage = "https://github.com/romac/corophage"
 repository = "https://github.com/romac/corophage"
 

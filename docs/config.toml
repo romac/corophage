@@ -1,6 +1,6 @@
 base_url = "https://romac.github.io/corophage"
 title = "corophage"
-description = "An effect handler library for stable Rust"
+description = "Algebraic effects for stable Rust"
 compile_sass = true
 minify_html = false
 build_search_index = true
