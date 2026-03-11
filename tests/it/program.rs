@@ -269,6 +269,20 @@ async fn async_out_of_order_handlers() {
 }
 
 #[test]
+fn sync_turbofish_effects() {
+    let result = Program::new::<Effects![Counter, Ask], _>(|y| async move {
+        let n = y.yield_(Counter).await;
+        let answer = y.yield_(Ask("question")).await;
+        (answer, n)
+    })
+    .handle(|_: Counter| Control::resume(42u64))
+    .handle(|_: Ask| Control::resume("yes"))
+    .run_sync();
+
+    assert_eq!(result, Ok(("yes", 42)));
+}
+
+#[test]
 fn from_co() {
     use corophage::coroutine::Co;
 

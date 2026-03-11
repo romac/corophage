@@ -23,30 +23,52 @@ pub struct Program<'a, Effs: Effects<'a>, R, L: Locality, Remaining, Handlers> {
     _remaining: PhantomData<Remaining>,
 }
 
-impl<'a, Effs, R> Program<'a, Effs, R, Local, Effs, HNil>
-where
-    Effs: Effects<'a>,
-{
+impl<'a, R> Program<'a, CNil, R, Local, CNil, HNil> {
     /// Create a new program from a computation closure.
-    pub fn new<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a) -> Self
+    ///
+    /// The effect set can be inferred from the closure parameter annotation,
+    /// or specified explicitly via turbofish:
+    ///
+    /// ```ignore
+    /// // With closure annotation:
+    /// Program::new(|y: Yielder<'_, Effs>| async move { ... })
+    ///
+    /// // With turbofish:
+    /// Program::new::<Effects![Counter, Ask], _>(|y| async move { ... })
+    /// ```
+    pub fn new<Effs, F>(
+        f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a,
+    ) -> Program<'a, Effs, R, Local, Effs, HNil>
     where
+        Effs: Effects<'a>,
         F: Future<Output = R>,
     {
-        Self::from_co(Co::new(f))
+        Program::from_co(Co::new(f))
     }
 }
 
-impl<'a, Effs, R> Program<'a, Effs, R, Sendable, Effs, HNil>
-where
-    Effs: Effects<'a>,
-    for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
-{
+impl<'a, R> Program<'a, CNil, R, Sendable, CNil, HNil> {
     /// Create a new `Send`-able program from a computation closure.
-    pub fn new_send<F>(f: impl FnOnce(Yielder<'a, Effs>) -> F + Send + 'a) -> Self
+    ///
+    /// The effect set can be inferred from the closure parameter annotation,
+    /// or specified explicitly via turbofish:
+    ///
+    /// ```ignore
+    /// // With closure annotation:
+    /// Program::new_send(|y: Yielder<'_, Effs>| async move { ... })
+    ///
+    /// // With turbofish:
+    /// Program::new_send::<Effects![Counter, Ask], _>(|y| async move { ... })
+    /// ```
+    pub fn new_send<Effs, F>(
+        f: impl FnOnce(Yielder<'a, Effs>) -> F + Send + 'a,
+    ) -> Program<'a, Effs, R, Sendable, Effs, HNil>
     where
+        Effs: Effects<'a>,
+        for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
         F: Future<Output = R> + Send,
     {
-        Self::from_co(CoSend::new(f))
+        Program::from_co(CoSend::new(f))
     }
 }
 
