@@ -98,6 +98,7 @@ where
     L: Locality,
 {
     /// Create a program from an existing coroutine.
+    #[inline]
     pub fn from_co(co: GenericCo<'a, Effs, R, L>) -> Self {
         Program {
             co,
@@ -124,6 +125,7 @@ where
     /// inferred from the closure signature and removed from the
     /// remaining set via [`CoproductSubsetter`].
     #[allow(clippy::type_complexity)]
+    #[inline]
     pub fn handle<F, HandleIdx, SubsetIdx>(
         self,
         handler: F,
@@ -156,6 +158,7 @@ where
     /// closure signatures, and `CoproductSubsetter` removes those
     /// effects from the `Remaining` set.
     #[allow(clippy::type_complexity)]
+    #[inline]
     pub fn handle_all<H, HandleIdx, SubsetIdx>(
         self,
         handlers: H,
@@ -186,6 +189,7 @@ where
     L: Locality,
 {
     /// Run the computation synchronously.
+    #[inline]
     pub fn run_sync<Indices>(self) -> Result<R, Cancelled>
     where
         Effs: HandleMut<'a, Effs, Handlers, Indices>,
@@ -195,6 +199,7 @@ where
     }
 
     /// Run the computation synchronously with shared state.
+    #[inline]
     pub fn run_sync_stateful<S, Indices>(self, state: &mut S) -> Result<R, Cancelled>
     where
         Effs: HandleWith<'a, Effs, Handlers, S, Indices>,
@@ -204,6 +209,7 @@ where
     }
 
     /// Run the computation asynchronously.
+    #[inline]
     pub async fn run<Indices>(self) -> Result<R, Cancelled>
     where
         Effs: AsyncHandleMut<'a, Effs, Handlers, Indices>,
@@ -213,6 +219,7 @@ where
     }
 
     /// Run the computation asynchronously with shared state.
+    #[inline]
     pub async fn run_stateful<S, Indices>(self, state: &mut S) -> Result<R, Cancelled>
     where
         Effs: AsyncHandleWith<'a, Effs, Handlers, S, Indices>,

@@ -110,6 +110,7 @@ impl<'a, Effs, Return, L: Locality> GenericCo<'a, Effs, Return, L>
 where
     Effs: Effects<'a>,
 {
+    #[inline]
     pub(crate) fn resume(
         self: Pin<&mut Self>,
         resume: Resumes<'a, CanStart<Effs>>,
@@ -123,6 +124,7 @@ where
         Generator::resume(g.as_mut(), resume)
     }
 
+    #[inline]
     pub(crate) fn resume_with<R, Index>(
         self: Pin<&mut Self>,
         resume: R,
@@ -149,6 +151,7 @@ impl<'a, Effs> Yielder<'a, Effs>
 where
     Effs: MapResume,
 {
+    #[inline]
     fn new(token: GeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>) -> Self {
         Self { token }
     }
@@ -191,6 +194,7 @@ where
     ///
     /// Returns the sub-program's result directly. If the outer handler cancels,
     /// the entire coroutine is dropped, so `invoke` never returns in that case.
+    #[inline]
     pub async fn invoke<SubEffs, R, L, Indices>(&self, program: Eff<'a, SubEffs, R, L>) -> R
     where
         SubEffs: Effects<'a> + ForwardEffects<'a, Effs, Indices>,

@@ -414,6 +414,7 @@ where
     OuterEffs: MapResume + CoprodInjector<E, OuterIdx>,
     <OuterEffs as MapResume>::Output<'a>: CoprodUninjector<E::Resume<'a>, OuterIdx>,
 {
+    #[inline]
     async fn forward(self, yielder: &Yielder<'a, OuterEffs>) -> Resumes<'a, Self> {
         match self {
             Coproduct::Inl(effect) => Coproduct::Inl(yielder.yield_(effect).await),

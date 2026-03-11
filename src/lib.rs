@@ -82,6 +82,7 @@ pub mod asynk {
 
     /// Run a coroutine with an hlist of async handlers.
     #[doc(hidden)]
+    #[inline]
     pub async fn run<'a, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
@@ -95,6 +96,7 @@ pub mod asynk {
 
     /// Run a coroutine with an hlist of async handlers and shared mutable state.
     #[doc(hidden)]
+    #[inline]
     pub async fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
@@ -121,6 +123,7 @@ pub mod sync {
 
     /// Run a coroutine with an hlist of synchronous handlers.
     #[doc(hidden)]
+    #[inline]
     pub fn run<'a, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         handler: &mut F,
@@ -134,6 +137,7 @@ pub mod sync {
 
     /// Run a coroutine with an hlist of synchronous handlers and shared mutable state.
     #[doc(hidden)]
+    #[inline]
     pub fn run_stateful<'a, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,

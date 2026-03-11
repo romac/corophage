@@ -20,17 +20,20 @@ pub enum Control<R> {
 
 impl<R> Control<R> {
     /// Create a [`Resume`](Control::Resume) result to continue the computation.
+    #[inline]
     pub fn resume(r: R) -> Self {
         Self::Resume(r)
     }
 
     /// Create a [`Cancel`](Control::Cancel) result to abort the computation.
+    #[inline]
     pub fn cancel() -> Self {
         Self::Cancel
     }
 }
 
 impl<R> From<R> for Control<R> {
+    #[inline]
     fn from(r: R) -> Self {
         Control::Resume(r)
     }
