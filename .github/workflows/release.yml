@@ -33,9 +33,9 @@ jobs:
         id: auth
 
       - name: Package for crates.io
-        run: cargo package --locked
+        run: cargo package --workspace --locked
 
       - name: Publish to crates.io
-        run: cargo publish --locked || [[ $? -eq 101 ]]
+        run: cargo publish --workspace --locked
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
