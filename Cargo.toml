@@ -32,5 +32,8 @@ trybuild = "1"
 name = "effects"
 harness = false
 
+[profile.bench]
+lto = true
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
