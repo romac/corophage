@@ -2,102 +2,75 @@
 
 use std::cell::RefCell;
 
-use corophage::coroutine::Co;
 use corophage::prelude::*;
 
 // =============================================================================
 // Minimal effects for benchmarking (no I/O)
 // =============================================================================
 
+#[effect(())]
 struct Noop;
-impl Effect for Noop {
-    type Resume<'r> = ();
-}
 
+#[effect(u64)]
 struct GetValue;
-impl Effect for GetValue {
-    type Resume<'r> = u64;
-}
 
+#[effect(String)]
 struct Alloc;
-impl Effect for Alloc {
-    type Resume<'r> = String;
-}
 
 struct IncrementResult;
 
+#[effect(IncrementResult)]
 struct Increment;
-impl Effect for Increment {
-    type Resume<'r> = IncrementResult;
-}
 
 struct DecrementResult;
 
+#[effect(DecrementResult)]
 struct Decrement;
-impl Effect for Decrement {
-    type Resume<'r> = DecrementResult;
-}
 
 // =============================================================================
-// Effect type aliases for varying handler counts
+// Effectful computations
 // =============================================================================
 
-type OneEffect = Effects![Noop];
-type ThreeEffects = Effects![Noop, GetValue, Alloc];
-type FiveEffects = Effects![Noop, GetValue, Alloc, Increment, Decrement];
+#[effectful(Noop)]
+fn empty_program() -> () {}
 
-// =============================================================================
-// Coroutine factories
-// =============================================================================
-
-fn empty_co() -> Co<'static, OneEffect, ()> {
-    Co::new(|_y| async move {})
+#[effectful(Noop)]
+fn single_yield_program() -> () {
+    yield_!(Noop);
 }
 
-fn single_yield_co() -> Co<'static, OneEffect, ()> {
-    Co::new(|y| async move {
-        y.yield_(Noop).await;
-    })
+#[effectful(Noop)]
+fn multi_yield_program(n: usize) -> () {
+    for _ in 0..n {
+        yield_!(Noop);
+    }
 }
 
-fn multi_yield_co(n: usize) -> Co<'static, OneEffect, ()> {
-    Co::new(move |y| async move {
-        for _ in 0..n {
-            y.yield_(Noop).await;
-        }
-    })
+#[effectful(Noop, GetValue, Alloc, Increment, Decrement)]
+fn dispatch_first_program() -> () {
+    yield_!(Noop);
 }
 
-fn dispatch_first_co() -> Co<'static, FiveEffects, ()> {
-    Co::new(|y| async move {
-        y.yield_(Noop).await;
-    })
+#[effectful(Noop, GetValue, Alloc, Increment, Decrement)]
+fn dispatch_middle_program() -> () {
+    yield_!(Alloc);
 }
 
-fn dispatch_middle_co() -> Co<'static, FiveEffects, ()> {
-    Co::new(|y| async move {
-        y.yield_(Alloc).await;
-    })
+#[effectful(Noop, GetValue, Alloc, Increment, Decrement)]
+fn dispatch_last_program() -> () {
+    yield_!(Decrement);
 }
 
-fn dispatch_last_co() -> Co<'static, FiveEffects, ()> {
-    Co::new(|y| async move {
-        y.yield_(Decrement).await;
-    })
+#[effectful(Noop, GetValue, Alloc)]
+fn alloc_program() -> () {
+    let _ = yield_!(Alloc);
 }
 
-fn alloc_co() -> Co<'static, ThreeEffects, ()> {
-    Co::new(|y| async move {
-        let _ = y.yield_(Alloc).await;
-    })
-}
-
-fn stateful_co() -> Co<'static, ThreeEffects, u64> {
-    Co::new(|y| async move {
-        let value = y.yield_(GetValue).await;
-        y.yield_(Noop).await;
-        value
-    })
+#[effectful(Noop, GetValue, Alloc)]
+fn stateful_program() -> u64 {
+    let value = yield_!(GetValue);
+    yield_!(Noop);
+    value
 }
 
 // =============================================================================
@@ -109,70 +82,78 @@ mod sync_benches {
 
     #[divan::bench]
     fn coroutine_creation(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(single_yield_co()));
+        bencher.bench(|| divan::black_box(single_yield_program()));
     }
 
     #[divan::bench]
     fn empty_coroutine(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = empty_co();
-            let mut handler = hlist![|_: Noop| Control::resume(())];
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                empty_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
         });
     }
 
     #[divan::bench]
     fn single_yield(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = single_yield_co();
-            let mut handler = hlist![|_: Noop| Control::resume(())];
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                single_yield_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
         });
     }
 
     #[divan::bench(args = [10, 100, 1000])]
     fn yield_scaling(bencher: divan::Bencher, n: usize) {
         bencher.bench(|| {
-            let co = multi_yield_co(n);
-            let mut handler = hlist![|_: Noop| Control::resume(())];
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                multi_yield_program(n)
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
         });
     }
 
     #[divan::bench]
     fn stateless_handler(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = single_yield_co();
-            let mut handler = hlist![|_: Noop| Control::resume(())];
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                single_yield_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
         });
     }
 
     #[divan::bench]
     fn stateful_handler(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = stateful_co();
             let mut state = 42u64;
-            let handler = hlist![
-                |_s: &mut u64, _: Noop| Control::resume(()),
-                |s: &mut u64, _: GetValue| Control::resume(*s),
-                |_s: &mut u64, _: Alloc| Control::resume(String::new()),
-            ];
-            divan::black_box(corophage::sync::run_stateful(co, &mut state, &handler))
+            divan::black_box(
+                stateful_program()
+                    .handle(|_s: &mut u64, _: Noop| Control::resume(()))
+                    .handle(|s: &mut u64, _: GetValue| Control::resume(*s))
+                    .handle(|_s: &mut u64, _: Alloc| Control::resume(String::new()))
+                    .run_sync_stateful(&mut state),
+            )
         });
     }
 
     #[divan::bench]
     fn refcell_pattern(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = stateful_co();
             let state = RefCell::new(42u64);
-            let mut handler = hlist![
-                |_: Noop| Control::resume(()),
-                |_: GetValue| Control::resume(*state.borrow()),
-                |_: Alloc| Control::resume(String::new()),
-            ];
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                stateful_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(*state.borrow()))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .run_sync(),
+            )
         });
     }
 }
@@ -194,9 +175,12 @@ mod async_benches {
         let rt = runtime();
         bencher.bench(|| {
             rt.block_on(async {
-                let co = single_yield_co();
-                let mut handler = hlist![async |_: Noop| Control::resume(())];
-                divan::black_box(corophage::asynk::run(co, &mut handler).await)
+                divan::black_box(
+                    single_yield_program()
+                        .handle(async |_: Noop| Control::resume(()))
+                        .run(),
+                )
+                .await
             })
         });
     }
@@ -206,9 +190,12 @@ mod async_benches {
         let rt = runtime();
         bencher.bench(|| {
             rt.block_on(async {
-                let co = multi_yield_co(n);
-                let mut handler = hlist![async |_: Noop| Control::resume(())];
-                divan::black_box(corophage::asynk::run(co, &mut handler).await)
+                divan::black_box(
+                    multi_yield_program(n)
+                        .handle(async |_: Noop| Control::resume(()))
+                        .run(),
+                )
+                .await
             })
         });
     }
@@ -218,14 +205,15 @@ mod async_benches {
         let rt = runtime();
         bencher.bench(|| {
             rt.block_on(async {
-                let co = stateful_co();
                 let mut state = 42u64;
-                let handler = hlist![
-                    async |_s: &mut u64, _: Noop| Control::resume(()),
-                    async |s: &mut u64, _: GetValue| Control::resume(*s),
-                    async |_s: &mut u64, _: Alloc| Control::resume(String::new()),
-                ];
-                divan::black_box(corophage::asynk::run_stateful(co, &mut state, &handler).await)
+                divan::black_box(
+                    stateful_program()
+                        .handle(async |_s: &mut u64, _: Noop| Control::resume(()))
+                        .handle(async |s: &mut u64, _: GetValue| Control::resume(*s))
+                        .handle(async |_s: &mut u64, _: Alloc| Control::resume(String::new()))
+                        .run_stateful(&mut state),
+                )
+                .await
             })
         });
     }
@@ -238,46 +226,48 @@ mod async_benches {
 mod dispatch_benches {
     use super::*;
 
-    fn five_effect_handler() -> frunk::HList![
-        impl FnMut(Noop) -> Control<()>,
-        impl FnMut(GetValue) -> Control<u64>,
-        impl FnMut(Alloc) -> Control<String>,
-        impl FnMut(Increment) -> Control<IncrementResult>,
-        impl FnMut(Decrement) -> Control<DecrementResult>,
-    ] {
-        hlist![
-            |_: Noop| Control::resume(()),
-            |_: GetValue| Control::resume(42),
-            |_: Alloc| Control::resume(String::new()),
-            |_: Increment| Control::resume(IncrementResult),
-            |_: Decrement| Control::resume(DecrementResult),
-        ]
-    }
-
     #[divan::bench]
     fn dispatch_first_effect(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = dispatch_first_co();
-            let mut handler = five_effect_handler();
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                dispatch_first_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .handle(|_: Increment| Control::resume(IncrementResult))
+                    .handle(|_: Decrement| Control::resume(DecrementResult))
+                    .run_sync(),
+            )
         });
     }
 
     #[divan::bench]
     fn dispatch_middle_effect(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = dispatch_middle_co();
-            let mut handler = five_effect_handler();
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                dispatch_middle_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .handle(|_: Increment| Control::resume(IncrementResult))
+                    .handle(|_: Decrement| Control::resume(DecrementResult))
+                    .run_sync(),
+            )
         });
     }
 
     #[divan::bench]
     fn dispatch_last_effect(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = dispatch_last_co();
-            let mut handler = five_effect_handler();
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                dispatch_last_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .handle(|_: Increment| Control::resume(IncrementResult))
+                    .handle(|_: Decrement| Control::resume(DecrementResult))
+                    .run_sync(),
+            )
         });
     }
 }
@@ -292,22 +282,24 @@ mod handler_complexity_benches {
     #[divan::bench]
     fn noop_handler(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = single_yield_co();
-            let mut handler = hlist![|_: Noop| Control::resume(())];
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                single_yield_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
         });
     }
 
     #[divan::bench]
     fn allocating_handler(bencher: divan::Bencher) {
         bencher.bench(|| {
-            let co = alloc_co();
-            let mut handler = hlist![
-                |_: Noop| Control::resume(()),
-                |_: GetValue| Control::resume(42),
-                |_: Alloc| Control::resume("allocated string".to_string()),
-            ];
-            divan::black_box(corophage::sync::run(co, &mut handler))
+            divan::black_box(
+                alloc_program()
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume("allocated string".to_string()))
+                    .run_sync(),
+            )
         });
     }
 }
