@@ -111,7 +111,7 @@ macro_rules! declare_effect {
     ($name:ident<$T:ident : $bound:path>($($field:tt)*) -> $resume:ty) => {
         struct $name<$T: $bound>($($field)*);
 
-        impl<$T: $bound + Sync + Send> $crate::Effect for $name<$T> {
+        impl<$T: $bound> $crate::Effect for $name<$T> {
             type Resume<'r> = $resume;
         }
     };
@@ -120,7 +120,7 @@ macro_rules! declare_effect {
     ($name:ident<$T:ident : $bound:path> { $($field:tt)* } -> $resume:ty) => {
         struct $name<$T: $bound> { $($field)* }
 
-        impl<$T: $bound + Sync + Send> $crate::Effect for $name<$T> {
+        impl<$T: $bound> $crate::Effect for $name<$T> {
             type Resume<'r> = $resume;
         }
     };

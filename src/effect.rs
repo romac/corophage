@@ -11,7 +11,7 @@ pub trait Effect {
     ///
     /// This is a generic associated type parameterized by a lifetime `'r`,
     /// allowing handlers to resume with borrowed data (e.g., `&'r str`).
-    type Resume<'r>: Sync + Send;
+    type Resume<'r>;
 }
 
 /// Maps a coproduct of effects to a coproduct of their resume types.
@@ -20,7 +20,7 @@ pub trait Effect {
 /// and is used internally to compute the resume type for a set of effects.
 pub trait MapResume {
     /// The coproduct of resume types corresponding to the effects.
-    type Output<'r>: Sync + Send;
+    type Output<'r>;
 }
 
 impl MapResume for CNil {
