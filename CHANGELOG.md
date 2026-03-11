@@ -2,10 +2,6 @@
 
 ## Unreleased
 
-### Changed
-
-- **Removed `Send + Sync` bounds from `Effect::Resume<'r>`** — the `Effect` trait no longer requires resume types to be `Send + Sync`. This allows effects with non-`Send` resume types (e.g., `Rc<str>`) when used with non-`Send` coroutines (`Co`/`Program::new`). The bounds are still enforced for `Send`-able coroutines (`CoSend`/`Program::new_send`) via the existing `for<'r> Resumes<'r, ...>: Send + Sync` constraint. The `#[effect]` proc macro and `declare_effect!` macro no longer add `Send + Sync` bounds on generic type parameters used in the resume type.
-
 ### Added
 
 - **`#[effect(ResumeType)]` proc macro** — derive an `Effect` impl by annotating a struct. Supports lifetimes, generics, and GAT resume types via `'r`.
@@ -69,6 +65,7 @@
 
 ### Changed
 
+- **Removed `Send + Sync` bounds from `Effect::Resume<'r>`** — the `Effect` trait no longer requires resume types to be `Send + Sync`. This allows effects with non-`Send` resume types (e.g., `Rc<str>`) when used with non-`Send` coroutines (`Co`/`Program::new`). The bounds are still enforced for `Send`-able coroutines (`CoSend`/`Program::new_send`) via the existing `for<'r> Resumes<'r, ...>: Send + Sync` constraint. The `#[effect]` proc macro and `declare_effect!` macro no longer add `Send + Sync` bounds on generic type parameters used in the resume type.
 - **`Program::handle()` is now order-independent** — `.handle()` now uses `CoproductSubsetter` (like `.handle_all()`) to remove the handled effect from the remaining set, so handlers can be attached in any order. Handlers passed to the low-level `sync::run`/`asynk::run` functions must still match the `Effects![...]` order.
 - **`CoControl` is now internal** — replaced by `Control<R>` in user-facing code. `CoControl` is still used internally by the runner loop but is no longer exported.
 - **Prelude updated** — `CoControl` removed from prelude, `Control` added.
