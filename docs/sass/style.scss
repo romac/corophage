@@ -127,7 +127,7 @@ h6 {
 
 // Hero
 .hero {
-  padding: 6rem 1.5rem 4rem;
+  padding: 1rem 1.5rem 1.5rem;
   text-align: center;
   background: radial-gradient(
     ellipse at 50% 0%,
@@ -141,12 +141,22 @@ h6 {
   margin: 0 auto;
 }
 
+.hero-logo {
+  margin-bottom: 0;
+  img {
+    width: 200px;
+    height: 200px;
+    filter: invert(1) brightness(0.9) sepia(0.3) hue-rotate(340deg) saturate(1.5);
+  }
+}
+
 .hero h1 {
-  font-size: 4rem;
+  font-size: 2.75rem;
   font-weight: 700;
   font-family: var(--font-mono);
   letter-spacing: -0.04em;
-  margin-bottom: 1.5rem;
+  margin-top: -0.75rem;
+  margin-bottom: 0.5rem;
   background: linear-gradient(135deg, var(--mauve) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -157,7 +167,7 @@ h6 {
   font-size: 1.35rem;
   color: var(--text-muted);
   line-height: 1.7;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1rem;
   em {
     color: var(--yellow);
     font-style: normal;
@@ -169,7 +179,7 @@ h6 {
   display: flex;
   gap: 1rem;
   justify-content: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .btn {

@@ -6,6 +6,10 @@ template = "index.html"
 <section class="hero">
 <div class="hero-inner">
 
+<div class="hero-logo">
+<img src="/logo/corophage-2b.svg" alt="corophage logo">
+</div>
+
 # corophage
 
 <p class="hero-tagline">Algebraic effect handlers for stable Rust.<br>Separate <em>what</em> your program does from <em>how</em> it gets done.</p>
