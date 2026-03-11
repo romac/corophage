@@ -7,7 +7,7 @@ template = "index.html"
 <div class="hero-inner">
 
 <div class="hero-logo">
-<img src="/logo/corophage-2b.svg" alt="corophage logo">
+<img src="logo/corophage-2b.svg" alt="corophage logo">
 </div>
 
 # corophage
@@ -15,7 +15,7 @@ template = "index.html"
 <p class="hero-tagline">Algebraic effect handlers for stable Rust.<br>Separate <em>what</em> your program does from <em>how</em> it gets done.</p>
 
 <div class="hero-buttons">
-<a href="/docs/" class="btn btn-primary">Get Started</a>
+<a href="docs/" class="btn btn-primary">Get Started</a>
 <a href="https://docs.rs/corophage" class="btn btn-secondary">API Docs</a>
 </div>
 

@@ -15,10 +15,10 @@
     <div class="nav-inner">
       <a href="{{ get_url(path='/') }}" class="nav-brand">corophage</a>
       <div class="nav-links">
-        <a href="{{ get_section(path='docs/_index.md') | get(key='permalink') }}">Docs</a>
-        <a href="{{ config.extra.docs_rs_url }}">API</a>
-        <a href="{{ config.extra.repo_url }}">GitHub</a>
-        <a href="{{ config.extra.crates_url }}">Crates.io</a>
+        <a href="{{ get_section(path='docs/_index.md') | get(key='permalink') | safe }}">Docs</a>
+        <a href="{{ config.extra.docs_rs_url | safe }}">API</a>
+        <a href="{{ config.extra.repo_url | safe }}">GitHub</a>
+        <a href="{{ config.extra.crates_url | safe }}">Crates.io</a>
       </div>
     </div>
   </nav>
