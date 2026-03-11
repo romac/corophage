@@ -53,7 +53,7 @@ No nightly required. Built on async coroutines via [fauxgen](https://github.com/
 
 ### Fast
 
-~10 ns per yield. Zero-cost dispatch — the compiler monomorphizes and inlines effect dispatch into flat branches.
+~10 ns per yield. Zero-cost dispatch, the compiler monomorphizes and inlines effect dispatch into flat branches.
 
 </div>
 </div>
@@ -182,7 +182,7 @@ assert_eq!(result, Ok(13));
 </div>
 </div>
 
-<p class="section-transition">The effects and logic stay the same — only the handlers change.</p>
+<p class="section-transition">The effects and logic stay the same, only the handlers change.</p>
 
 </section>
 
@@ -203,7 +203,8 @@ assert_eq!(result, Ok(13));
 
 <div class="tab-panel" id="panel-composition">
 
-Invoke sub-programs from within a program. Effects are forwarded automatically — the sub-program's effects just need to be a subset of the outer program's.
+Invoke sub-programs from within a program.  
+Effects are forwarded automatically, the sub-program's effects just need to be a subset of the outer program's.
 
 ```rust
 use corophage::prelude::*;
@@ -275,7 +276,7 @@ assert_eq!(count, 2);       // handler was called twice
 
 <div class="tab-panel" id="panel-borrow">
 
-Handlers can resume computations with *borrowed* data — no cloning needed.
+Handlers can resume computations with *borrowed* data, no cloning needed.  
 Because _`Effect::Resume<'r>`_ is a GAT, handlers can return references instead of owned values.
 
 ```rust
