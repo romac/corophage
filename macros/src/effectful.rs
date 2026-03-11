@@ -131,6 +131,13 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                     }
                 }
 
+                #[allow(unused_macros)]
+                macro_rules! invoke {
+                    ($prog:expr) => {
+                        __y.invoke($prog).await
+                    }
+                }
+
                 #body
             })
         }

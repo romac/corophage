@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "corophage-macros"]
+members = [".", "macros"]
 
 [package]
 name = "corophage"
@@ -17,7 +17,7 @@ categories = ["rust-patterns"]
 [dependencies]
 fauxgen = { version = "0.1", default-features = false }
 frunk_core = { version = "0.4", default-features = false }
-corophage-macros = { path = "corophage-macros", optional = true }
+corophage-macros = { path = "macros", optional = true }
 
 [features]
 default = ["macros"]

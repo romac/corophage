@@ -144,6 +144,60 @@ fn add_logging<Effs>(program: Program</* ... */>) -> Program</* ... */> {
 
 The compiler enforces at the type level that you can only call `.run_sync()` when all effects have been handled — attempting to run a partially-handled program is a compile error.
 
+## Program composition
+
+Programs can invoke other programs via `invoke!()` (or `y.invoke()` with the manual API). The sub-program's effects must be a subset of the outer program's effects — each yielded effect is forwarded to the outer handler automatically.
+
+```rust
+use corophage::prelude::*;
+
+#[effect(&'static str)]
+struct Ask(&'static str);
+
+#[effect(())]
+struct Print(String);
+
+#[effect(())]
+struct Log(&'static str);
+
+#[effectful(Ask, Print)]
+fn greet() {
+    let name: &str = yield_!(Ask("name?"));
+    yield_!(Print(format!("Hello, {name}!")));
+}
+
+#[effectful(Ask, Print, Log)]
+fn main_program() {
+    yield_!(Log("Starting..."));
+    invoke!(greet());
+    yield_!(Log("Done!"));
+}
+
+let result = main_program()
+    .handle(|_: Ask| Control::resume("world"))
+    .handle(|Print(msg)| { println!("{msg}"); Control::resume(()) })
+    .handle(|_: Log| Control::resume(()))
+    .run_sync();
+
+assert_eq!(result, Ok(()));
+```
+
+With the manual `Program::new` API, use `y.invoke(program).await`:
+
+```rust
+let result = Program::new(|y: Yielder<'_, Effects![Ask, Print, Log]>| async move {
+    y.yield_(Log("Starting...")).await;
+    y.invoke(greet()).await;
+    y.yield_(Log("Done!")).await;
+})
+.handle(|_: Ask| Control::resume("world"))
+.handle(|Print(msg)| { println!("{msg}"); Control::resume(()) })
+.handle(|_: Log| Control::resume(()))
+.run_sync();
+```
+
+Sub-programs can be nested — a sub-program can itself invoke other sub-programs. The only requirement is that the inner program's effects are a subset of the outer program's effects.
+
 ## `Send`-able programs
 
 For use with multi-threaded runtimes like tokio, use `#[effectful(..., send)]` or `Program::new_send`:

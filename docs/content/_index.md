@@ -192,12 +192,54 @@ assert_eq!(result, Ok(13));
 ## More features
 
 <div class="tabs">
-<input type="radio" name="highlight-tabs" id="tab-stateful" checked>
+<input type="radio" name="highlight-tabs" id="tab-composition" checked>
+<label for="tab-composition">Program composition</label>
+<input type="radio" name="highlight-tabs" id="tab-stateful">
 <label for="tab-stateful">Shared state</label>
 <input type="radio" name="highlight-tabs" id="tab-borrow">
 <label for="tab-borrow">Borrowed resume types</label>
 <input type="radio" name="highlight-tabs" id="tab-borrowed-effects">
 <label for="tab-borrowed-effects">Borrowed effects</label>
+
+<div class="tab-panel" id="panel-composition">
+
+Invoke sub-programs from within a program. Effects are forwarded automatically — the sub-program's effects just need to be a subset of the outer program's.
+
+```rust
+use corophage::prelude::*;
+
+#[effect(&'static str)]
+struct Ask(&'static str);
+
+#[effect(())]
+struct Print(String);
+
+#[effect(())]
+struct Log(&'static str);
+
+#[effectful(Ask, Print)]
+fn greet() {
+    let name: &str = yield_!(Ask("name?"));
+    yield_!(Print(format!("Hello, {name}!")));
+}
+
+#[effectful(Ask, Print, Log)]
+fn main_program() {
+    yield_!(Log("Starting..."));
+    invoke!(greet());
+    yield_!(Log("Done!"));
+}
+
+let result = main_program()
+    .handle(|_: Ask| Control::resume("world"))
+    .handle(|Print(msg)| { println!("{msg}"); Control::resume(()) })
+    .handle(|_: Log| Control::resume(()))
+    .run_sync();
+
+assert_eq!(result, Ok(()));
+```
+
+</div>
 
 <div class="tab-panel" id="panel-stateful">
 

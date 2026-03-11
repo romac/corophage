@@ -4,6 +4,9 @@
 mod coproduct;
 use coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
 
+#[doc(hidden)]
+pub use coproduct::ForwardEffects;
+
 mod control;
 mod effect;
 mod locality;

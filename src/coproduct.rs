@@ -1,11 +1,12 @@
 use std::future::Future;
 
-pub use frunk_core::coproduct::{CNil, Coproduct};
+pub use frunk_core::coproduct::{CNil, CoprodInjector, CoprodUninjector, Coproduct};
 pub use frunk_core::hlist::{HCons, HNil};
 use frunk_core::indices::{Here, There};
 
 use crate::control::{CoControl, Control};
-use crate::effect::{Effect, Effects, InjectResume};
+use crate::coroutine::Yielder;
+use crate::effect::{Effect, Effects, InjectResume, MapResume, Resumes};
 
 // ---------------------------------------------------------------------------
 // declare_find_handler!  –  generates a Find*Handler trait + Here/There impls
@@ -383,4 +384,40 @@ where
     FTail: HandlersToEffects<'a, Effs, ITail>,
 {
     type Effects = Coproduct<CH, <FTail as HandlersToEffects<'a, Effs, ITail>>::Effects>;
+}
+
+// ---------------------------------------------------------------------------
+// ForwardEffects  –  forwards each effect variant through an outer Yielder
+// ---------------------------------------------------------------------------
+
+/// Forward each effect in a coproduct through an outer [`Yielder`].
+///
+/// This trait is used by [`Yielder::invoke`] to forward effects from an inner
+/// (sub-)program through the outer program's yielder.
+#[doc(hidden)]
+pub trait ForwardEffects<'a, OuterEffs: MapResume, Indices>: MapResume {
+    fn forward(self, yielder: &Yielder<'a, OuterEffs>) -> impl Future<Output = Resumes<'a, Self>>;
+}
+
+impl<'a, OuterEffs: MapResume> ForwardEffects<'a, OuterEffs, HNil> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    async fn forward(self, _yielder: &Yielder<'a, OuterEffs>) -> Resumes<'a, Self> {
+        match self {}
+    }
+}
+
+impl<'a, OuterEffs, E, Tail, OuterIdx, TailIndices>
+    ForwardEffects<'a, OuterEffs, HCons<OuterIdx, TailIndices>> for Coproduct<E, Tail>
+where
+    E: Effect,
+    Tail: ForwardEffects<'a, OuterEffs, TailIndices>,
+    OuterEffs: MapResume + CoprodInjector<E, OuterIdx>,
+    <OuterEffs as MapResume>::Output<'a>: CoprodUninjector<E::Resume<'a>, OuterIdx>,
+{
+    async fn forward(self, yielder: &Yielder<'a, OuterEffs>) -> Resumes<'a, Self> {
+        match self {
+            Coproduct::Inl(effect) => Coproduct::Inl(yielder.yield_(effect).await),
+            Coproduct::Inr(tail) => Coproduct::Inr(tail.forward(yielder).await),
+        }
+    }
 }

@@ -277,6 +277,31 @@ fn test_effectful_gat_resume() {
     assert_eq!(result, Ok("localhost:5432".to_string()));
 }
 
+// --- invoke! macro tests ---
+
+#[effectful(Ask)]
+fn sub_ask(x: i32) -> bool {
+    yield_!(Ask(x))
+}
+
+#[effectful(Ask, Log<'static>)]
+fn invoke_sub() -> bool {
+    yield_!(Log("before"));
+    let result = invoke!(sub_ask(42));
+    yield_!(Log("after"));
+    result
+}
+
+#[test]
+fn test_invoke_macro() {
+    let result = invoke_sub()
+        .handle(|Ask(n)| Control::resume(n > 10))
+        .handle(|_: Log<'static>| Control::resume(()))
+        .run_sync();
+
+    assert_eq!(result, Ok(true));
+}
+
 // --- Generic effects with #[effectful] ---
 
 #[effectful(GetState<u64>, SetState<u64>)]

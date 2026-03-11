@@ -4,6 +4,27 @@
 
 ### Added
 
+- **Program composition via `Yielder::invoke`** — invoke a sub-program from within another program, forwarding the inner program's effects through the outer yielder. The sub-program's effects must be a subset of the outer program's effects. This enables reusable effectful computations that can be composed together.
+
+  ```rust
+  #[effectful(Ask, Print)]
+  fn greet() {
+      let name: &str = yield_!(Ask("name?"));
+      yield_!(Print(format!("Hello, {name}!")));
+  }
+
+  #[effectful(Ask, Print, Log)]
+  fn main_program() {
+      yield_!(Log("Starting..."));
+      invoke!(greet());
+      yield_!(Log("Done!"));
+  }
+  ```
+
+- **`invoke!()` macro** — call a sub-program inside an `#[effectful]` function. Expands to `__y.invoke(expr).await`. Outside `#[effectful]`, emits a compile error. For the manual `Program::new` API, use `y.invoke(program).await` directly.
+
+- **`ForwardEffects` trait** — internal trait used by `Yielder::invoke` to forward each effect variant from a sub-program's coproduct through the outer yielder.
+
 - **`#[effect(ResumeType)]` proc macro** — derive an `Effect` impl by annotating a struct. Supports lifetimes, generics, and GAT resume types via `'r`.
 
   ```rust

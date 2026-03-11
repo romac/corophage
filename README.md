@@ -229,6 +229,60 @@ assert_eq!(count, 2);
 > [!NOTE]
 > If your handlers don't need shared state, use `.run_sync()` / `.run()` instead. You can also use `RefCell` or other interior mutability patterns to share state without `run_stateful`.
 
+### 5. Program composition
+
+Programs can invoke other programs. The sub-program's effects must be a subset of the outer program's effects — each yielded effect is forwarded to the outer handler automatically.
+
+```rust,ignore
+use corophage::prelude::*;
+
+#[effect(&'static str)]
+struct Ask(&'static str);
+
+#[effect(())]
+struct Print(String);
+
+#[effect(())]
+struct Log(&'static str);
+
+#[effectful(Ask, Print)]
+fn greet() {
+    let name: &str = yield_!(Ask("name?"));
+    yield_!(Print(format!("Hello, {name}!")));
+}
+
+#[effectful(Ask, Print, Log)]
+fn main_program() {
+    yield_!(Log("Starting..."));
+    invoke!(greet());
+    yield_!(Log("Done!"));
+}
+
+let result = main_program()
+    .handle(|_: Ask| Control::resume("world"))
+    .handle(|Print(msg)| { println!("{msg}"); Control::resume(()) })
+    .handle(|_: Log| Control::resume(()))
+    .run_sync();
+
+assert_eq!(result, Ok(()));
+```
+
+With the manual `Program::new` API, use `y.invoke(program).await`:
+
+```rust,ignore
+let result = Program::new(|y: Yielder<'_, Effects![Ask, Print, Log]>| async move {
+    y.yield_(Log("Starting...")).await;
+    y.invoke(greet()).await;
+    y.yield_(Log("Done!")).await;
+})
+.handle(|_: Ask| Control::resume("world"))
+.handle(|Print(msg)| { println!("{msg}"); Control::resume(()) })
+.handle(|_: Log| Control::resume(()))
+.run_sync();
+```
+
+Sub-programs can be nested arbitrarily — a sub-program can itself invoke other sub-programs.
+
 ## Advanced: `Co`, `CoSend`, and the direct API
 
 For cases where you need to pass a computation around before attaching handlers (e.g., returning it from a function, or storing it in a data structure), you can use `Co` and `CoSend` directly.

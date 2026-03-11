@@ -38,7 +38,7 @@ pub type Eff<'a, Effs, R, L = Local> = Program<'a, Effs, R, L, Effs, HNil>;
 /// Once all effects are handled (`Remaining = CNil`), the computation
 /// can be executed via [`run`](Program::run) or [`run_sync`](Program::run_sync).
 pub struct Program<'a, Effs: Effects<'a>, Result, L: Locality, Remaining, Handlers> {
-    co: GenericCo<'a, Effs, Result, L>,
+    pub(crate) co: GenericCo<'a, Effs, Result, L>,
     handlers: Handlers,
     _remaining: PhantomData<Remaining>,
 }

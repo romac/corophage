@@ -17,8 +17,10 @@ use fauxgen::GeneratorState;
 use fauxgen::GeneratorToken;
 use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
+use crate::coproduct::ForwardEffects;
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 use crate::locality::{Local, Locality, Sendable};
+use crate::program::Eff;
 
 type Gen<'a, Effs, Return, L> = SyncGenerator<
     <L as Locality>::PinBoxFuture<'a, Return>,
@@ -178,6 +180,37 @@ where
                 "The resume value should never be `CanStart<Effs>` because the generator \
                 should only yield effects of type `E` and never the start signal."
             ),
+        }
+    }
+
+    /// Invoke a sub-program, forwarding its effects through this yielder.
+    ///
+    /// The sub-program's effects must be a subset of this yielder's effects.
+    /// Each effect yielded by the sub-program is forwarded to the outer handler
+    /// via this yielder, and the resume value is passed back to the sub-program.
+    ///
+    /// Returns the sub-program's result directly. If the outer handler cancels,
+    /// the entire coroutine is dropped, so `invoke` never returns in that case.
+    pub async fn invoke<SubEffs, R, L, Indices>(&self, program: Eff<'a, SubEffs, R, L>) -> R
+    where
+        SubEffs: Effects<'a> + ForwardEffects<'a, Effs, Indices>,
+        L: Locality,
+    {
+        let mut co = std::pin::pin!(program.co);
+        let mut yielded = co.as_mut().resume_with(Start);
+
+        loop {
+            match yielded {
+                GeneratorState::Complete(value) => break value,
+                GeneratorState::Yielded(effect) => {
+                    let subeffect = match effect {
+                        Coproduct::Inl(_) => unreachable!(),
+                        Coproduct::Inr(subeffect) => subeffect,
+                    };
+                    let resume = subeffect.forward(self).await;
+                    yielded = co.as_mut().resume(Coproduct::Inr(resume));
+                }
+            }
         }
     }
 }
