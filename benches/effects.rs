@@ -74,6 +74,62 @@ fn stateful_program() -> u64 {
 }
 
 // =============================================================================
+// Sub-programs for composition benchmarks
+// =============================================================================
+
+#[effectful(Noop)]
+fn sub_noop() -> () {
+    yield_!(Noop);
+}
+
+#[effectful(Noop)]
+fn sub_multi_noop(n: usize) -> () {
+    for _ in 0..n {
+        yield_!(Noop);
+    }
+}
+
+#[effectful(Noop)]
+fn invoke_single() -> () {
+    invoke!(sub_noop());
+}
+
+#[effectful(Noop)]
+fn invoke_sequential(n: usize) -> () {
+    for _ in 0..n {
+        invoke!(sub_noop());
+    }
+}
+
+#[effectful(Noop)]
+fn invoke_nested_inner() -> () {
+    invoke!(sub_noop());
+}
+
+#[effectful(Noop)]
+fn invoke_nested_middle() -> () {
+    invoke!(invoke_nested_inner());
+}
+
+#[effectful(Noop)]
+fn invoke_nested_outer() -> () {
+    invoke!(invoke_nested_middle());
+}
+
+#[effectful(GetValue)]
+fn sub_get_value() -> u64 {
+    yield_!(GetValue)
+}
+
+#[effectful(Noop, GetValue, Alloc)]
+fn invoke_subset_effects() -> u64 {
+    yield_!(Noop);
+    let value = invoke!(sub_get_value());
+    yield_!(Noop);
+    value
+}
+
+// =============================================================================
 // Sync benchmarks
 // =============================================================================
 
@@ -298,6 +354,82 @@ mod handler_complexity_benches {
                     .handle(|_: Noop| Control::resume(()))
                     .handle(|_: GetValue| Control::resume(42))
                     .handle(|_: Alloc| Control::resume("allocated string".to_string()))
+                    .run_sync(),
+            )
+        });
+    }
+}
+
+// =============================================================================
+// Program composition benchmarks
+// =============================================================================
+
+mod composition_benches {
+    use super::*;
+
+    #[divan::bench]
+    fn invoke_single_sub(bencher: divan::Bencher) {
+        bencher.bench(|| {
+            divan::black_box(
+                invoke_single()
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
+        });
+    }
+
+    #[divan::bench(args = [1, 10, 100])]
+    fn invoke_sequential_subs(bencher: divan::Bencher, n: usize) {
+        bencher.bench(|| {
+            divan::black_box(
+                invoke_sequential(n)
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
+        });
+    }
+
+    #[divan::bench]
+    fn invoke_nested_3_deep(bencher: divan::Bencher) {
+        bencher.bench(|| {
+            divan::black_box(
+                invoke_nested_outer()
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
+        });
+    }
+
+    #[divan::bench]
+    fn invoke_subset(bencher: divan::Bencher) {
+        bencher.bench(|| {
+            divan::black_box(
+                invoke_subset_effects()
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .run_sync(),
+            )
+        });
+    }
+
+    #[divan::bench]
+    fn invoke_vs_inline(bencher: divan::Bencher) {
+        bencher.bench(|| {
+            divan::black_box(
+                sub_multi_noop(10)
+                    .handle(|_: Noop| Control::resume(()))
+                    .run_sync(),
+            )
+        });
+    }
+
+    #[divan::bench]
+    fn invoke_vs_invoke(bencher: divan::Bencher) {
+        bencher.bench(|| {
+            divan::black_box(
+                invoke_sequential(10)
+                    .handle(|_: Noop| Control::resume(()))
                     .run_sync(),
             )
         });
