@@ -28,7 +28,7 @@ fn my_program() -> u64 {
 ```
 
 The `#[effectful(Eff1, Eff2, ...)]` macro:
-- Transforms the return type to `Eff<'_, Effects![Eff1, Eff2, ...], T>`
+- Transforms the return type to `Effectful<'_, Effects![Eff1, Eff2, ...], T>`
 - Wraps the body in `Program::new`
 - Enables `yield_!(effect)` syntax to perform effects
 

@@ -20,7 +20,7 @@ use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 use crate::coproduct::ForwardEffects;
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 use crate::locality::{Local, Locality, Sendable};
-use crate::program::Eff;
+use crate::program::Effectful;
 
 type Gen<'a, Effs, Return, L> = SyncGenerator<
     <L as Locality>::PinBoxFuture<'a, Return>,
@@ -196,7 +196,7 @@ where
     /// Returns the sub-program's result directly. If the outer handler cancels,
     /// the entire coroutine is dropped, so `invoke` never returns in that case.
     #[inline]
-    pub async fn invoke<SubEffs, R, L, Indices>(&self, program: Eff<'a, SubEffs, R, L>) -> R
+    pub async fn invoke<SubEffs, R, L, Indices>(&self, program: Effectful<'a, SubEffs, R, L>) -> R
     where
         SubEffs: Effects<'a> + ForwardEffects<'a, Effs, Indices>,
         L: Locality,

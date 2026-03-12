@@ -1,0 +1,57 @@
+# corophage
+
+Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_core` (heterogeneous lists/coproducts).
+
+## Architecture
+
+- `src/effect.rs` — `Effect` trait (with GAT `Resume<'r>`), `MapResume` (with GAT `Output<'r>`), `Resumes<'r, E>`, `Effects`, `Start`, `CanStart`
+- `src/coroutine.rs` — `GenericCo<'a, Effs, Return, L>`, type aliases `Co` (`Local`) and `CoSend` (`Sendable`), and `Yielder<'a, Effs>`
+- `src/control.rs` — `Control<R>` (user-facing resume/cancel), `CoControl<'a, Effs>` (internal resume/cancel), and `Cancelled`
+- `src/coproduct.rs` — `HandleMut`, `HandleWith`, `AsyncHandleMut`, `AsyncHandleWith` trait impls for dispatching over hlists of handlers, injecting resume values into the effect coproduct
+- `src/locality.rs` — `Locality` sealed trait, `Local` and `Sendable` marker types for controlling `Send`-ness of `Co`
+- `src/macros.rs` — the `run!` internal macro, the `Effects!` public macro, and the `declare_effect!` macro for concise effect type declarations
+- `src/lib.rs` — `sync::run`/`sync::run_stateful`, `asynk::run`/`asynk::run_stateful`, `Never` type; crate root exports primary types (`Effect`, `Effectful`, `Control`, `Cancelled`, `Yielder`, `Program`, `Co`, `CoSend`); `CoControl`/`GenericCo`/`Locality`/`Local`/`Sendable` are not re-exported at root
+- `src/program.rs` — `Program` type (primary API) for incremental handler attachment, `Program::new`/`new_send`/`from_co`; `Effectful` type alias for an unhandled `Program`
+- `src/prelude.rs` — re-exports core types (`Effect`, `Effectful`, `Effects!`, `Control`, `Cancelled`, `Never`, `Program`, `Yielder`, `declare_effect`, `frunk`, `hlist`); `Co`/`CoSend`/`sync`/`asynk` are public but not in prelude
+- `macros/` — `corophage-macros` proc-macro crate providing `#[effect]` and `#[effectful]` attribute macros
+
+## Key Design Constraints
+
+- **Effects are parameterized by lifetime `'a`**: The bound is `Effects<'a>: MapResume + Send + Sync + 'a`, propagated through `Co<'a, Effs, Return>`. Effects can borrow non-`'static` data by using a shorter lifetime.
+- **`Effect::Resume<'r>` is a GAT**: Resume types are generic associated types (`type Resume<'r>: Sync + Send`), allowing handlers to resume computations with borrowed data (e.g., `&'r str`) instead of requiring owned values. The lifetime `'r` is threaded through `MapResume::Output<'r>`, `Resumes<'r, E>`, `Yielder`, `Co::resume`, and `CoControl`.
+- **`Co` vs `CoSend`**: `Co<'a, Effs, Return>` is not `Send` (uses `Pin<Box<dyn Future + 'a>>`). Use `CoSend<'a, Effs, Return>` (backed by `Sendable` locality) for `Send`-able coroutines compatible with `tokio::spawn`. Both are type aliases for `GenericCo<'a, Effs, Return, L>` parameterized by a `Locality` marker.
+- **`Program` is the primary API**: `Program::new` creates a computation from a closure, `.handle()` attaches handlers one at a time, `.run_sync()`/`.run()` execute once all effects are handled. `Co`/`CoSend` and the direct `run`/`sync::run` functions are advanced/internal.
+- **Handler order is flexible for `Program`**: `.handle()` and `.handle_all()` both use `CoproductSubsetter` to remove the handled effect from `Remaining`, so handlers can be attached in any order. However, handlers passed as an hlist to the low-level `run`/`run_stateful` functions must still match the `Effects![...]` order.
+- **Async handlers require `AsyncFnMut`/`AsyncFn`**: These traits were stabilized in Rust 1.85.
+
+## Internal Invariants
+
+- The `run!` macro takes an explicit lifetime parameter and effect type — `run!('a, Effs, co, effect => handle)`.
+- `Yielder::yield_` always wraps the effect in `Coproduct::Inr(...)`, so the `Inl` (Start) arm in the `run!` macro is always `unreachable!()`.
+- Resumes are injected at the correct coproduct index by `Handle*` trait impls via `InjectResume`, making the `uninject` call in `Yielder::yield_` always succeed.
+- `unsafe { self.map_unchecked_mut(|s| &mut s.generator) }` in `Co::resume` is a structural pin projection from `Pin<&mut GenericCo>` to `Pin<&mut Gen>`, sound because `GenericCo` is `!Unpin` (via `PhantomPinned`), the `generator` field is structurally pinned, and there is no `Drop` impl that could move it.
+
+## Commands
+
+```sh
+cargo clippy --all-targets --all-features
+cargo fmt
+cargo nextest run
+cargo bench
+```
+
+## Website
+
+After making any user-facing change to the code (new features, API changes, renamed types, new examples, etc.), always check whether the website (in `docs/`) needs to be updated accordingly. Ask if unsure.
+
+## Changelog
+
+Always update the changelog after making a substantial user-facing change. If not sure whether to update it or not, ask me.
+
+## Release process
+
+1. Update the changelog with a new section for the upcoming version, describing the changes since the last release.
+2. Bump the version in `Cargo.toml` (and `Cargo.lock` if applicable) to the new version.
+3. Commit the changes with a message like `Release vX.Y.Z`.
+4. Create a git tag for the new version: `git tag vX.Y.Z`. Use the changelog entries as the tag message.
+5. Push the commit and tag to the remote repository: `git push origin main --tags`.

@@ -20,7 +20,7 @@ impl Effect for Log {
     type Resume<'r> = ();
 }
 
-fn greet<'a>() -> Eff<'a, Effects![Ask, Print], ()> {
+fn greet<'a>() -> Effectful<'a, Effects![Ask, Print], ()> {
     Program::new(|y: Yielder<'_, Effects![Ask, Print]>| async move {
         let name: &str = y.yield_(Ask("name?")).await;
         y.yield_(Print(format!("Hello, {name}!"))).await;
@@ -60,7 +60,7 @@ fn sync_invoke_subprogram_returns_value() {
         type Resume<'r> = i32;
     }
 
-    fn compute<'a>() -> Eff<'a, Effects![Add], i32> {
+    fn compute<'a>() -> Effectful<'a, Effects![Add], i32> {
         Program::new(|y: Yielder<'_, Effects![Add]>| async move { y.yield_(Add(1, 2)).await })
     }
 
@@ -81,7 +81,7 @@ fn sync_invoke_subprogram_returns_value() {
 #[test]
 fn sync_invoke_subprogram_subset_effects() {
     // Sub-program uses only Ask, outer uses Ask + Print + Log
-    fn ask_name<'a>() -> Eff<'a, Effects![Ask], &'static str> {
+    fn ask_name<'a>() -> Effectful<'a, Effects![Ask], &'static str> {
         Program::new(|y: Yielder<'_, Effects![Ask]>| async move { y.yield_(Ask("name?")).await })
     }
 
@@ -122,7 +122,7 @@ async fn async_invoke_subprogram() {
 
 #[test]
 fn sync_invoke_no_effects_subprogram() {
-    fn pure_computation<'a>() -> Eff<'a, Effects![], i32> {
+    fn pure_computation<'a>() -> Effectful<'a, Effects![], i32> {
         Program::new(|_: Yielder<'_, Effects![]>| async move { 42 })
     }
 
@@ -143,11 +143,11 @@ fn sync_invoke_no_effects_subprogram() {
 #[test]
 fn sync_invoke_nested() {
     // Invoke a sub-program that itself invokes another sub-program
-    fn inner<'a>() -> Eff<'a, Effects![Ask], &'static str> {
+    fn inner<'a>() -> Effectful<'a, Effects![Ask], &'static str> {
         Program::new(|y: Yielder<'_, Effects![Ask]>| async move { y.yield_(Ask("inner")).await })
     }
 
-    fn middle<'a>() -> Eff<'a, Effects![Ask, Print], &'static str> {
+    fn middle<'a>() -> Effectful<'a, Effects![Ask, Print], &'static str> {
         Program::new(|y: Yielder<'_, Effects![Ask, Print]>| async move {
             let name = y.invoke(inner()).await;
             y.yield_(Print(format!("middle: {name}"))).await;

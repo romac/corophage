@@ -22,14 +22,14 @@ use crate::locality::{Local, Locality, Sendable};
 ///
 /// type MyEffs = Effects![Counter, Ask];
 ///
-/// fn my_computation<'a>() -> Eff<'a, MyEffs, String> {
+/// fn my_computation<'a>() -> Effectful<'a, MyEffs, String> {
 ///     Program::new(|y: Yielder<'_, MyEffs>| async move {
 ///         // ...
 ///         "result".to_string()
 ///     })
 /// }
 /// ```
-pub type Eff<'a, Effs, R, L = Local> = Program<'a, Effs, R, L, Effs, HNil>;
+pub type Effectful<'a, Effs, R, L = Local> = Program<'a, Effs, R, L, Effs, HNil>;
 
 /// A computation with incrementally attached effect handlers.
 ///

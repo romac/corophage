@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **`Eff` type alias renamed to `Effectful`** — the `Eff<'a, Effs, R, L>` type alias for an unhandled `Program` has been renamed to `Effectful<'a, Effs, R, L>` for clarity. The `#[effectful]` macro now generates `Effectful<...>` as its return type.
+
 ## v0.3.0 (2026-03-11)
 
 ### Added

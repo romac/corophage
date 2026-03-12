@@ -97,9 +97,9 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
     // Build the new return type
     let new_return_type = if args.send {
-        quote! { ::corophage::Eff<#eff_lifetime, #effects_type, #return_type, ::corophage::Sendable> }
+        quote! { ::corophage::Effectful<#eff_lifetime, #effects_type, #return_type, ::corophage::Sendable> }
     } else {
-        quote! { ::corophage::Eff<#eff_lifetime, #effects_type, #return_type> }
+        quote! { ::corophage::Effectful<#eff_lifetime, #effects_type, #return_type> }
     };
 
     // Ensure the effect lifetime is in the generics
