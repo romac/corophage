@@ -86,6 +86,7 @@ code {
   padding: 0.15em 0.4em;
   border-radius: 4px;
   color: var(--sand);
+  white-space: nowrap;
 }
 
 pre code * {
@@ -306,6 +307,9 @@ h6 {
   color: var(--text-muted);
   margin-bottom: 2rem;
   font-size: 1.05rem;
+  max-width: 670px;
+  margin-left: auto;
+  margin-right: auto;
   em {
     color: var(--yellow);
     font-style: normal;
@@ -323,24 +327,29 @@ h6 {
 
   label {
     display: inline-block;
-    padding: 0.5rem 1.25rem;
+    padding: 0.4rem 1rem;
     font-family: var(--font-mono);
     font-size: 0.85rem;
     font-weight: 500;
     color: var(--text-muted);
     cursor: pointer;
-    border-bottom: 2px solid transparent;
     transition: all 0.15s;
-    margin-bottom: 1.5rem;
+    margin: 0 0.3rem 1rem;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    white-space: nowrap;
 
     &:hover {
       color: var(--text);
+      border-color: var(--text-subtle);
     }
   }
 
   input[type="radio"]:checked + label {
     color: var(--accent);
-    border-bottom-color: var(--accent);
+    background: var(--accent-bg);
+    border-color: var(--accent);
   }
 
   .tab-panel {
@@ -365,6 +374,9 @@ h6 {
     color: var(--text-muted);
     font-size: 0.95rem;
     margin-bottom: 1.5rem;
+    max-width: 670px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   #tab-sync:checked ~ #panel-sync,
@@ -390,7 +402,12 @@ h6 {
   color: var(--text-muted);
   font-size: 1rem;
   margin-top: 3rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--border);
+  max-width: 670px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .example-shared {
@@ -403,7 +420,7 @@ h6 {
 
 .example-step {
   h4 {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -428,7 +445,7 @@ h6 {
 }
 
 .highlight-inner pre {
-  max-width: var(--content-width);
+  max-width: 670px;
   margin: 0 auto;
   background: var(--code-bg);
   border: 1px solid var(--border);
@@ -727,11 +744,30 @@ h6 {
 }
 
 @media (max-width: 600px) {
+  html {
+    font-size: 15px;
+  }
   .features-inner {
     grid-template-columns: 1fr;
   }
+  .hero-logo img {
+    width: 140px;
+    height: 140px;
+  }
   .hero h1 {
-    font-size: 1.75rem;
+    font-size: 1.6rem;
+  }
+  .hero-tagline {
+    font-size: 1.1rem;
+  }
+  .tabs label {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.85rem;
+  }
+  .example-section h2,
+  .highlight-section h2,
+  .cta-section h2 {
+    font-size: 1.3rem;
   }
   .docs-overview {
     grid-template-columns: 1fr;

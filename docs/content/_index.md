@@ -197,7 +197,7 @@ assert_eq!(result, Ok(13));
 <input type="radio" name="highlight-tabs" id="tab-stateful">
 <label for="tab-stateful">Shared state</label>
 <input type="radio" name="highlight-tabs" id="tab-borrow">
-<label for="tab-borrow">Borrowed resume types</label>
+<label for="tab-borrow">Borrowed resumes</label>
 <input type="radio" name="highlight-tabs" id="tab-borrowed-effects">
 <label for="tab-borrowed-effects">Borrowed effects</label>
 
