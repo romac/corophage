@@ -1,7 +1,7 @@
 mod effect;
 mod effectful;
 
-/// Derive an [`Effect`] implementation for a struct.
+/// Derive an `Effect` implementation for a struct.
 ///
 /// The attribute argument specifies the resume type. Use `'r` for the GAT
 /// lifetime if the resume type needs to borrow from the handler.
@@ -31,7 +31,7 @@ pub fn effect(
 
 /// Mark a function as an effectful computation.
 ///
-/// Transforms the function to return a [`Program`] and enables the `yield_!()`
+/// Transforms the function to return a `Program` and enables the `yield_!()`
 /// macro inside the function body.
 ///
 /// # Arguments
