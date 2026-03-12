@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Effects — corophage</title>
+  <meta name="description" content="Algebraic effects for stable Rust">
+  <link rel="stylesheet" href="https://corophage.rs/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Michroma&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://corophage.rs" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://corophage.rs/docs/">Docs</a>
+        <a href="https://docs.rs/corophage">API</a>
+        <a href="https://github.com/romac/corophage">GitHub</a>
+        <a href="https://crates.io/crates/corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<div class="docs-layout">
+  <input type="checkbox" id="docs-menu-toggle" class="docs-menu-checkbox">
+  <label for="docs-menu-toggle" class="docs-menu-btn" aria-label="Toggle docs menu">
+    <span></span><span></span><span></span>
+  </label>
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;getting-started&#x2F;" >Getting Started</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;effects&#x2F;" class="active">Effects</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;programs&#x2F;" >Programs</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;handlers&#x2F;" >Handlers</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;state&#x2F;" >Shared State</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;advanced&#x2F;" >Advanced Usage</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;performance&#x2F;" >Performance</a></li>
+        
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>Effects</h1>
+    <p>An <strong>Effect</strong> is a struct that represents a request for a side effect. It's a message from your computation to the outside world.</p>
+<h2 id="defining-effects-with-effect">Defining effects with <code>#[effect]</code></h2>
+<p>To define an effect, annotate a struct with <code>#[effect(ResumeType)]</code>. The resume type defines what value the computation receives back after the effect is handled.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> Log</span><span>(</span><span style="color: #E67E80;">pub</span><span style="color: #7FBBB3;"> String</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">String</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> FileRead</span><span>(</span><span style="color: #E67E80;">pub</span><span style="color: #7FBBB3;"> String</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">Never</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> Cancel</span><span>;</span></span></code></pre>
+<p>The macro supports lifetimes, generics, named fields, and borrowed resume types:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #859289;font-style: italic;">// Lifetime parameters</span></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">bool</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> Borrow</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(</span><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// Generic parameters</span></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">T</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> Generic</span><span>&lt;</span><span style="color: #7FBBB3;">T</span><span style="color: #E69875;">:</span><span style="color: #83C092;"> std</span><span style="color: #E69875;">::</span><span style="color: #83C092;">fmt</span><span style="color: #E69875;">::</span><span style="color: #7FBBB3;">Debug</span><span style="color: #E69875;"> +</span><span style="color: #7FBBB3;"> Send</span><span style="color: #E69875;"> +</span><span style="color: #7FBBB3;"> Sync</span><span>&gt;(</span><span style="color: #E67E80;">pub</span><span style="color: #7FBBB3;"> T</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// Named fields</span></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">Vec</span><span>&lt;</span><span style="color: #7FBBB3;">u8</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> ReadDir</span><span> {</span><span style="color: #E67E80;"> pub</span><span> path</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> String</span><span>,</span><span style="color: #E67E80;"> pub</span><span> recursive</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> bool</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// The resume type may reference the GAT lifetime &#39;r</span></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">r str</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> Lookup</span><span>(</span><span style="color: #E67E80;">pub</span><span style="color: #7FBBB3;"> String</span><span>);</span></span></code></pre><h2 id="the-declare-effect-macro">The <code>declare_effect!</code> macro</h2>
+<p>Alternatively, you can use the <code>declare_effect!</code> macro for a more concise syntax:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">declare_effect!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(</span><span style="color: #7FBBB3;">String</span><span>)</span><span style="color: #E69875;"> -&gt;</span><span> ());</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">declare_effect!</span><span>(</span><span style="color: #A7C080;">FileRead</span><span>(</span><span style="color: #7FBBB3;">String</span><span>)</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> String</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">declare_effect!</span><span>(</span><span style="color: #7FBBB3;">Cancel</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> Never</span><span>);</span></span></code></pre>
+<p>The macro supports lifetimes, generics, named fields, and borrowed resume types:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #859289;font-style: italic;">// Lifetime parameters</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">declare_effect!</span><span>(</span><span style="color: #7FBBB3;">Borrow</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>)</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> bool</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// Generic parameters</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">declare_effect!</span><span>(</span><span style="color: #7FBBB3;">Generic</span><span>&lt;</span><span style="color: #7FBBB3;">T</span><span style="color: #E69875;">:</span><span> std</span><span style="color: #E69875;">::</span><span>fmt</span><span style="color: #E69875;">::</span><span style="color: #7FBBB3;">Debug</span><span>&gt;(</span><span style="color: #7FBBB3;">T</span><span>)</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> T</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// Named fields</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">declare_effect!</span><span>(</span><span style="color: #7FBBB3;">FileRead</span><span> { path</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> String</span><span>, recursive</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> bool</span><span> }</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> Vec</span><span>&lt;</span><span style="color: #7FBBB3;">u8</span><span>&gt;);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// The resume type may reference the GAT lifetime &#39;r</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">declare_effect!</span><span>(</span><span style="color: #A7C080;">Lookup</span><span>(</span><span style="color: #7FBBB3;">String</span><span>)</span><span style="color: #E69875;"> -&gt; &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">r str</span><span>);</span></span></code></pre><h2 id="effect-sets-with-effects">Effect sets with <code>Effects!</code></h2>
+<p>Effects are grouped into sets using the <code>Effects!</code> macro:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E69875;">type</span><span style="color: #7FBBB3;"> MyEffects</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> Effects!</span><span>[</span><span style="color: #7FBBB3;">Log</span><span>,</span><span style="color: #7FBBB3;"> FileRead</span><span>,</span><span style="color: #7FBBB3;"> Cancel</span><span>];</span></span></code></pre>
+<p>This creates a type-level list (coproduct) of effects. The type system tracks which effects have been handled and prevents you from running a program until all effects have handlers.</p>
+
+
+    <div class="docs-pagination">
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;getting-started&#x2F;" class="docs-prev">&larr; Getting Started</a>
+      
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;programs&#x2F;" class="docs-next">Programs &rarr;</a>
+      
+    </div>
+  </article>
+</div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

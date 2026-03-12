@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Performance — corophage</title>
+  <meta name="description" content="Algebraic effects for stable Rust">
+  <link rel="stylesheet" href="https://corophage.rs/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Michroma&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://corophage.rs" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://corophage.rs/docs/">Docs</a>
+        <a href="https://docs.rs/corophage">API</a>
+        <a href="https://github.com/romac/corophage">GitHub</a>
+        <a href="https://crates.io/crates/corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<div class="docs-layout">
+  <input type="checkbox" id="docs-menu-toggle" class="docs-menu-checkbox">
+  <label for="docs-menu-toggle" class="docs-menu-btn" aria-label="Toggle docs menu">
+    <span></span><span></span><span></span>
+  </label>
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;getting-started&#x2F;" >Getting Started</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;effects&#x2F;" >Effects</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;programs&#x2F;" >Programs</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;handlers&#x2F;" >Handlers</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;state&#x2F;" >Shared State</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;advanced&#x2F;" >Advanced Usage</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;performance&#x2F;" class="active">Performance</a></li>
+        
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>Performance</h1>
+    <p>Benchmarks were run using <a rel="external" href="https://github.com/nvzqz/divan">Divan</a>. Run them with <code>cargo bench</code>.</p>
+<h2 id="coroutine-overhead">Coroutine overhead</h2>
+<table><thead><tr><th>Benchmark</th><th>Median</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>coroutine_creation</code></td><td>~7 ns</td><td>Just struct initialization</td></tr>
+<tr><td><code>empty_coroutine</code></td><td>~30 ns</td><td>Full lifecycle with no yields</td></tr>
+<tr><td><code>single_yield</code></td><td>~38 ns</td><td>One yield/resume cycle</td></tr>
+</tbody></table>
+<p>Coroutine creation is nearly free, and the baseline overhead for running a coroutine is ~30 ns.</p>
+<h2 id="yield-scaling-sync-vs-async">Yield scaling (sync vs async)</h2>
+<table><thead><tr><th>Yields</th><th>Sync</th><th>Async</th><th>Overhead</th></tr></thead><tbody>
+<tr><td>10</td><td>131 ns</td><td>178 ns</td><td>+36%</td></tr>
+<tr><td>100</td><td>1.0 µs</td><td>1.27 µs</td><td>+27%</td></tr>
+<tr><td>1000</td><td>9.5 µs</td><td>11.1 µs</td><td>+17%</td></tr>
+</tbody></table>
+<p>Async adds ~30% overhead at small scales, but the gap narrows as yield count increases. Per-yield cost is approximately <strong>9–10 ns</strong> for sync and <strong>11 ns</strong> for async.</p>
+<h2 id="effect-dispatch-position">Effect dispatch position</h2>
+<table><thead><tr><th>Position</th><th>Median</th></tr></thead><tbody>
+<tr><td>First (index 0)</td><td>49 ns</td></tr>
+<tr><td>Middle (index 2)</td><td>42 ns</td></tr>
+<tr><td>Last (index 4)</td><td>47 ns</td></tr>
+</tbody></table>
+<p>Dispatch position has negligible impact. While the source-level dispatch uses recursive trait impls over nested <code>Coproduct::Inl</code>/<code>Inr</code> variants, the compiler monomorphizes and inlines the entire chain into a flat discriminant-based branch — the same code LLVM would emit for a plain <code>match</code> on a flat enum. The result is effectively O(1).</p>
+<h2 id="state-management">State management</h2>
+<table><thead><tr><th>Pattern</th><th>Median</th></tr></thead><tbody>
+<tr><td>Stateless (<code>run</code>)</td><td>38 ns</td></tr>
+<tr><td>Stateful (<code>run_stateful</code>)</td><td>53 ns</td></tr>
+<tr><td>RefCell pattern</td><td>55 ns</td></tr>
+</tbody></table>
+<p>Stateful handlers add ~15 ns overhead. RefCell is nearly equivalent to <code>run_stateful</code>.</p>
+<h2 id="handler-complexity">Handler complexity</h2>
+<table><thead><tr><th>Handler</th><th>Median</th></tr></thead><tbody>
+<tr><td>Noop (returns <code>()</code>)</td><td>42 ns</td></tr>
+<tr><td>Allocating (returns <code>String</code>)</td><td>83 ns</td></tr>
+</tbody></table>
+<p>Allocation dominates handler cost. Consider returning references or zero-copy types for performance-critical effects.</p>
+
+
+    <div class="docs-pagination">
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;advanced&#x2F;" class="docs-prev">&larr; Advanced Usage</a>
+      
+      
+    </div>
+  </article>
+</div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

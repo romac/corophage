@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>corophage — Algebraic Effect Handlers for Rust</title>
+  <meta name="description" content="Algebraic effects for stable Rust">
+  <link rel="stylesheet" href="https://corophage.rs/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Michroma&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://corophage.rs" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://corophage.rs/docs/">Docs</a>
+        <a href="https://docs.rs/corophage">API</a>
+        <a href="https://github.com/romac/corophage">GitHub</a>
+        <a href="https://crates.io/crates/corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<section class="hero">
+<div class="hero-inner">
+<div class="hero-logo">
+<img src="logo/corophage-2b.svg" alt="corophage logo">
+</div>
+<h1 id="corophage">corophage</h1>
+<p class="hero-tagline">Algebraic effects for stable Rust.<br>Separate <em>what</em> your program does from <em>how</em> it gets done.</p>
+<div class="hero-buttons">
+<a href="docs/" class="btn btn-primary">Get Started</a>
+<a href="https://docs.rs/corophage" class="btn btn-secondary">API Docs</a>
+</div>
+<div class="hero-install">
+<code>cargo add corophage</code>
+</div>
+</div>
+</section>
+<section class="features">
+<div class="features-inner">
+<div class="feature">
+<h3 id="testable">Testable</h3>
+<p>Swap in mock handlers for testing without touching the real world. Your business logic stays pure and easy to verify.</p>
+</div>
+<div class="feature">
+<h3 id="composable">Composable</h3>
+<p>Attach handlers incrementally with the <code>Program</code> API. Partially-handled programs are first-class values you can pass around and extend.</p>
+</div>
+<div class="feature">
+<h3 id="stable-rust">Stable Rust</h3>
+<p>No nightly required. Built on async coroutines via <a rel="external" href="https://github.com/jmkr/fauxgen">fauxgen</a> and hlists/coproducts via <a rel="external" href="https://github.com/lloydmeta/frunk">frunk</a>.</p>
+</div>
+<div class="feature">
+<h3 id="fast">Fast</h3>
+<p>~10 ns per yield. Zero-cost dispatch, the compiler monomorphizes and inlines effect dispatch into flat branches.</p>
+</div>
+</div>
+</section>
+<section class="example-section">
+<div class="example-inner">
+<h2 id="define-effects-write-logic-attach-handlers">Define effects, write logic, attach handlers</h2>
+<p class="section-intro">Your program describes <em>what</em> to do by yielding effects.</p>
+<div class="example-shared">
+<div class="example-step">
+<h4 id="define-your-effects">Define your effects</h4>
+<p>Each effect is a struct annotated with <code>#[effect(ResumeType)]</code>.
+The resume type defines what the handler sends back.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">String</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Read</span><span>(</span><span style="color: #7FBBB3;">String</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">Never</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Cancel</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">type</span><span style="color: #7FBBB3;"> Effs</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> Effects!</span><span>[</span><span style="color: #7FBBB3;">Cancel</span><span>,</span><span style="color: #7FBBB3;"> Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">static</span><span>&gt;,</span><span style="color: #7FBBB3;"> Read</span><span>];</span></span></code></pre></div>
+<div class="example-step">
+<h4 id="describe-what-to-do">Describe what to do</h4>
+<p>Use <code>#[effectful]</code> to write effectful functions with <code>yield_!()</code>.
+Your program doesn't know or care how effects are handled.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Cancel</span><span>,</span><span style="color: #7FBBB3;"> Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">static</span><span>&gt;,</span><span style="color: #7FBBB3;"> Read</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> program</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> usize</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">Starting...</span><span>&quot;));</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> data</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #A7C080;">Read</span><span>(&quot;</span><span style="color: #DBBC7F;">config.toml</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>()));</span></span>
+<span class="giallo-l"><span>    data</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">len</span><span>()</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre></div>
+</div>
+<p class="section-transition">Now decide <em>how</em> to handle each effect.</p>
+<div class="tabs">
+<input type="radio" name="example-tabs" id="tab-sync" checked>
+<label for="tab-sync">Sync</label>
+<input type="radio" name="example-tabs" id="tab-async">
+<label for="tab-async">Async</label>
+<input type="radio" name="example-tabs" id="tab-testing">
+<label for="tab-testing">Mocks</label>
+<div class="tab-panel" id="panel-sync">
+<p class="tab-description">Run with plain closures as handlers.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Cancel</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">cancel</span><span>())</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Log</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">        println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span></span>
+<span class="giallo-l"><span style="color: #7FBBB3;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Read</span><span>(path)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(</span><span style="color: #83C092;">std</span><span style="color: #E69875;">::</span><span style="color: #83C092;">fs</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">read_to_string</span><span>(path)</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">unwrap</span><span>())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(</span><span style="color: #D699B6;">42</span><span>));</span></span></code></pre></div>
+<div class="tab-panel" id="panel-async">
+<p class="tab-description">Use async closures and <code>.await</code> real I/O.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E67E80;">async</span><span style="color: #E69875;"> |</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Cancel</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">cancel</span><span>())</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E67E80;">async</span><span style="color: #E69875;"> |</span><span style="color: #A7C080;">Log</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">        println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span></span>
+<span class="giallo-l"><span style="color: #7FBBB3;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E67E80;">async</span><span style="color: #E69875;"> |</span><span style="color: #A7C080;">Read</span><span>(path)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        let</span><span> data</span><span style="color: #E69875;"> =</span><span style="color: #83C092;"> tokio</span><span style="color: #E69875;">::</span><span style="color: #83C092;">fs</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">read_to_string</span><span>(path)</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">unwrap</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(data)</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run</span><span>()</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(</span><span style="color: #D699B6;">42</span><span>));</span></span></code></pre></div>
+<div class="tab-panel" id="panel-testing">
+<p class="tab-description">Swap in mock handlers, test without side effects.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Cancel</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">cancel</span><span>())</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Log</span><span>(_)</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()))</span><span style="color: #859289;font-style: italic;"> // silent</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Read</span><span>(_)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">        // Fake data instead of reading from disk</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(&quot;</span><span style="color: #DBBC7F;">mock content!</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// No filesystem access, no stdout output</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(</span><span style="color: #D699B6;">13</span><span>));</span></span></code></pre></div>
+</div>
+</div>
+<p class="section-transition">The effects and logic stay the same, only the handlers change.</p>
+</section>
+<section class="highlight-section">
+<div class="highlight-inner">
+<h2 id="more-features">More features</h2>
+<div class="tabs">
+<input type="radio" name="highlight-tabs" id="tab-composition" checked>
+<label for="tab-composition">Program composition</label>
+<input type="radio" name="highlight-tabs" id="tab-stateful">
+<label for="tab-stateful">Shared state</label>
+<input type="radio" name="highlight-tabs" id="tab-borrow">
+<label for="tab-borrow">Borrowed resume types</label>
+<input type="radio" name="highlight-tabs" id="tab-borrowed-effects">
+<label for="tab-borrowed-effects">Borrowed effects</label>
+<div class="tab-panel" id="panel-composition">
+<p>Invoke sub-programs from within a program.<br />
+Effects are forwarded automatically, the sub-program's effects just need to be a subset of the outer program's.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">static str</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Ask</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">static str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Print</span><span>(</span><span style="color: #7FBBB3;">String</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Log</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">static str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Ask</span><span>,</span><span style="color: #7FBBB3;"> Print</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> greet</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> name</span><span style="color: #E69875;">: &amp;</span><span style="color: #7FBBB3;">str</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #A7C080;">Ask</span><span>(&quot;</span><span style="color: #DBBC7F;">name?</span><span>&quot;));</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Print</span><span>(</span><span style="color: #A7C080;">format!</span><span>(&quot;</span><span style="color: #DBBC7F;">Hello, </span><span>{</span><span style="color: #DBBC7F;">name</span><span>}</span><span style="color: #DBBC7F;">!</span><span>&quot;)));</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Ask</span><span>,</span><span style="color: #7FBBB3;"> Print</span><span>,</span><span style="color: #7FBBB3;"> Log</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> main_program</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">Starting...</span><span>&quot;));</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    invoke!</span><span>(</span><span style="color: #A7C080;">greet</span><span>());</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">Done!</span><span>&quot;));</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> main_program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Ask</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(&quot;</span><span style="color: #DBBC7F;">world</span><span>&quot;))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Print</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span><span style="color: #A7C080;"> println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span><span style="color: #7FBBB3;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()) })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Log</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(()));</span></span></code></pre></div>
+<div class="tab-panel" id="panel-stateful">
+<p>Handlers can share mutable state. The state is passed as an argument to every handler.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">u64</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Counter</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> count_up</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> u64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> a</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> b</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>);</span></span>
+<span class="giallo-l"><span>    a</span><span style="color: #E69875;"> +</span><span> b</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let mut</span><span> count</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> u64</span><span style="color: #E69875;"> =</span><span style="color: #D699B6;"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> count_up</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>s</span><span style="color: #E69875;">: &amp;mut</span><span style="color: #7FBBB3;"> u64</span><span>, _</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Counter</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        *</span><span>s</span><span style="color: #E69875;"> +=</span><span style="color: #D699B6;"> 1</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(</span><span style="color: #E69875;">*</span><span>s)</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync_stateful</span><span>(</span><span style="color: #E69875;">&amp;mut</span><span> count);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(</span><span style="color: #D699B6;">3</span><span>));</span><span style="color: #859289;font-style: italic;">  // 1 + 2</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(count,</span><span style="color: #D699B6;"> 2</span><span>);</span><span style="color: #859289;font-style: italic;">       // handler was called twice</span></span></code></pre></div>
+<div class="tab-panel" id="panel-borrow">
+<p>Handlers can resume computations with <em>borrowed</em> data, no cloning needed.<br />
+Because <em><code>Effect::Resume&lt;'r&gt;</code></em> is a GAT, handlers can return references instead of owned values.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> std</span><span style="color: #E69875;">::</span><span style="color: #83C092;">collections</span><span style="color: #E69875;">::</span><span style="color: #7FBBB3;">HashMap</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">r str</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Lookup</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt; {</span></span>
+<span class="giallo-l"><span>    map</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a HashMap</span><span>&lt;</span><span style="color: #7FBBB3;">String</span><span>,</span><span style="color: #7FBBB3;"> String</span><span>&gt;,</span></span>
+<span class="giallo-l"><span>    key</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// Pass borrowed data as function parameters.</span></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// For inline use or fine-grained capture control,</span></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// use Program::new directly instead.</span></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Lookup</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> lookup</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(map</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a HashMap</span><span>&lt;</span><span style="color: #7FBBB3;">String</span><span>,</span><span style="color: #7FBBB3;"> String</span><span>&gt;)</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> String</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> host</span><span style="color: #E69875;">: &amp;</span><span style="color: #7FBBB3;">str</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Lookup</span><span> { map, key</span><span style="color: #E69875;">:</span><span> &quot;</span><span style="color: #DBBC7F;">host</span><span>&quot; });</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> port</span><span style="color: #E69875;">: &amp;</span><span style="color: #7FBBB3;">str</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Lookup</span><span> { map, key</span><span style="color: #E69875;">:</span><span> &quot;</span><span style="color: #DBBC7F;">port</span><span>&quot; });</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    format!</span><span>(&quot;{</span><span style="color: #DBBC7F;">host</span><span>}</span><span style="color: #DBBC7F;">:</span><span>{</span><span style="color: #DBBC7F;">port</span><span>}&quot;)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> map</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> HashMap</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">from</span><span>([</span></span>
+<span class="giallo-l"><span>    (&quot;</span><span style="color: #DBBC7F;">host</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>(), &quot;</span><span style="color: #DBBC7F;">localhost</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>()),</span></span>
+<span class="giallo-l"><span>    (&quot;</span><span style="color: #DBBC7F;">port</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>(), &quot;</span><span style="color: #DBBC7F;">5432</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>()),</span></span>
+<span class="giallo-l"><span>]);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> lookup</span><span>(</span><span style="color: #E69875;">&amp;</span><span>map)</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #7FBBB3;">Lookup</span><span> { map, key }</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        let</span><span> value</span><span style="color: #E69875;"> =</span><span> map</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">get</span><span>(key)</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">unwrap</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(value</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">as_str</span><span>())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(&quot;</span><span style="color: #DBBC7F;">localhost:5432</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">to_string</span><span>()));</span></span></code></pre></div>
+<div class="tab-panel" id="panel-borrowed-effects">
+<p>Effects can borrow data from the local scope by using a non-<em><code>'static</code></em> lifetime.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(</span><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// Pass borrowed data as function parameters.</span></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// For inline use or fine-grained capture control,</span></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// use Program::new directly instead.</span></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> greet</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(msg</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(msg));</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> msg</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> String</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">from</span><span>(&quot;</span><span style="color: #DBBC7F;">hello from a local string</span><span>&quot;);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> greet</span><span>(</span><span style="color: #E69875;">&amp;</span><span>msg)</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Log</span><span>(m)</span><span style="color: #E69875;">|</span><span> {</span><span style="color: #A7C080;"> println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">m</span><span>}&quot;);</span><span style="color: #7FBBB3;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()) })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(()));</span></span></code></pre></div>
+</div>
+</div>
+</section>
+<section class="cta-section">
+<div class="cta-inner">
+<h2 id="ready-to-get-started">Ready to get started?</h2>
+<div class="hero-buttons">
+<a href="/docs/" class="btn btn-primary">Read the Guide</a>
+<a href="https://github.com/romac/corophage" class="btn btn-secondary">View on GitHub</a>
+</div>
+</div>
+</section>
+
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

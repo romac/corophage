@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://corophage.rs/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/advanced/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/effects/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/getting-started/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/handlers/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/performance/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/programs/</loc>
+    </url>
+    <url>
+        <loc>https://corophage.rs/docs/state/</loc>
+    </url>
+</urlset>

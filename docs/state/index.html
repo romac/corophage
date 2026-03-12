@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared State — corophage</title>
+  <meta name="description" content="Algebraic effects for stable Rust">
+  <link rel="stylesheet" href="https://corophage.rs/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Michroma&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://corophage.rs" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://corophage.rs/docs/">Docs</a>
+        <a href="https://docs.rs/corophage">API</a>
+        <a href="https://github.com/romac/corophage">GitHub</a>
+        <a href="https://crates.io/crates/corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<div class="docs-layout">
+  <input type="checkbox" id="docs-menu-toggle" class="docs-menu-checkbox">
+  <label for="docs-menu-toggle" class="docs-menu-btn" aria-label="Toggle docs menu">
+    <span></span><span></span><span></span>
+  </label>
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;getting-started&#x2F;" >Getting Started</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;effects&#x2F;" >Effects</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;programs&#x2F;" >Programs</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;handlers&#x2F;" >Handlers</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;state&#x2F;" class="active">Shared State</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;advanced&#x2F;" >Advanced Usage</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;performance&#x2F;" >Performance</a></li>
+        
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>Shared State</h1>
+    <p>Handlers can share mutable state via <code>run_sync_stateful</code> / <code>run_stateful</code>. The state is passed as a <code>&amp;mut S</code> first argument to every handler.</p>
+<h2 id="basic-example">Basic example</h2>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">u64</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Counter</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> count_up</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> u64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> a</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>);</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> b</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>);</span></span>
+<span class="giallo-l"><span>    a</span><span style="color: #E69875;"> +</span><span> b</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let mut</span><span> count</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> u64</span><span style="color: #E69875;"> =</span><span style="color: #D699B6;"> 0</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> count_up</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>s</span><span style="color: #E69875;">: &amp;mut</span><span style="color: #7FBBB3;"> u64</span><span>, _</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Counter</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        *</span><span>s</span><span style="color: #E69875;"> +=</span><span style="color: #D699B6;"> 1</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(</span><span style="color: #E69875;">*</span><span>s)</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync_stateful</span><span>(</span><span style="color: #E69875;">&amp;mut</span><span> count);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(</span><span style="color: #D699B6;">3</span><span>));</span><span style="color: #859289;font-style: italic;">  // 1 + 2</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(count,</span><span style="color: #D699B6;"> 2</span><span>);</span><span style="color: #859289;font-style: italic;">       // handler was called twice</span></span></code></pre><h2 id="multiple-effects-with-shared-state">Multiple effects with shared state</h2>
+<p>All handlers in a stateful run share the same <code>&amp;mut S</code>:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> std</span><span style="color: #E69875;">::</span><span style="color: #83C092;">marker</span><span style="color: #E69875;">::</span><span style="color: #7FBBB3;">PhantomData</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(</span><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">derive</span><span>(</span><span style="color: #7FBBB3;">Default</span><span>)]</span></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">S</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> GetState</span><span>&lt;</span><span style="color: #7FBBB3;">S</span><span>&gt; {</span></span>
+<span class="giallo-l"><span>    _marker</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> PhantomData</span><span>&lt;</span><span style="color: #7FBBB3;">S</span><span>&gt;,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> struct</span><span style="color: #7FBBB3;"> SetState</span><span>&lt;</span><span style="color: #7FBBB3;">S</span><span>&gt;(</span><span style="color: #E67E80;">pub</span><span style="color: #7FBBB3;"> S</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">static</span><span>&gt;,</span><span style="color: #7FBBB3;"> GetState</span><span>&lt;</span><span style="color: #7FBBB3;">u64</span><span>&gt;,</span><span style="color: #7FBBB3;"> SetState</span><span>&lt;</span><span style="color: #7FBBB3;">u64</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> my_program</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> u64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">starting</span><span>&quot;));</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> val</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">GetState</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">default</span><span>());</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">SetState</span><span>(val</span><span style="color: #E69875;"> *</span><span style="color: #D699B6;"> 2</span><span>));</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #7FBBB3;">GetState</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">default</span><span>())</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">derive</span><span>(</span><span style="color: #7FBBB3;">Debug</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> AppState</span><span> { x</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> u64</span><span> }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let mut</span><span> state</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> AppState</span><span> { x</span><span style="color: #E69875;">:</span><span style="color: #D699B6;"> 42</span><span> };</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> my_program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_s</span><span style="color: #E69875;">: &amp;mut</span><span style="color: #7FBBB3;"> AppState</span><span>,</span><span style="color: #A7C080;"> Log</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">        println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span></span>
+<span class="giallo-l"><span style="color: #7FBBB3;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>s</span><span style="color: #E69875;">: &amp;mut</span><span style="color: #7FBBB3;"> AppState</span><span>, _</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> GetState</span><span>&lt;</span><span style="color: #7FBBB3;">u64</span><span>&gt;</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(s</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">x</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>s</span><span style="color: #E69875;">: &amp;mut</span><span style="color: #7FBBB3;"> AppState</span><span>,</span><span style="color: #A7C080;"> SetState</span><span>(x)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span>        s</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">x </span><span style="color: #E69875;">=</span><span> x;</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync_stateful</span><span>(</span><span style="color: #E69875;">&amp;mut</span><span> state);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(</span><span style="color: #D699B6;">84</span><span>));</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(state</span><span style="color: #E69875;">.</span><span>x,</span><span style="color: #D699B6;"> 84</span><span>);</span></span></code></pre><h2 id="alternatives">Alternatives</h2>
+<p>If your handlers don't need shared state, use <code>.run_sync()</code> / <code>.run()</code> instead. You can also use <code>RefCell</code> or other interior mutability patterns to share state without <code>run_stateful</code>.</p>
+
+
+    <div class="docs-pagination">
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;handlers&#x2F;" class="docs-prev">&larr; Handlers</a>
+      
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;advanced&#x2F;" class="docs-next">Advanced Usage &rarr;</a>
+      
+    </div>
+  </article>
+</div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Programs — corophage</title>
+  <meta name="description" content="Algebraic effects for stable Rust">
+  <link rel="stylesheet" href="https://corophage.rs/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Michroma&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://corophage.rs" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://corophage.rs/docs/">Docs</a>
+        <a href="https://docs.rs/corophage">API</a>
+        <a href="https://github.com/romac/corophage">GitHub</a>
+        <a href="https://crates.io/crates/corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<div class="docs-layout">
+  <input type="checkbox" id="docs-menu-toggle" class="docs-menu-checkbox">
+  <label for="docs-menu-toggle" class="docs-menu-btn" aria-label="Toggle docs menu">
+    <span></span><span></span><span></span>
+  </label>
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;getting-started&#x2F;" >Getting Started</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;effects&#x2F;" >Effects</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;programs&#x2F;" class="active">Programs</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;handlers&#x2F;" >Handlers</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;state&#x2F;" >Shared State</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;advanced&#x2F;" >Advanced Usage</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;performance&#x2F;" >Performance</a></li>
+        
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>Programs</h1>
+    <p>A <strong>Program</strong> combines a computation with its effect handlers. This is the primary API for using corophage.</p>
+<h2 id="creating-a-program-with-effectful">Creating a program with <code>#[effectful]</code></h2>
+<p>The simplest way to create a program is with the <code>#[effectful]</code> attribute macro:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Log</span><span>(</span><span style="color: #7FBBB3;">String</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">u64</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Counter</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Log</span><span>,</span><span style="color: #7FBBB3;"> Counter</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> my_program</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> u64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">hello</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>()));</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> n</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>);</span></span>
+<span class="giallo-l"><span>    n</span><span style="color: #E69875;"> *</span><span style="color: #D699B6;"> 2</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The <code>#[effectful(Eff1, Eff2, ...)]</code> macro:</p>
+<ul>
+<li>Transforms the return type to <code>Eff&lt;'_, Effects![Eff1, Eff2, ...], T&gt;</code></li>
+<li>Wraps the body in <code>Program::new</code></li>
+<li>Enables <code>yield_!(effect)</code> syntax to perform effects</li>
+</ul>
+<h3 id="lifetime-handling">Lifetime handling</h3>
+<p>If your effects borrow data, the macro infers the lifetime automatically when the function has exactly one lifetime parameter:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> log_msg</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(msg</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>)</span><span style="color: #E69875;"> -&gt;</span><span> () {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(msg));</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>With multiple lifetime parameters, specify the effect lifetime explicitly as the first argument:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(&#39;</span><span style="color: #7FBBB3;">a</span><span>,</span><span style="color: #7FBBB3;"> Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> log_msg</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>, &#39;</span><span style="color: #7FBBB3;">b</span><span>&gt;(msg</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>, _other</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">b str</span><span>)</span><span style="color: #E69875;"> -&gt;</span><span> () {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(msg));</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h3 id="send-able-programs"><code>Send</code>-able programs</h3>
+<p>Add <code>send</code> to the attribute to create a <code>Send</code>-able program (for use with <code>tokio::spawn</code>):</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>,</span><span style="color: #D699B6;"> send</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> my_send_program</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> u64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre><h2 id="creating-a-program-with-program-new">Creating a program with <code>Program::new</code></h2>
+<p>You can also create programs manually with <code>Program::new</code>, which takes an async closure that receives a <code>Yielder</code>:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Log</span><span>(</span><span style="color: #7FBBB3;">String</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #7FBBB3;">u64</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Counter</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">type</span><span style="color: #7FBBB3;"> Effs</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> Effects!</span><span>[</span><span style="color: #7FBBB3;">Log</span><span>,</span><span style="color: #7FBBB3;"> Counter</span><span>];</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> program</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> Program</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">new</span><span>(</span><span style="color: #E69875;">|</span><span>y</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Yielder</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">_</span><span>,</span><span style="color: #7FBBB3;"> Effs</span><span>&gt;</span><span style="color: #E69875;">|</span><span style="color: #E67E80;"> async move</span><span> {</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">yield_</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">hello</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>()))</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> n</span><span style="color: #E69875;"> =</span><span> y</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">yield_</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>)</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"><span>    n</span><span style="color: #E69875;"> *</span><span style="color: #D699B6;"> 2</span></span>
+<span class="giallo-l"><span>});</span></span></code></pre>
+<p>When you <code>await</code> the result of <code>y.yield_(some_effect)</code>, the computation pauses, the effect is handled, and the <code>await</code> resolves to the value provided by the handler.</p>
+<h2 id="attaching-handlers">Attaching handlers</h2>
+<p>Handlers are attached one at a time with <code>.handle()</code>. Handlers can be attached in any order — the type system tracks which effects remain unhandled.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> my_program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Log</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">        println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span></span>
+<span class="giallo-l"><span style="color: #7FBBB3;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Counter</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(</span><span style="color: #D699B6;">42</span><span style="color: #7FBBB3;">u64</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(</span><span style="color: #D699B6;">84</span><span>));</span></span></code></pre>
+<p>You can also attach multiple handlers at once with <code>.handle_all()</code>:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>,</span><span style="color: #7FBBB3;"> Log</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> my_program</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> u64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">start</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">into</span><span>()));</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> my_program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle_all</span><span>(</span><span style="color: #A7C080;">hlist!</span><span>[</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        |</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Counter</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(</span><span style="color: #D699B6;">42</span><span style="color: #7FBBB3;">u64</span><span>),</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        |</span><span style="color: #A7C080;">Log</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span><span style="color: #A7C080;"> println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span><span style="color: #7FBBB3;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()) },</span></span>
+<span class="giallo-l"><span>    ])</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span></code></pre><h2 id="running-programs">Running programs</h2>
+<p>Once all effects are handled, you can run the program:</p>
+<ul>
+<li><code>.run_sync()</code> — execute synchronously, returns <code>Result&lt;R, Cancelled&gt;</code></li>
+<li><code>.run().await</code> — execute asynchronously</li>
+<li><code>.run_sync_stateful(&amp;mut state)</code> — synchronous with shared mutable state</li>
+<li><code>.run_stateful(&amp;mut state).await</code> — async with shared mutable state</li>
+</ul>
+<h2 id="partially-handled-programs">Partially-handled programs</h2>
+<p>A partially-handled program is a first-class value you can pass around, store, or extend later:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> add_logging</span><span>&lt;</span><span style="color: #7FBBB3;">Effs</span><span>&gt;(program</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Program</span><span>&lt;</span><span style="color: #859289;font-style: italic;">/* ... */</span><span>&gt;)</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> Program</span><span>&lt;</span><span style="color: #859289;font-style: italic;">/* ... */</span><span>&gt; {</span></span>
+<span class="giallo-l"><span>    program</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Log</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">        println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span></span>
+<span class="giallo-l"><span style="color: #7FBBB3;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>The compiler enforces at the type level that you can only call <code>.run_sync()</code> when all effects have been handled — attempting to run a partially-handled program is a compile error.</p>
+<h2 id="program-composition">Program composition</h2>
+<p>Programs can invoke other programs via <code>invoke!()</code> (or <code>y.invoke()</code> with the manual API). The sub-program's effects must be a subset of the outer program's effects — each yielded effect is forwarded to the outer handler automatically.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">static str</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Ask</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">static str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Print</span><span>(</span><span style="color: #7FBBB3;">String</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Log</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">static str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Ask</span><span>,</span><span style="color: #7FBBB3;"> Print</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> greet</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> name</span><span style="color: #E69875;">: &amp;</span><span style="color: #7FBBB3;">str</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #A7C080;">Ask</span><span>(&quot;</span><span style="color: #DBBC7F;">name?</span><span>&quot;));</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Print</span><span>(</span><span style="color: #A7C080;">format!</span><span>(&quot;</span><span style="color: #DBBC7F;">Hello, </span><span>{</span><span style="color: #DBBC7F;">name</span><span>}</span><span style="color: #DBBC7F;">!</span><span>&quot;)));</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Ask</span><span>,</span><span style="color: #7FBBB3;"> Print</span><span>,</span><span style="color: #7FBBB3;"> Log</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> main_program</span><span>() {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">Starting...</span><span>&quot;));</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    invoke!</span><span>(</span><span style="color: #A7C080;">greet</span><span>());</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">Done!</span><span>&quot;));</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> main_program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Ask</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(&quot;</span><span style="color: #DBBC7F;">world</span><span>&quot;))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Print</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span><span style="color: #A7C080;"> println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span><span style="color: #7FBBB3;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()) })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Log</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(()));</span></span></code></pre>
+<p>With the manual <code>Program::new</code> API, use <code>y.invoke(program).await</code>:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> Program</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">new</span><span>(</span><span style="color: #E69875;">|</span><span>y</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Yielder</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">_</span><span>,</span><span style="color: #A7C080;"> Effects</span><span style="color: #E69875;">!</span><span>[</span><span style="color: #7FBBB3;">Ask</span><span>,</span><span style="color: #7FBBB3;"> Print</span><span>,</span><span style="color: #7FBBB3;"> Log</span><span>]&gt;</span><span style="color: #E69875;">|</span><span style="color: #E67E80;"> async move</span><span> {</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">yield_</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">Starting...</span><span>&quot;))</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">invoke</span><span>(</span><span style="color: #A7C080;">greet</span><span>())</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">yield_</span><span>(</span><span style="color: #A7C080;">Log</span><span>(&quot;</span><span style="color: #DBBC7F;">Done!</span><span>&quot;))</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"><span>})</span></span>
+<span class="giallo-l"><span style="color: #E69875;">.</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Ask</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(&quot;</span><span style="color: #DBBC7F;">world</span><span>&quot;))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">.</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Print</span><span>(msg)</span><span style="color: #E69875;">|</span><span> {</span><span style="color: #A7C080;"> println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">msg</span><span>}&quot;);</span><span style="color: #7FBBB3;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()) })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">.</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Log</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">.</span><span style="color: #A7C080;">run_sync</span><span>();</span></span></code></pre>
+<p>Sub-programs can be nested — a sub-program can itself invoke other sub-programs. The only requirement is that the inner program's effects are a subset of the outer program's effects.</p>
+<h2 id="send-able-programs-1"><code>Send</code>-able programs</h2>
+<p>For use with multi-threaded runtimes like tokio, use <code>#[effectful(..., send)]</code> or <code>Program::new_send</code>:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>,</span><span style="color: #D699B6;"> send</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> my_program</span><span>()</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> u64</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #859289;font-style: italic;">// Can be spawned on tokio</span></span>
+<span class="giallo-l"><span style="color: #83C092;">tokio</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">spawn</span><span>(</span><span style="color: #E67E80;">async move</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> my_program</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E67E80;">async</span><span style="color: #E69875;"> |</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Counter</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(</span><span style="color: #D699B6;">42</span><span style="color: #7FBBB3;">u64</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        .</span><span style="color: #A7C080;">run</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        .</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"><span>});</span></span></code></pre>
+<p>Or with the manual API:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E69875;">let</span><span> program</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> Program</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">new_send</span><span>(</span><span style="color: #E69875;">|</span><span>y</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Yielder</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">_</span><span>,</span><span style="color: #7FBBB3;"> Effs</span><span>&gt;</span><span style="color: #E69875;">|</span><span style="color: #E67E80;"> async move</span><span> {</span></span>
+<span class="giallo-l"><span>    y</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">yield_</span><span>(</span><span style="color: #7FBBB3;">Counter</span><span>)</span><span style="color: #E69875;">.</span><span style="color: #E67E80;">await</span></span>
+<span class="giallo-l"><span>});</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #83C092;">tokio</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">spawn</span><span>(</span><span style="color: #E67E80;">async move</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> result</span><span style="color: #E69875;"> =</span><span> program</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E67E80;">async</span><span style="color: #E69875;"> |</span><span>_</span><span style="color: #E69875;">:</span><span style="color: #7FBBB3;"> Counter</span><span style="color: #E69875;">|</span><span style="color: #83C092;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(</span><span style="color: #D699B6;">42</span><span style="color: #7FBBB3;">u64</span><span>))</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        .</span><span style="color: #A7C080;">run</span><span>()</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        .</span><span style="color: #E67E80;">await</span><span>;</span></span>
+<span class="giallo-l"><span>});</span></span></code></pre>
+
+    <div class="docs-pagination">
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;effects&#x2F;" class="docs-prev">&larr; Effects</a>
+      
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;handlers&#x2F;" class="docs-next">Handlers &rarr;</a>
+      
+    </div>
+  </article>
+</div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>

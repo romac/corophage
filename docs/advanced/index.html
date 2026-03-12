@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Advanced Usage — corophage</title>
+  <meta name="description" content="Algebraic effects for stable Rust">
+  <link rel="stylesheet" href="https://corophage.rs/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Michroma&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="https://corophage.rs" class="nav-brand">corophage</a>
+      <div class="nav-links">
+        <a href="https://corophage.rs/docs/">Docs</a>
+        <a href="https://docs.rs/corophage">API</a>
+        <a href="https://github.com/romac/corophage">GitHub</a>
+        <a href="https://crates.io/crates/corophage">Crates.io</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    
+<div class="docs-layout">
+  <input type="checkbox" id="docs-menu-toggle" class="docs-menu-checkbox">
+  <label for="docs-menu-toggle" class="docs-menu-btn" aria-label="Toggle docs menu">
+    <span></span><span></span><span></span>
+  </label>
+  <aside class="docs-sidebar">
+    <nav class="docs-nav">
+      <h3>Documentation</h3>
+      <ul>
+        
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;getting-started&#x2F;" >Getting Started</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;effects&#x2F;" >Effects</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;programs&#x2F;" >Programs</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;handlers&#x2F;" >Handlers</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;state&#x2F;" >Shared State</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;advanced&#x2F;" class="active">Advanced Usage</a></li>
+        
+          <li><a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;performance&#x2F;" >Performance</a></li>
+        
+      </ul>
+    </nav>
+  </aside>
+  <article class="docs-content">
+    <h1>Advanced Usage</h1>
+    <h2 id="borrowing-non-static-data">Borrowing non-<code>'static</code> data</h2>
+<p>Effects can borrow data from the local scope by using a non-<code>'static</code> lifetime:</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(())]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(</span><span style="color: #E67E80;">pub</span><span style="color: #E69875;"> &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Log</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> log_it</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(msg</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>)</span><span style="color: #E69875;"> -&gt;</span><span> () {</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    yield_!</span><span>(</span><span style="color: #A7C080;">Log</span><span>(msg));</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> msg</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> String</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">from</span><span>(&quot;</span><span style="color: #DBBC7F;">hello from a local string</span><span>&quot;);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> log_it</span><span>(</span><span style="color: #E69875;">&amp;</span><span>msg)</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #A7C080;">Log</span><span>(m)</span><span style="color: #E69875;">|</span><span> {</span><span style="color: #A7C080;"> println!</span><span>(&quot;{</span><span style="color: #DBBC7F;">m</span><span>}&quot;);</span><span style="color: #7FBBB3;"> Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(()) })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(()));</span></span></code></pre><h2 id="borrowed-resume-types">Borrowed resume types</h2>
+<p>Because <code>Effect::Resume&lt;'r&gt;</code> is a generic associated type (GAT), handlers can resume computations with <em>borrowed</em> data instead of requiring owned values.</p>
+<pre class="giallo" style="color: #D3C6AA; background-color: #2D353B;"><code data-lang="rust"><span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> corophage</span><span style="color: #E69875;">::</span><span style="color: #83C092;">prelude</span><span style="color: #E69875;">::*</span><span>;</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">use</span><span style="color: #83C092;"> std</span><span style="color: #E69875;">::</span><span style="color: #83C092;">collections</span><span style="color: #E69875;">::</span><span style="color: #7FBBB3;">HashMap</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effect</span><span>(</span><span style="color: #E69875;">&amp;</span><span>&#39;</span><span style="color: #7FBBB3;">r str</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #E69875;">struct</span><span style="color: #7FBBB3;"> Lookup</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt; {</span></span>
+<span class="giallo-l"><span>    map</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a HashMap</span><span>&lt;</span><span style="color: #7FBBB3;">String</span><span>,</span><span style="color: #7FBBB3;"> String</span><span>&gt;,</span></span>
+<span class="giallo-l"><span>    key</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a str</span><span>,</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>#[</span><span style="color: #D699B6;">effectful</span><span>(</span><span style="color: #7FBBB3;">Lookup</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;)]</span></span>
+<span class="giallo-l"><span style="color: #E67E80;">fn</span><span style="color: #A7C080;"> lookup_config</span><span>&lt;&#39;</span><span style="color: #7FBBB3;">a</span><span>&gt;(map</span><span style="color: #E69875;">: &amp;</span><span>&#39;</span><span style="color: #7FBBB3;">a HashMap</span><span>&lt;</span><span style="color: #7FBBB3;">String</span><span>,</span><span style="color: #7FBBB3;"> String</span><span>&gt;)</span><span style="color: #E69875;"> -&gt;</span><span style="color: #7FBBB3;"> String</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> host</span><span style="color: #E69875;">: &amp;</span><span style="color: #7FBBB3;">str</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Lookup</span><span> { map, key</span><span style="color: #E69875;">:</span><span> &quot;</span><span style="color: #DBBC7F;">host</span><span>&quot; });</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    let</span><span> port</span><span style="color: #E69875;">: &amp;</span><span style="color: #7FBBB3;">str</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> yield_!</span><span>(</span><span style="color: #7FBBB3;">Lookup</span><span> { map, key</span><span style="color: #E69875;">:</span><span> &quot;</span><span style="color: #DBBC7F;">port</span><span>&quot; });</span></span>
+<span class="giallo-l"><span style="color: #A7C080;">    format!</span><span>(&quot;{</span><span style="color: #DBBC7F;">host</span><span>}</span><span style="color: #DBBC7F;">:</span><span>{</span><span style="color: #DBBC7F;">port</span><span>}&quot;)</span></span>
+<span class="giallo-l"><span>}</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> map</span><span style="color: #E69875;"> =</span><span style="color: #7FBBB3;"> HashMap</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">from</span><span>([</span></span>
+<span class="giallo-l"><span>    (&quot;</span><span style="color: #DBBC7F;">host</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">to_string</span><span>(), &quot;</span><span style="color: #DBBC7F;">localhost</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">to_string</span><span>()),</span></span>
+<span class="giallo-l"><span>    (&quot;</span><span style="color: #DBBC7F;">port</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">to_string</span><span>(), &quot;</span><span style="color: #DBBC7F;">5432</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">to_string</span><span>()),</span></span>
+<span class="giallo-l"><span>]);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #E69875;">let</span><span> result</span><span style="color: #E69875;"> =</span><span style="color: #A7C080;"> lookup_config</span><span>(</span><span style="color: #E69875;">&amp;</span><span>map)</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">handle</span><span>(</span><span style="color: #E69875;">|</span><span style="color: #7FBBB3;">Lookup</span><span> { map, key }</span><span style="color: #E69875;">|</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #E69875;">        let</span><span> value</span><span style="color: #E69875;"> =</span><span> map</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">get</span><span>(key)</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">unwrap</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #83C092;">        Control</span><span style="color: #E69875;">::</span><span style="color: #A7C080;">resume</span><span>(value</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">as_str</span><span>())</span></span>
+<span class="giallo-l"><span>    })</span></span>
+<span class="giallo-l"><span style="color: #E69875;">    .</span><span style="color: #A7C080;">run_sync</span><span>();</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #A7C080;">assert_eq!</span><span>(result,</span><span style="color: #7FBBB3;"> Ok</span><span>(&quot;</span><span style="color: #DBBC7F;">localhost:5432</span><span>&quot;</span><span style="color: #E69875;">.</span><span style="color: #A7C080;">to_string</span><span>()));</span></span></code></pre>
+
+    <div class="docs-pagination">
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;state&#x2F;" class="docs-prev">&larr; Shared State</a>
+      
+      
+        <a href="https:&#x2F;&#x2F;corophage.rs&#x2F;docs&#x2F;performance&#x2F;" class="docs-next">Performance &rarr;</a>
+      
+    </div>
+  </article>
+</div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <p>corophage is dual-licensed under <a href="http://opensource.org/licenses/MIT">MIT</a> and <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>
