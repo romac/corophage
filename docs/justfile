@@ -4,6 +4,8 @@ default: build
 build:
     zola build
     python3 scripts/generate_llms_txt.py
+    mkdir -p public/.well-known
+    ln -sf ../llms.txt public/.well-known/llms.txt
 
 # Serve the site locally
 serve:

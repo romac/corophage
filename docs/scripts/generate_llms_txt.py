@@ -50,6 +50,7 @@ def main():
     # llms.txt — index with links
     with open(PUBLIC_DIR / "llms.txt", "w") as out:
         out.write(HEADER)
+        out.write(f"\nFor the full documentation, see [{BASE_URL}/llms-full.txt]({BASE_URL}/llms-full.txt).\n")
         out.write("\n## Docs\n\n")
         for p in pages:
             url = f"{BASE_URL}/docs/{p['slug']}/"
