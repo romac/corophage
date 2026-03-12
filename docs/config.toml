@@ -1,4 +1,4 @@
-base_url = "https://romac.github.io/corophage"
+base_url = "https://corophage.rs"
 title = "corophage"
 description = "Algebraic effects for stable Rust"
 compile_sass = true
