@@ -13,6 +13,7 @@
   --yellow: #f2d06b;
   --sand: #d4916e;
   --green: #8cbe5e;
+  --blue: #6bacde;
   --orange: #e8a040;
   --code-bg: #15120f;
   --navbar-bg: rgba(28, 25, 22, 0.8);
@@ -32,6 +33,11 @@
 }
 
 .how {
+  color: var(--blue);
+  font-style: normal;
+}
+
+.stable {
   color: var(--green);
   font-style: normal;
 }
