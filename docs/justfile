@@ -1,0 +1,10 @@
+default: build
+
+# Build the site and generate llms.txt files
+build:
+    zola build
+    python3 scripts/generate_llms_txt.py
+
+# Serve the site locally
+serve:
+    zola serve
