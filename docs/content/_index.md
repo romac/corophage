@@ -32,21 +32,21 @@ template = "index.html"
 
 ### Testable
 
-Swap in mock handlers for testing without touching the real world. Your business logic stays pure and easy to verify.
+Test your business logic by swapping in mock handlers. Same code, different effects, no real I/O involved.
 
 </div>
 <div class="feature">
 
 ### Composable
 
-Attach handlers incrementally with the `Program` API. Partially-handled programs are first-class values you can pass around and extend.
+Build complex programs from simple building blocks. Effects propagate to the caller, no extra wiring needed.
 
 </div>
 <div class="feature">
 
-### Stable Rust
+### Practical
 
-No nightly required. Built on async coroutines via [fauxgen](https://github.com/Phantomical/fauxgen) and hlists/coproducts via [frunk](https://github.com/lloydmeta/frunk).
+Works on stable Rust, no nightly required. Built on async coroutines via [fauxgen](https://github.com/Phantomical/fauxgen) and hlists/coproducts via [frunk](https://github.com/lloydmeta/frunk).
 
 </div>
 <div class="feature">
