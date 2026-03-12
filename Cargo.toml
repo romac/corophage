@@ -1,39 +1,6 @@
 [workspace]
-members = [".", "macros"]
-
-[package]
-name = "corophage"
-version = "0.3.0"
-edition = "2024"
-rust-version = "1.85"
-license = "MIT OR Apache-2.0"
-authors = ["Romain Ruetschi <github@romac.me>"]
-description = "Algebraic effects for stable Rust"
-homepage = "https://github.com/romac/corophage"
-repository = "https://github.com/romac/corophage"
-keywords = ["effects", "algebraic-effects", "coroutines", "handlers"]
-categories = ["rust-patterns"]
-
-[dependencies]
-fauxgen = { version = "0.1", default-features = false }
-frunk_core = { version = "0.4", default-features = false }
-corophage-macros = { version = "0.3.0", path = "macros", optional = true }
-
-[features]
-default = ["macros"]
-macros = ["dep:corophage-macros"]
-
-[dev-dependencies]
-divan = "0.1"
-tokio = { version = "1", default-features = false, features = ["macros", "rt", "time"] }
-trybuild = "1"
-
-[[bench]]
-name = "effects"
-harness = false
+members = ["corophage", "corophage-macros"]
+resolver = "3"
 
 [profile.bench]
 lto = true
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
