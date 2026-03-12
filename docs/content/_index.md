@@ -46,7 +46,7 @@ Attach handlers incrementally with the `Program` API. Partially-handled programs
 
 ### Stable Rust
 
-No nightly required. Built on async coroutines via [fauxgen](https://github.com/jmkr/fauxgen) and hlists/coproducts via [frunk](https://github.com/lloydmeta/frunk).
+No nightly required. Built on async coroutines via [fauxgen](https://github.com/Phantomical/fauxgen) and hlists/coproducts via [frunk](https://github.com/lloydmeta/frunk).
 
 </div>
 <div class="feature">
@@ -81,12 +81,12 @@ use corophage::prelude::*;
 struct Log<'a>(&'a str);
 
 #[effect(String)]
-struct Read(String);
+struct FileRead(String);
 
 #[effect(Never)]
 struct Cancel;
 
-type Effs = Effects![Cancel, Log<'static>, Read];
+type Effs = Effects![Cancel, Log<'static>, FileRead];
 ```
 
 </div>
@@ -98,10 +98,10 @@ Use `#[effectful]` to write effectful functions with `yield_!()`.
 Your program doesn't know or care how effects are handled.
 
 ```rust
-#[effectful(Cancel, Log<'static>, Read)]
+#[effectful(Cancel, Log<'static>, FileRead)]
 fn program() -> usize {
     yield_!(Log("Starting..."));
-    let data = yield_!(Read("config.toml".into()));
+    let data = yield_!(FileRead("config.toml".into()));
     data.len()
 }
 ```
@@ -129,7 +129,7 @@ let result = program()
         println!("{msg}");
         Control::resume(())
     })
-    .handle(|Read(path)| {
+    .handle(|FileRead(path)| {
         Control::resume(std::fs::read_to_string(path).unwrap())
     })
     .run_sync();
@@ -149,7 +149,7 @@ let result = program()
         println!("{msg}");
         Control::resume(())
     })
-    .handle(async |Read(path)| {
+    .handle(async |FileRead(path)| {
         let data = tokio::fs::read_to_string(path).await.unwrap();
         Control::resume(data)
     })
@@ -167,7 +167,7 @@ assert_eq!(result, Ok(42));
 let result = program()
     .handle(|_: Cancel| Control::cancel())
     .handle(|Log(_)| Control::resume(())) // silent
-    .handle(|Read(_)| {
+    .handle(|FileRead(_)| {
         // Fake data instead of reading from disk
         Control::resume("mock content!".into())
     })

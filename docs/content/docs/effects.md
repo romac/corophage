@@ -65,7 +65,7 @@ declare_effect!(Borrow<'a>(&'a str) -> bool);
 declare_effect!(Generic<T: std::fmt::Debug>(T) -> T);
 
 // Named fields
-declare_effect!(FileRead { path: String, recursive: bool } -> Vec<u8>);
+declare_effect!(ReadDir { path: String, recursive: bool } -> Vec<u8>);
 
 // The resume type may reference the GAT lifetime 'r
 declare_effect!(Lookup(String) -> &'r str);

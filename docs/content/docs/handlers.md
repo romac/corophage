@@ -37,15 +37,19 @@ async |FileRead(file)| {
 
 ## Named function handlers
 
-Handlers can also be named functions:
+Handlers can also be named functions. When using stateful handlers, the state is passed as the first argument:
 
 ```rust
-fn log(_: &mut State, Log(msg): Log<'_>) -> Control<()> {
-    println!("LOG: {msg}");
+struct AppState { verbose: bool }
+
+fn log(s: &mut AppState, Log(msg): Log<'_>) -> Control<()> {
+    if s.verbose {
+        println!("LOG: {msg}");
+    }
     Control::resume(())
 }
 
-fn file_read(_: &mut State, FileRead(file): FileRead) -> Control<String> {
+fn file_read(_: &mut AppState, FileRead(file): FileRead) -> Control<String> {
     println!("Reading file: {file}");
     Control::resume("file content".to_string())
 }
