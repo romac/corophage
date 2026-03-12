@@ -12,7 +12,7 @@ template = "index.html"
 
 # corophage
 
-<p class="hero-tagline">Algebraic effects for stable Rust.<br>Separate <em>what</em> your program does from <em>how</em> it gets done.</p>
+<p class="hero-tagline">Algebraic effects for stable Rust.<br>Separate <em class="what">what</em> your program does from <em class="how">how</em> it gets done.</p>
 
 <div class="hero-buttons">
 <a href="docs/" class="btn btn-primary">Get Started</a>
@@ -64,7 +64,7 @@ No nightly required. Built on async coroutines via [fauxgen](https://github.com/
 
 ## Define effects, write logic, attach handlers
 
-<p class="section-intro">Your program describes <em>what</em> to do by yielding effects.</p>
+<p class="section-intro">Your program describes <em class="what">what</em> to do by yielding effects.</p>
 
 <div class="example-shared">
 <div class="example-step">
@@ -109,7 +109,7 @@ fn program() -> usize {
 </div>
 </div>
 
-<p class="section-transition">Now decide <em>how</em> to handle each effect.</p>
+<p class="section-transition">Now decide <em class="how">how</em> to handle each effect.</p>
 
 <div class="tabs">
 <input type="radio" name="example-tabs" id="tab-sync" checked>

@@ -11,7 +11,7 @@
   --accent-hover: #f0a07a;
   --accent-bg: rgba(232, 123, 74, 0.1);
   --yellow: #f2d06b;
-  --mauve: #d4916e;
+  --sand: #d4916e;
   --green: #8cbe5e;
   --orange: #e8a040;
   --code-bg: #15120f;
@@ -24,6 +24,16 @@
   --font-title: "Michroma", sans-serif;
   --max-width: 1200px;
   --content-width: 800px;
+}
+
+.what {
+  color: var(--yellow);
+  font-style: normal;
+}
+
+.how {
+  color: var(--green);
+  font-style: normal;
 }
 
 * {
@@ -64,7 +74,7 @@ code {
   background: var(--surface);
   padding: 0.15em 0.4em;
   border-radius: 4px;
-  color: var(--mauve);
+  color: var(--sand);
 }
 
 pre code * {
@@ -158,7 +168,7 @@ h6 {
   letter-spacing: -0.04em;
   margin-top: -0.75rem;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, var(--mauve) 0%, var(--accent) 100%);
+  background: linear-gradient(135deg, var(--sand) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -170,8 +180,6 @@ h6 {
   line-height: 1.7;
   margin-bottom: 1rem;
   em {
-    color: var(--yellow);
-    font-style: normal;
     font-weight: 500;
   }
 }
@@ -252,7 +260,7 @@ h6 {
     font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 0.5rem;
-    color: var(--mauve);
+    color: var(--sand);
   }
   p {
     font-size: 0.9rem;
@@ -364,10 +372,6 @@ h6 {
   color: var(--text-muted);
   font-size: 1.05rem;
   margin-bottom: 2rem;
-  em {
-    color: var(--yellow);
-    font-style: normal;
-  }
 }
 
 .section-transition {
@@ -376,10 +380,6 @@ h6 {
   font-size: 1rem;
   margin-top: 3rem;
   margin-bottom: 0.5rem;
-  em {
-    color: var(--yellow);
-    font-style: normal;
-  }
 }
 
 .example-shared {
@@ -539,7 +539,7 @@ h6 {
     font-size: 0.875em;
   }
   blockquote {
-    border-left: 3px solid var(--mauve);
+    border-left: 3px solid var(--sand);
     padding: 0.75rem 1rem;
     margin-bottom: 1.5rem;
     background: var(--blockquote-bg);
@@ -587,7 +587,7 @@ h6 {
   border-radius: 10px;
   transition: all 0.15s;
   &:hover {
-    border-color: var(--mauve);
+    border-color: var(--sand);
     transform: translateY(-2px);
   }
   h3 {
