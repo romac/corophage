@@ -361,3 +361,15 @@ assert_eq!(result, Ok(()));
 
 </div>
 </section>
+
+<section class="acknowledgments-section">
+<div class="acknowledgments-inner">
+
+## Acknowledgments
+
+`corophage` is heavily inspired by [`effing-mad`](https://github.com/rosefromthedead/effing-mad), a pioneering algebraic effects library for nightly Rust.
+`effing-mad` demonstrated that algebraic effects and effect handlers are viable in Rust by leveraging coroutines to let effectful functions suspend, pass control to their callers, and resume with results.
+While `effing-mad` requires nightly Rust for its `#[coroutine]`-based approach, `corophage` supports stable Rust by leveraging async coroutines via [`fauxgen`](https://github.com/Phantomical/fauxgen). Big thanks as well to [`frunk`](https://github.com/lloydmeta/frunk) for its coproduct and hlist implementation.
+
+</div>
+</section>
