@@ -1,6 +1,21 @@
 #![doc = include_str!("../../README.md")]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+/// Unsafe unreachable hint that panics in debug builds instead of causing UB.
+///
+/// In release builds, this compiles to `core::hint::unreachable_unchecked()`.
+/// In debug builds, it panics with the provided message, making invariant
+/// violations easier to diagnose.
+macro_rules! debug_unreachable {
+    ($($msg:tt)*) => {
+        if cfg!(debug_assertions) {
+            unreachable!($($msg)*)
+        } else {
+            unsafe { ::core::hint::unreachable_unchecked() }
+        }
+    }
+}
+
 mod coproduct;
 use coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
 
@@ -42,11 +57,11 @@ macro_rules! run {
 
                 ::fauxgen::GeneratorState::Yielded(effect) => {
                     let $effect = match effect {
-                        // SAFETY: Yielder::yield_ always wraps effects in Inr,
+                        // INVARIANT: Yielder::yield_ always wraps effects in Inr,
                         // so the Inl (Start) arm is never yielded after init.
-                        ::frunk_core::coproduct::Coproduct::Inl(_) => unsafe {
-                            ::core::hint::unreachable_unchecked()
-                        },
+                        ::frunk_core::coproduct::Coproduct::Inl(_) => debug_unreachable!(
+                            "Start (Inl) arm should never be yielded after initialization"
+                        ),
                         ::frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
                     };
 

@@ -175,15 +175,19 @@ where
         match resume {
             Coproduct::Inr(value) => match value.uninject() {
                 Ok(value) => value,
-                // SAFETY: InjectResume guarantees the handler resumes at the
+                // INVARIANT: InjectResume guarantees the handler resumes at the
                 // same coproduct index as the yielded effect, so uninject
                 // always succeeds.
-                Err(_) => unsafe { core::hint::unreachable_unchecked() },
+                Err(_) => {
+                    debug_unreachable!("uninject failed: handler resumed at wrong coproduct index")
+                }
             },
-            // SAFETY: The Start (Inl) arm is never sent as a resume value.
+            // INVARIANT: The Start (Inl) arm is never sent as a resume value.
             // The generator receives Start only once during initialization
             // (in make_co!); all subsequent resumes use Inr via InjectResume.
-            Coproduct::Inl(_) => unsafe { core::hint::unreachable_unchecked() },
+            Coproduct::Inl(_) => {
+                debug_unreachable!("Start (Inl) arm should never be sent as a resume value")
+            }
         }
     }
 
@@ -208,10 +212,12 @@ where
             match yielded {
                 GeneratorState::Complete(value) => break value,
                 GeneratorState::Yielded(effect) => {
-                    // SAFETY: Yielder::yield_ always wraps effects in Inr,
+                    // INVARIANT: Yielder::yield_ always wraps effects in Inr,
                     // so the Inl (Start) arm is never yielded after init.
                     let subeffect = match effect {
-                        Coproduct::Inl(_) => unsafe { core::hint::unreachable_unchecked() },
+                        Coproduct::Inl(_) => debug_unreachable!(
+                            "Start (Inl) arm should never be yielded after initialization"
+                        ),
                         Coproduct::Inr(subeffect) => subeffect,
                     };
                     let resume = subeffect.forward(self).await;
