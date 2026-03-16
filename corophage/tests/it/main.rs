@@ -4,7 +4,6 @@ mod common;
 mod error;
 mod gat_resume;
 mod invoke;
-mod macros;
 mod non_static;
 mod proc_macros;
 mod program;

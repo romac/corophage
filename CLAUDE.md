@@ -9,10 +9,10 @@ Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_co
 - `corophage/src/control.rs` — `Control<R>` (user-facing resume/cancel), `CoControl<'a, Effs>` (internal resume/cancel), and `Cancelled`
 - `corophage/src/coproduct.rs` — `HandleMut`, `HandleWith`, `AsyncHandleMut`, `AsyncHandleWith` trait impls for dispatching over hlists of handlers, injecting resume values into the effect coproduct
 - `corophage/src/locality.rs` — `Locality` sealed trait, `Local` and `Sendable` marker types for controlling `Send`-ness of `Co`
-- `corophage/src/macros.rs` — the `run!` internal macro, the `Effects!` public macro, and the `declare_effect!` macro for concise effect type declarations
+- `corophage/src/macros.rs` — the `run!` internal macro, the `Effects!` public macro, and the `yield_!`/`invoke!` fallback macros
 - `corophage/src/lib.rs` — `sync::run`/`sync::run_stateful`, `asynk::run`/`asynk::run_stateful`, `Never` type; crate root exports primary types (`Effect`, `Effectful`, `Control`, `Cancelled`, `Yielder`, `Program`, `Co`, `CoSend`); `CoControl`/`GenericCo`/`Locality`/`Local`/`Sendable` are not re-exported at root
 - `corophage/src/program.rs` — `Program` type (primary API) for incremental handler attachment, `Program::new`/`new_send`/`from_co`; `Effectful` type alias for an unhandled `Program`
-- `corophage/src/prelude.rs` — re-exports core types (`Effect`, `Effectful`, `Effects!`, `Control`, `Cancelled`, `Never`, `Program`, `Yielder`, `declare_effect`, `frunk`, `hlist`); `Co`/`CoSend`/`sync`/`asynk` are public but not in prelude
+- `corophage/src/prelude.rs` — re-exports core types (`Effect`, `Effectful`, `Effects!`, `Control`, `Cancelled`, `Never`, `Program`, `Yielder`, `frunk`, `hlist`); `Co`/`CoSend`/`sync`/`asynk` are public but not in prelude
 - `corophage-macros/` — `corophage-macros` proc-macro crate providing `#[effect]` and `#[effectful]` attribute macros
 
 ## Key Design Constraints

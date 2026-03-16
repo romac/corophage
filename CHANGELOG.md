@@ -7,6 +7,10 @@
 - **`Eff` type alias renamed to `Effectful`** — the `Eff<'a, Effs, R, L>` type alias for an unhandled `Program` has been renamed to `Effectful<'a, Effs, R, L>` for clarity. The `#[effectful]` macro now generates `Effectful<...>` as its return type.
 - **`unsafe { unreachable_unchecked() }` replaced with debug-checked macro** — all internal uses of `core::hint::unreachable_unchecked()` are now wrapped in a `debug_unreachable!` macro that panics with a descriptive message in debug builds, while preserving the optimization hint in release builds. This makes invariant violations easier to diagnose during development.
 
+### Removed
+
+- **`declare_effect!` macro removed** — use the `#[effect(ResumeType)]` attribute macro instead, which supports all the same features (lifetimes, generics, named fields, GAT resume types) plus visibility modifiers, multiple trait bounds, `#[derive(...)]`, and arbitrary attributes.
+
 ## v0.3.0 (2026-03-11)
 
 ### Added

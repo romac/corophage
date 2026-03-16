@@ -43,34 +43,6 @@ pub struct ReadDir { pub path: String, pub recursive: bool }
 pub struct Lookup(pub String);
 ```
 
-## The `declare_effect!` macro
-
-Alternatively, you can use the `declare_effect!` macro for a more concise syntax:
-
-```rust
-use corophage::prelude::*;
-
-declare_effect!(Log(String) -> ());
-declare_effect!(FileRead(String) -> String);
-declare_effect!(Cancel -> Never);
-```
-
-The macro supports lifetimes, generics, named fields, and borrowed resume types:
-
-```rust
-// Lifetime parameters
-declare_effect!(Borrow<'a>(&'a str) -> bool);
-
-// Generic parameters
-declare_effect!(Generic<T: std::fmt::Debug>(T) -> T);
-
-// Named fields
-declare_effect!(ReadDir { path: String, recursive: bool } -> Vec<u8>);
-
-// The resume type may reference the GAT lifetime 'r
-declare_effect!(Lookup(String) -> &'r str);
-```
-
 ## Effect sets with `Effects!`
 
 Effects are grouped into sets using the `Effects!` macro:

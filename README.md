@@ -119,26 +119,6 @@ pub struct Lookup(pub String);
 pub struct Identity<T: Debug + Send + Sync>(pub T);
 ```
 
-Or use the `declare_effect!` macro for a more concise syntax:
-
-```rust,ignore
-use corophage::prelude::*;
-
-declare_effect!(Log(String) -> ());
-declare_effect!(FileRead(String) -> String);
-declare_effect!(Cancel -> Never);
-
-// Lifetime and generic parameters are also supported:
-declare_effect!(Borrow<'a>(&'a str) -> bool);
-declare_effect!(Generic<T: std::fmt::Debug>(T) -> T);
-
-// Named fields are also supported:
-declare_effect!(FileRead { path: String, recursive: bool } -> Vec<u8>);
-
-// The resume type may reference the GAT lifetime `'r`:
-declare_effect!(Lookup(String) -> &'r str);
-```
-
 ### 2. Programs
 
 A **Program** combines a computation with its effect handlers. The simplest way to create one is with the `#[effectful]` attribute macro:
