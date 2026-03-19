@@ -577,13 +577,22 @@ h6 {
   }
 }
 
+.docs-content-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  .docs-menu-btn {
+    margin-top: 0.5rem;
+  }
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
 .docs-content {
   max-width: var(--content-width);
   h1 {
     font-size: 2rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
   }
   h2 {
     font-size: 1.5rem;
@@ -786,16 +795,16 @@ h6 {
     ~ .docs-sidebar {
       display: block;
     }
-    ~ .docs-menu-btn {
-      span:nth-child(1) {
-        transform: translateY(7px) rotate(45deg);
-      }
-      span:nth-child(2) {
-        opacity: 0;
-      }
-      span:nth-child(3) {
-        transform: translateY(-7px) rotate(-45deg);
-      }
+  }
+  .docs-layout:has(.docs-menu-checkbox:checked) .docs-menu-btn {
+    span:nth-child(1) {
+      transform: translateY(7px) rotate(45deg);
+    }
+    span:nth-child(2) {
+      opacity: 0;
+    }
+    span:nth-child(3) {
+      transform: translateY(-7px) rotate(-45deg);
     }
   }
   .hero h1 {

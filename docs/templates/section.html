@@ -5,9 +5,6 @@
 {% block content %}
 <div class="docs-layout">
   <input type="checkbox" id="docs-menu-toggle" class="docs-menu-checkbox">
-  <label for="docs-menu-toggle" class="docs-menu-btn" aria-label="Toggle docs menu">
-    <span></span><span></span><span></span>
-  </label>
   <aside class="docs-sidebar">
     <nav class="docs-nav">
       <h3>Documentation</h3>
@@ -20,7 +17,12 @@
     </nav>
   </aside>
   <article class="docs-content">
-    <h1>{{ section.title }}</h1>
+    <div class="docs-content-header">
+      <h1>{{ section.title }}</h1>
+      <label for="docs-menu-toggle" class="docs-menu-btn" aria-label="Toggle docs menu">
+        <span></span><span></span><span></span>
+      </label>
+    </div>
     {{ section.content | safe }}
     {% if section.pages %}
       <div class="docs-overview">
