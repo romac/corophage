@@ -7,7 +7,6 @@
   <input type="checkbox" id="docs-menu-toggle" class="docs-menu-checkbox">
   <aside class="docs-sidebar">
     <nav class="docs-nav">
-      <h3>Documentation</h3>
       <ul>
         {% set docs_section = get_section(path="docs/_index.md") %}
         {% for page in docs_section.pages %}
