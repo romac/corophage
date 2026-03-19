@@ -110,6 +110,36 @@ pre.giallo {
   background-color: var(--code-bg) !important;
 }
 
+.copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: var(--border);
+    color: var(--text);
+  }
+
+  &.copied {
+    color: var(--accent);
+    opacity: 1;
+  }
+}
+
+pre:hover .copy-btn {
+  opacity: 1;
+}
+
 h1,
 h2,
 h3,
