@@ -10,6 +10,7 @@ homepage = "https://github.com/romac/corophage"
 repository = "https://github.com/romac/corophage"
 keywords = ["effects", "algebraic-effects", "coroutines", "handlers"]
 categories = ["rust-patterns"]
+readme = "README.md"
 
 [dependencies]
 fauxgen = { version = "0.1", default-features = false }
