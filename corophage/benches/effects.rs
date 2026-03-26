@@ -361,6 +361,92 @@ mod handler_complexity_benches {
 }
 
 // =============================================================================
+// Forwarding cost benchmarks — same effects vs subset effects
+// =============================================================================
+
+// Sub-program with the SAME effect set as parent (Noop, GetValue, Alloc)
+#[effectful(Noop, GetValue, Alloc)]
+fn sub_same_effects_many_yields(n: usize) -> () {
+    for _ in 0..n {
+        yield_!(Noop);
+    }
+}
+
+// Sub-program with a SUBSET of parent's effects (only Noop)
+#[effectful(Noop)]
+fn sub_subset_effects_many_yields(n: usize) -> () {
+    for _ in 0..n {
+        yield_!(Noop);
+    }
+}
+
+// Parent invokes sub with SAME effect set (uses regular invoke/ForwardEffects)
+#[effectful(Noop, GetValue, Alloc)]
+fn invoke_same_effects(n: usize) -> () {
+    invoke!(sub_same_effects_many_yields(n));
+}
+
+// Parent invokes sub with SUBSET effect set
+#[effectful(Noop, GetValue, Alloc)]
+fn invoke_subset_effects_many(n: usize) -> () {
+    invoke!(sub_subset_effects_many_yields(n));
+}
+
+// Inline baseline — same work, no invoke
+#[effectful(Noop, GetValue, Alloc)]
+fn inline_many_yields(n: usize) -> () {
+    for _ in 0..n {
+        yield_!(Noop);
+    }
+}
+
+mod forwarding_benches {
+    use super::*;
+
+    // Baseline: no invoke, just yields in a 3-effect program
+    #[divan::bench(args = [10, 100, 1000])]
+    fn inline_yields(bencher: divan::Bencher, n: usize) {
+        bencher.bench(|| {
+            divan::black_box(
+                inline_many_yields(n)
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .run_sync(),
+            )
+        });
+    }
+
+    // Invoke sub with SAME effects — forwarding via ForwardEffects (coproduct walk)
+    #[divan::bench(args = [10, 100, 1000])]
+    fn invoke_same_effects(bencher: divan::Bencher, n: usize) {
+        bencher.bench(|| {
+            divan::black_box(
+                super::invoke_same_effects(n)
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .run_sync(),
+            )
+        });
+    }
+
+    // Invoke sub with SUBSET effects — forwarding requires coproduct remapping
+    #[divan::bench(args = [10, 100, 1000])]
+    fn invoke_subset_effects(bencher: divan::Bencher, n: usize) {
+        bencher.bench(|| {
+            divan::black_box(
+                invoke_subset_effects_many(n)
+                    .handle(|_: Noop| Control::resume(()))
+                    .handle(|_: GetValue| Control::resume(42))
+                    .handle(|_: Alloc| Control::resume(String::new()))
+                    .run_sync(),
+            )
+        });
+    }
+}
+
+// =============================================================================
 // Program composition benchmarks
 // =============================================================================
 

@@ -108,9 +108,20 @@ Composition via `invoke` is **~4x slower** than inlining the same work. The per-
 
 Every sub-program creates a `Co`, which runs `make_co!` (`coroutine.rs:60-80`), which does `Box::pin(async move { ... })`. That's a heap allocation for the future + the fauxgen machinery (`token()`, `register_owned`, `gen_sync`).
 
-### 2. Effect forwarding via coproduct traversal (~15–20 ns)
+### 2. Effect forwarding via coproduct traversal (~0 ns in practice)
 
-`ForwardEffects::forward` (`coproduct.rs:417-422`) does a recursive `Inl`/`Inr` match to find which effect variant was yielded, then calls `yielder.yield_()` which does another `CoprodInjector::inject` to re-inject into the outer coproduct. When the sub-program's effect set is a subset, this involves index remapping. Each forwarded yield pays this injection/extraction tax on top of the normal yield cost.
+`ForwardEffects::forward` (`coproduct.rs:402-424`) does a recursive `Inl`/`Inr` match to find which effect variant was yielded, then calls `yielder.yield_()` which does another `CoprodInjector::inject` to re-inject into the outer coproduct. When the sub-program's effect set is a subset, this involves index remapping.
+
+**However, benchmarking shows this cost is effectively zero.** LLVM fully optimizes the monomorphized coproduct walk into a direct path. A hand-written `invoke_same` that bypasses `ForwardEffects` entirely (yielding the raw coproduct directly) showed no measurable improvement over the standard `ForwardEffects` path, even at 1000 forwarded yields:
+
+| Benchmark (n=1000) | Median |
+|---|---|
+| `inline_yields` (no invoke) | ~8.8 µs |
+| `invoke_same_effects` (ForwardEffects walk) | ~19.8 µs |
+| `invoke_same_effects` (hand-written identity bypass) | ~20.3 µs |
+| `invoke_subset_effects` (1-of-3 effects forwarded) | ~18.3 µs |
+
+The ~11 µs gap between inline and invoke is entirely the `Box::pin` allocation + start signal, not the forwarding.
 
 ### 3. Start signal overhead (~5 ns)
 
@@ -150,9 +161,11 @@ Instead of `Box::pin(async { ... })`, use a stack-allocated future. Two approach
 
 2. **Monomorphized `Co`**: Add a non-type-erased `Co` variant where the future type is concrete (not `dyn Future`). The `#[effectful]` macro could generate a concrete future type instead of boxing. Would require a second `Locality`-like axis or a new `Co` constructor.
 
-### C. Specialize `ForwardEffects` when effects match exactly
+### ~~C. Specialize `ForwardEffects` when effects match exactly~~ (not worth it)
 
 When `SubEffs == Effs` (same effect set), skip the coproduct remapping entirely — just pass the yielded value through directly.
+
+**Tested and rejected**: benchmarking shows LLVM already optimizes the monomorphized coproduct walk to zero cost. A hand-written identity forwarding path showed no improvement over the existing `ForwardEffects` impl, even at 1000 yields. Additionally, a blanket `impl ForwardEffects for Effs` would overlap with the existing recursive impl, causing ambiguity errors in stable Rust (no specialization). Would require a separate `invoke_same` method and macro support — all for zero measurable benefit.
 
 ### D. Inline small sub-programs at the macro level
 
