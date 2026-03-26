@@ -39,7 +39,8 @@ pub use control::{Cancelled, Control};
 pub use coroutine::Yielder;
 pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
-pub use program::{Effectful, Program};
+#[allow(deprecated)]
+pub use program::{Eff, Effectful, Program};
 
 #[cfg(feature = "macros")]
 pub use corophage_macros::{effect, effectful};

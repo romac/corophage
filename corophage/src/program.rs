@@ -31,6 +31,10 @@ use crate::locality::{Local, Locality, Sendable};
 /// ```
 pub type Effectful<'a, Effs, R, L = Local> = Program<'a, Effs, R, L, Effs, HNil>;
 
+/// Deprecated alias for [`Effectful`].
+#[deprecated(since = "0.3.0", note = "renamed to `Effectful`")]
+pub type Eff<'a, Effs, R, L = Local> = Effectful<'a, Effs, R, L>;
+
 /// A computation with incrementally attached effect handlers.
 ///
 /// Handlers are added one at a time via [`handle`](Program::handle),
