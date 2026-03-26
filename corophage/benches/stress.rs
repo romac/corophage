@@ -452,7 +452,8 @@ mod many_yields {
 mod wide_effects {
     use super::*;
 
-    fn handle_8(program: Effectful<'_, Effects![E0, E1, E2, E3, E4, E5, E6, E7], ()>) -> () {
+    #[allow(clippy::type_complexity)]
+    fn handle_8(program: Effectful<'_, Effects![E0, E1, E2, E3, E4, E5, E6, E7], ()>) {
         program
             .handle(|_: E0| Control::resume(()))
             .handle(|_: E1| Control::resume(()))
@@ -466,6 +467,7 @@ mod wide_effects {
             .unwrap()
     }
 
+    #[allow(clippy::type_complexity)]
     fn handle_16(
         program: Effectful<
             '_,
@@ -474,7 +476,7 @@ mod wide_effects {
             ],
             (),
         >,
-    ) -> () {
+    ) {
         program
             .handle(|_: E0| Control::resume(()))
             .handle(|_: E1| Control::resume(()))
@@ -498,43 +500,67 @@ mod wide_effects {
 
     #[divan::bench]
     fn eight_effects_use_first(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_8(wide_8_use_first())));
+        bencher.bench(|| {
+            handle_8(wide_8_use_first());
+            divan::black_box(())
+        });
     }
 
     #[divan::bench]
     fn eight_effects_use_last(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_8(wide_8_use_last())));
+        bencher.bench(|| {
+            handle_8(wide_8_use_last());
+            divan::black_box(())
+        });
     }
 
     #[divan::bench]
     fn eight_effects_use_all(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_8(wide_8_use_all())));
+        bencher.bench(|| {
+            handle_8(wide_8_use_all());
+            divan::black_box(())
+        });
     }
 
     #[divan::bench]
     fn sixteen_effects_use_first(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_16(wide_16_use_first())));
+        bencher.bench(|| {
+            handle_16(wide_16_use_first());
+            divan::black_box(())
+        });
     }
 
     #[divan::bench]
     fn sixteen_effects_use_last(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_16(wide_16_use_last())));
+        bencher.bench(|| {
+            handle_16(wide_16_use_last());
+            divan::black_box(())
+        });
     }
 
     #[divan::bench]
     fn sixteen_effects_use_all(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_16(wide_16_use_all())));
+        bencher.bench(|| {
+            handle_16(wide_16_use_all());
+            divan::black_box(())
+        });
     }
 
     // Subset forwarding through wide effect set
     #[divan::bench]
     fn sixteen_invoke_first(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_16(wide_16_invoke_first())));
+        bencher.bench(|| {
+            handle_16(wide_16_invoke_first());
+            divan::black_box(())
+        });
     }
 
     #[divan::bench]
     fn sixteen_invoke_last(bencher: divan::Bencher) {
-        bencher.bench(|| divan::black_box(handle_16(wide_16_invoke_last())));
+        bencher.bench(|| {
+            handle_16(wide_16_invoke_last());
+            divan::black_box(())
+        });
     }
 }
 
