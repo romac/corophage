@@ -5,7 +5,6 @@ pub use frunk_core::hlist::{HCons, HNil};
 use frunk_core::indices::{Here, There};
 
 use crate::control::{CoControl, Control};
-use crate::coroutine::Yielder;
 use crate::effect::{Effect, Effects, InjectResume, MapResume, Resumes};
 
 // ---------------------------------------------------------------------------
@@ -387,52 +386,16 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// ForwardEffects  –  forwards each effect variant through an outer Yielder
-// ---------------------------------------------------------------------------
-
-/// Forward each effect in a coproduct through an outer [`Yielder`].
-///
-/// This trait is used by [`Yielder::invoke`] to forward effects from an inner
-/// (sub-)program through the outer program's yielder.
-#[doc(hidden)]
-pub trait ForwardEffects<'a, OuterEffs: MapResume, Indices>: MapResume {
-    fn forward(self, yielder: &Yielder<'a, OuterEffs>) -> impl Future<Output = Resumes<'a, Self>>;
-}
-
-impl<'a, OuterEffs: MapResume> ForwardEffects<'a, OuterEffs, HNil> for CNil {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    async fn forward(self, _yielder: &Yielder<'a, OuterEffs>) -> Resumes<'a, Self> {
-        match self {}
-    }
-}
-
-impl<'a, OuterEffs, E, Tail, OuterIdx, TailIndices>
-    ForwardEffects<'a, OuterEffs, HCons<OuterIdx, TailIndices>> for Coproduct<E, Tail>
-where
-    E: Effect,
-    Tail: ForwardEffects<'a, OuterEffs, TailIndices>,
-    OuterEffs: MapResume + CoprodInjector<E, OuterIdx>,
-    <OuterEffs as MapResume>::Output<'a>: CoprodUninjector<E::Resume<'a>, OuterIdx>,
-{
-    #[inline]
-    async fn forward(self, yielder: &Yielder<'a, OuterEffs>) -> Resumes<'a, Self> {
-        match self {
-            Coproduct::Inl(effect) => Coproduct::Inl(yielder.yield_(effect).await),
-            Coproduct::Inr(tail) => Coproduct::Inr(tail.forward(yielder).await),
-        }
-    }
-}
-
-// EmbedEffect + ProjectResume  –  synchronous coproduct conversions for invoke_send
+// EmbedEffect + ProjectResume  –  synchronous coproduct conversions for invoke
 // ---------------------------------------------------------------------------
 
 /// Embed a sub-effect coproduct into a larger outer-effect coproduct.
 ///
 /// This is the synchronous "injection" half of effect forwarding, used by
-/// [`Yielder::invoke_send`] to work around [rust-lang/rust#100013].
+/// [`Yielder::invoke`] to work around [rust-lang/rust#100013].
 ///
 /// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
-/// [`Yielder::invoke_send`]: crate::coroutine::Yielder::invoke_send
+/// [`Yielder::invoke`]: crate::coroutine::Yielder::invoke
 #[doc(hidden)]
 pub trait EmbedEffect<OuterEffs, Indices> {
     fn embed(self) -> OuterEffs;
@@ -463,10 +426,10 @@ where
 /// Project an outer resume coproduct back to a sub-effect resume coproduct.
 ///
 /// This is the synchronous "uninject" half of effect forwarding, used by
-/// [`Yielder::invoke_send`] to work around [rust-lang/rust#100013].
+/// [`Yielder::invoke`] to work around [rust-lang/rust#100013].
 ///
 /// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
-/// [`Yielder::invoke_send`]: crate::coroutine::Yielder::invoke_send
+/// [`Yielder::invoke`]: crate::coroutine::Yielder::invoke
 /// Project an outer resume value at a known index back into a sub-effect
 /// resume coproduct.
 ///
@@ -477,7 +440,7 @@ where
 /// it injects into the sub-resume coproduct; otherwise it tries the next.
 ///
 /// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
-/// [`Yielder::invoke_send`]: crate::coroutine::Yielder::invoke_send
+/// [`Yielder::invoke`]: crate::coroutine::Yielder::invoke
 #[doc(hidden)]
 pub trait ProjectResume<'a, SubEffs: MapResume, Indices> {
     fn project(self) -> Resumes<'a, SubEffs>;

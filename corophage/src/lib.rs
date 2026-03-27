@@ -20,7 +20,7 @@ mod coproduct;
 use coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
 
 #[doc(hidden)]
-pub use coproduct::{EmbedEffect, ForwardEffects, ProjectResume};
+pub use coproduct::{EmbedEffect, ProjectResume};
 
 mod control;
 mod effect;
