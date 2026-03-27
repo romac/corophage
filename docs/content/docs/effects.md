@@ -59,7 +59,7 @@ impl Effect for Ask {
 }
 ```
 
-The `shorten_resume` method witnesses that `Resume<'r>` is **covariant** in `'r` -- that is, a resume value with a longer lifetime can be safely used where a shorter lifetime is expected. This is required by [`invoke`](@/docs/programs.md#composing-programs-with-invoke) to allow sub-programs to borrow from shorter-lived data than the outer program.
+The `shorten_resume` method witnesses that `Resume<'r>` is **covariant** in `'r` -- that is, a resume value with a longer lifetime can be safely used where a shorter lifetime is expected. This is required by [`invoke`](@/docs/programs.md#program-composition) to allow sub-programs to borrow from shorter-lived data than the outer program.
 
 The body is always just `resume`. The `#[effect]` macro generates this automatically, so you only need to write it when implementing `Effect` by hand.
 
