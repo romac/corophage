@@ -10,7 +10,7 @@ Add `corophage` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-corophage = "0.3.2"
+corophage = "0.4.0"
 ```
 
 corophage requires **Rust 1.85** or later (stable).
