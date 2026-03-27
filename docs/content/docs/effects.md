@@ -52,3 +52,13 @@ type MyEffects = Effects![Log, FileRead, Cancel];
 ```
 
 This creates a type-level list (coproduct) of effects. The type system tracks which effects have been handled and prevents you from running a program until all effects have handlers.
+
+You can also compose effect sets using the `...Alias` spread syntax to splice in an existing type alias:
+
+```rust
+type IoEffects = Effects![Log, FileRead];
+type AllEffects = Effects![Cancel, ...IoEffects];
+// Equivalent to: Effects![Cancel, Log, FileRead]
+```
+
+The spread must appear as the last argument. This follows the same convention as frunk's `Coprod!(...Tail)` syntax.

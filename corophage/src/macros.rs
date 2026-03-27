@@ -26,14 +26,28 @@ macro_rules! invoke {
 ///
 /// `Effects![A, B, C]` expands to `Coprod!(A, B, C)` from `frunk_core`.
 ///
-/// # Example
+/// Supports the `...Tail` spread syntax to splice in an existing effects type alias,
+/// following the same convention as `Coprod!(...Tail)` from frunk:
 ///
 /// ```ignore
-/// type MyEffects = Effects![Log, Ask];
+/// type Base = Effects![Ask, Log];
+/// type Extended = Effects![GetConfig, ...Base];
+/// // Equivalent to: Effects![GetConfig, Ask, Log]
 /// ```
+///
+/// The spread must appear as the last argument.
 #[macro_export]
 macro_rules! Effects {
-    [$($effect:ty),*] => {
-        ::frunk_core::Coprod!($($effect),*)
+    [] => {
+        ::frunk_core::Coprod!()
+    };
+    [...$Rest:ty] => {
+        $Rest
+    };
+    [$A:ty, $($tok:tt)*] => {
+        ::frunk_core::coproduct::Coproduct<$A, $crate::Effects![$($tok)*]>
+    };
+    [$A:ty] => {
+        $crate::Effects![$A,]
     };
 }

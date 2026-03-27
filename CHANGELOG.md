@@ -1,6 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`...Spread` syntax in `#[effectful]` and `Effects!`** — reference a pre-defined effects type alias with `...Alias`, using the same spread syntax as frunk's `Coprod!(...Tail)`. Works in both `#[effectful(Extra, ...MyEffs)]` and `Effects![Extra, ...MyEffs]`. Inline effects can precede the spread, and `send`/lifetime arguments compose naturally: `#[effectful('a, Extra, ...MyEffs<'a>, send)]`.
+
 ## v0.3.1 (2026-03-26)
+
 
 ### Changed
 

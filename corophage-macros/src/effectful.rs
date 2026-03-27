@@ -1,5 +1,5 @@
-use proc_macro2::TokenStream;
-use quote::quote;
+use proc_macro2::{Punct, Spacing, TokenStream};
+use quote::{ToTokens, TokenStreamExt, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{GenericParam, Ident, ItemFn, Lifetime, LifetimeParam, Result, ReturnType, Token, Type};
@@ -7,6 +7,7 @@ use syn::{GenericParam, Ident, ItemFn, Lifetime, LifetimeParam, Result, ReturnTy
 struct EffectfulArgs {
     lifetime: Option<Lifetime>,
     effects: Vec<Type>,
+    spread: Option<Type>,
     send: bool,
 }
 
@@ -14,12 +15,14 @@ impl Parse for EffectfulArgs {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut lifetime = None;
         let mut effects = Vec::new();
+        let mut spread = None;
         let mut send = false;
 
         if input.is_empty() {
             return Ok(EffectfulArgs {
                 lifetime,
                 effects,
+                spread,
                 send,
             });
         }
@@ -32,19 +35,38 @@ impl Parse for EffectfulArgs {
             }
         }
 
-        // Parse remaining as comma-separated types or `send` keyword
+        // Parse remaining as comma-separated types, `send` keyword, or `...Type` spread
         let remaining: Punctuated<EffectArg, Token![,]> = Punctuated::parse_terminated(input)?;
 
         for arg in remaining {
             match arg {
                 EffectArg::Send => send = true,
-                EffectArg::Effect(ty) => effects.push(*ty),
+                EffectArg::Effect(ty) => {
+                    if spread.is_some() {
+                        return Err(syn::Error::new_spanned(
+                            ty,
+                            "`...Spread` must be the last effect argument \
+                             (before `send`); inline effects cannot follow a spread",
+                        ));
+                    }
+                    effects.push(*ty);
+                }
+                EffectArg::Spread(ty) => {
+                    if spread.is_some() {
+                        return Err(syn::Error::new_spanned(
+                            ty,
+                            "only one `...Spread` is allowed per #[effectful] attribute",
+                        ));
+                    }
+                    spread = Some(*ty);
+                }
             }
         }
 
         Ok(EffectfulArgs {
             lifetime,
             effects,
+            spread,
             send,
         })
     }
@@ -53,10 +75,61 @@ impl Parse for EffectfulArgs {
 enum EffectArg {
     Send,
     Effect(Box<Type>),
+    Spread(Box<Type>),
+}
+
+/// Wrapper that emits `...Type` tokens for use in `Coprod!(... Type)`.
+struct SpreadType<'a>(&'a Type);
+
+impl ToTokens for SpreadType<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.append(Punct::new('.', Spacing::Joint));
+        tokens.append(Punct::new('.', Spacing::Joint));
+        tokens.append(Punct::new('.', Spacing::Alone));
+        self.0.to_tokens(tokens);
+    }
+}
+
+/// Check if the next tokens are `...` (three consecutive dots).
+fn peek_spread(input: ParseStream) -> bool {
+    let fork = input.fork();
+    for i in 0..3 {
+        match fork.step(|cursor| match cursor.punct() {
+            Some((punct, rest))
+                if punct.as_char() == '.' && (i == 2 || punct.spacing() == Spacing::Joint) =>
+            {
+                Ok(((), rest))
+            }
+            _ => Err(cursor.error("expected `.`")),
+        }) {
+            Ok(()) => {}
+            Err(_) => return false,
+        }
+    }
+    true
+}
+
+/// Consume `...` (three dots) from the input stream.
+fn parse_spread_dots(input: ParseStream) -> Result<()> {
+    for _ in 0..3 {
+        input.step(|cursor| match cursor.punct() {
+            Some((punct, rest)) if punct.as_char() == '.' => Ok(((), rest)),
+            _ => Err(cursor.error("expected `.`")),
+        })?;
+    }
+    Ok(())
 }
 
 impl Parse for EffectArg {
     fn parse(input: ParseStream) -> Result<Self> {
+        // Check for `...Type` spread syntax
+        if peek_spread(input) {
+            parse_spread_dots(input)?;
+            let ty: Type = input.parse()?;
+            return Ok(EffectArg::Spread(Box::new(ty)));
+        }
+
+        // Check for `send` keyword
         if input.peek(Ident) {
             let fork = input.fork();
             let ident: Ident = fork.parse()?;
@@ -83,6 +156,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     }
 
     let effects = &args.effects;
+    let spread = &args.spread;
 
     // Determine the effect lifetime
     let eff_lifetime = determine_lifetime(&func, &args)?;
@@ -93,7 +167,14 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
         ReturnType::Type(_, ty) => quote! { #ty },
     };
 
-    let effects_type = quote! { ::corophage::Effects![#(#effects),*] };
+    let effects_type = match (effects.as_slice(), spread) {
+        ([], None) => quote! { ::frunk_core::coproduct::CNil },
+        (effects, None) => quote! { ::corophage::Effects![#(#effects),*] },
+        (effects, Some(spread)) => {
+            let spread = SpreadType(spread);
+            quote! { ::frunk_core::Coprod!(#(#effects,)* #spread) }
+        }
+    };
 
     // Build the new return type
     let new_return_type = if args.send {

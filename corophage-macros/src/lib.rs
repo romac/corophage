@@ -37,6 +37,7 @@ pub fn effect(
 /// # Arguments
 ///
 /// - Effect types (required): comma-separated list of effect types
+/// - `...Alias` (optional): spread an existing effects type alias (must be last effect argument)
 /// - `send` (optional): makes the program `Send`-able
 /// - Explicit lifetime (optional): first argument can be a lifetime
 ///
@@ -57,6 +58,30 @@ pub fn effect(
 /// #[effectful(Ask, send)]
 /// fn sendable(x: i32) -> bool {
 ///     yield_!(Ask(x))
+/// }
+/// ```
+///
+/// ## Spreading an effects type alias
+///
+/// Use `...Alias` to reference a pre-defined effects type, following the same
+/// syntax as `Coprod!(...Tail)` from frunk:
+///
+/// ```ignore
+/// type MyEffs = Effects![Ask, Log];
+///
+/// #[effectful(...MyEffs)]
+/// fn using_alias() -> bool {
+///     yield_!(Log("hello".into()));
+///     yield_!(Ask(42))
+/// }
+///
+/// // Extra inline effects can precede the spread:
+/// #[effectful(GetConfig, ...MyEffs)]
+/// fn with_extra() -> String {
+///     let cfg = yield_!(GetConfig);
+///     yield_!(Log(cfg.to_string()));
+///     yield_!(Ask(42));
+///     cfg.to_owned()
 /// }
 /// ```
 #[proc_macro_attribute]

@@ -1,0 +1,5 @@
+error: `...Spread` must be the last effect argument (before `send`); inline effects cannot follow a spread
+  --> tests/compile_fail/effectful_spread_not_last.rs:11:24
+   |
+11 | #[effectful(...AskEff, Log)]
+   |                        ^^^

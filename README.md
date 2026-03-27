@@ -140,7 +140,28 @@ let result = fetch_data()
 assert_eq!(result, Ok("contents of data.txt".to_string()));
 ```
 
-The `#[effectful]` macro transforms your function to return a `Program` and lets you use `yield_!(effect)` to perform effects. You can also create programs manually with `Program::new`:
+The `#[effectful]` macro transforms your function to return a `Program` and lets you use `yield_!(effect)` to perform effects.
+
+If you have a pre-defined effects type alias, you can spread it into the attribute with `...Alias` (same syntax as frunk's `Coprod!(...Tail)`):
+
+```rust,ignore
+type IoEffects = Effects![Log<'static>, FileRead];
+
+#[effectful(...IoEffects)]
+fn fetch_data() -> String {
+    yield_!(Log("fetching..."));
+    yield_!(FileRead("data.txt".to_string()))
+}
+
+// Extra inline effects can precede the spread:
+#[effectful(Cancel, ...IoEffects)]
+fn fetch_or_cancel() -> String {
+    yield_!(Log("fetching..."));
+    yield_!(FileRead("data.txt".to_string()))
+}
+```
+
+You can also create programs manually with `Program::new`:
 
 ```rust,ignore
 use corophage::prelude::*;
@@ -156,6 +177,14 @@ let result = Program::new(|y: Yielder<'_, Effs>| async move {
 .run_sync();
 
 assert_eq!(result, Ok("contents of data.txt".to_string()));
+```
+
+The `Effects!` macro also supports the `...Alias` spread syntax to compose effect sets:
+
+```rust,ignore
+type IoEffects = Effects![Log<'static>, FileRead];
+type AllEffects = Effects![Cancel, ...IoEffects];
+// Equivalent to: Effects![Cancel, Log<'static>, FileRead]
 ```
 
 When you call `yield_!` (or `y.yield_(...).await` in the manual style), the computation pauses, the effect is handled, and execution resumes with the value provided by the handler.

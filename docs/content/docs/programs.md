@@ -63,6 +63,46 @@ fn my_send_program() -> u64 {
 }
 ```
 
+### Spreading an effects type alias
+
+If you define a reusable set of effects with `type MyEffs = Effects![...]`, you can spread it into the attribute with `...Alias` (the same syntax as frunk's `Coprod!(...Tail)`):
+
+```rust
+type MyEffs = Effects![Log, Counter];
+
+#[effectful(...MyEffs)]
+fn using_alias() -> u64 {
+    yield_!(Log("hello".into()));
+    yield_!(Counter)
+}
+```
+
+You can also prepend extra inline effects before the spread:
+
+```rust
+#[effect(&'r str)]
+struct GetConfig;
+
+#[effectful(GetConfig, ...MyEffs)]
+fn with_extra() -> String {
+    let cfg = yield_!(GetConfig);
+    yield_!(Log(cfg.to_string()));
+    format!("{cfg}: {}", yield_!(Counter))
+}
+```
+
+The spread must be the last effect argument (before `send` if present). This combines naturally with lifetimes and `send`:
+
+```rust
+type LogEffs<'a> = Effects![GetConfig, Log<'a>];
+
+#[effectful('a, Counter, ...LogEffs<'a>, send)]
+fn complex<'a>(msg: &'a str) -> u64 {
+    yield_!(Log(msg));
+    yield_!(Counter)
+}
+```
+
 ## Creating a program with `Program::new`
 
 You can also create programs manually with `Program::new`, which takes an async closure that receives a `Yielder`:

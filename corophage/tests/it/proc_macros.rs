@@ -302,6 +302,128 @@ fn test_invoke_macro() {
     assert_eq!(result, Ok(true));
 }
 
+// --- Spread syntax with #[effectful] ---
+
+type AskAndConfig = Effects![Ask, GetConfig];
+
+#[effectful(...AskAndConfig)]
+fn spread_only() -> String {
+    let config = yield_!(GetConfig);
+    let answer = yield_!(Ask(42));
+    format!("{config}: {answer}")
+}
+
+#[test]
+fn test_spread_only() {
+    let result = spread_only()
+        .handle(|_: Ask| Control::resume(true))
+        .handle(|_: GetConfig| Control::resume("cfg"))
+        .run_sync();
+
+    assert_eq!(result, Ok("cfg: true".to_string()));
+}
+
+type AskOnly = Effects![Ask];
+
+#[effectful(GetConfig, ...AskOnly)]
+fn spread_with_extra_effects() -> String {
+    let config = yield_!(GetConfig);
+    let answer = yield_!(Ask(42));
+    format!("{config}: {answer}")
+}
+
+#[test]
+fn test_spread_with_extra_effects() {
+    let result = spread_with_extra_effects()
+        .handle(|_: Ask| Control::resume(true))
+        .handle(|_: GetConfig| Control::resume("val"))
+        .run_sync();
+
+    assert_eq!(result, Ok("val: true".to_string()));
+}
+
+type LogEffs<'a> = Effects![GetConfig, Log<'a>];
+
+#[effectful('a, ...LogEffs<'a>)]
+fn spread_with_lifetime<'a>(msg: &'a str) -> String {
+    yield_!(Log(msg));
+    let config = yield_!(GetConfig);
+    config.to_owned()
+}
+
+#[test]
+fn test_spread_with_lifetime() {
+    let msg = String::from("hello");
+    let result = spread_with_lifetime(&msg)
+        .handle(|_: GetConfig| Control::resume("cfg"))
+        .handle(|Log(s)| {
+            assert_eq!(s, "hello");
+            Control::resume(())
+        })
+        .run_sync();
+
+    assert_eq!(result, Ok("cfg".to_string()));
+}
+
+#[effectful(...AskAndConfig, send)]
+fn spread_with_send() -> String {
+    let config = yield_!(GetConfig);
+    let answer = yield_!(Ask(42));
+    format!("{config}: {answer}")
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_spread_with_send() {
+    let result = spread_with_send()
+        .handle(async |_: Ask| Control::resume(true))
+        .handle(async |_: GetConfig| Control::resume("cfg"))
+        .run()
+        .await;
+
+    assert_eq!(result, Ok("cfg: true".to_string()));
+}
+
+// Test invoke! across spread-based and inline effectful functions
+#[effectful(Log<'static>, ...AskAndConfig)]
+fn spread_invoke_sub() -> bool {
+    yield_!(Log("before"));
+    let result = invoke!(sub_ask(42));
+    yield_!(Log("after"));
+    result
+}
+
+#[test]
+fn test_spread_invoke() {
+    let result = spread_invoke_sub()
+        .handle(|Ask(n)| Control::resume(n > 10))
+        .handle(|_: GetConfig| Control::resume("unused"))
+        .handle(|_: Log<'static>| Control::resume(()))
+        .run_sync();
+
+    assert_eq!(result, Ok(true));
+}
+
+// --- Effects![] spread syntax ---
+
+// Effects![...Alias] used directly with Program::new
+type BaseEffs = Effects![Ask];
+type ExtendedEffs = Effects![GetConfig, ...BaseEffs];
+
+#[test]
+fn test_effects_macro_spread() {
+    let result = Program::new(|y: Yielder<'_, ExtendedEffs>| async move {
+        let config = y.yield_(GetConfig).await;
+        let answer = y.yield_(Ask(42)).await;
+        format!("{config}: {answer}")
+    })
+    .handle(|_: GetConfig| Control::resume("cfg"))
+    .handle(|Ask(n)| Control::resume(n > 10))
+    .run_sync();
+
+    assert_eq!(result, Ok("cfg: true".to_string()));
+}
+
 // --- Generic effects with #[effectful] ---
 
 #[effectful(GetState<u64>, SetState<u64>)]
