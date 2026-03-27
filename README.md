@@ -194,8 +194,8 @@ type AllEffects = Effects![Cancel, ...IoEffects];
 
 When you call `yield_!` (or `y.yield_(...).await` in the manual style), the computation pauses, the effect is handled, and execution resumes with the value provided by the handler.
 
-> [!IMPORTANT]
-> Handlers must be attached in the same order as the effects appear in the `Effects![...]` list. This is enforced by the type system — attaching handlers in the wrong order is a compile error.
+> [!NOTE]
+> Handlers can be attached in any order when using `Program::handle()`. The type system tracks which effects are still unhandled regardless of attachment order. However, handlers passed as an `hlist!` to the low-level `sync::run`/`asynk::run` functions must match the `Effects![...]` declaration order.
 
 ### 3. Handlers
 

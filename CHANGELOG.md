@@ -2,9 +2,19 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`invoke!` inside `#[effectful(..., send)]` functions** — previously failed to compile due to a compiler limitation ([rust-lang/rust#100013](https://github.com/rust-lang/rust/issues/100013)) where the compiler could not prove that `ForwardEffects::forward`'s return type was `Send`. Internally replaced with synchronous coproduct conversions (`EmbedEffect`/`ProjectResume`) that the compiler handles correctly.
+
+- **Sequential `invoke!` calls with mutable borrows** — `invoke!` previously required sub-programs to borrow for the entire outer computation's lifetime, preventing patterns like `invoke!(sub(&mut state)); state.mutate(); invoke!(sub(&mut state));`. Sub-programs can now borrow from shorter-lived data than the outer program.
+
+- **`invoke!` with overlapping resume types** — fixed an index inference bug where multiple effects sharing the same resume type (e.g., both resuming with `()`) caused incorrect dispatch.
+
 ### Changed
 
 - **Manual `Effect` impls require `shorten_resume`** — the `Effect` trait now includes a `shorten_resume` method that witnesses the covariance of `Resume<'r>` in `'r`. This is needed by `invoke` to safely shorten resume lifetimes when composing programs. The body is always just `resume`. The `#[effect]` macro generates it automatically, so this only affects hand-written `impl Effect` blocks.
+
+- **`ForwardEffects` trait removed** — replaced internally by `EmbedEffect` and `ProjectResume`. This trait was not part of the public API.
 
 ## v0.3.2 (2026-03-27)
 
