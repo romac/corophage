@@ -367,6 +367,46 @@ async fn test_invoke_send_nested() {
     assert_eq!(result, Ok(true));
 }
 
+// overlapping resume types in send context
+#[effect(())]
+struct Ping;
+
+#[effect(())]
+struct Pong;
+
+#[effectful(Ping, Pong, send)]
+fn sub_ping_pong() -> () {
+    yield_!(Ping);
+    yield_!(Pong)
+}
+
+#[effectful(Ping, Pong, send)]
+fn invoke_send_overlapping_resumes() -> () {
+    invoke!(sub_ping_pong())
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_invoke_send_overlapping_resumes() {
+    let mut ping_count = 0u32;
+    let mut pong_count = 0u32;
+    let result = invoke_send_overlapping_resumes()
+        .handle(async |_: Ping| {
+            ping_count += 1;
+            Control::resume(())
+        })
+        .handle(async |_: Pong| {
+            pong_count += 1;
+            Control::resume(())
+        })
+        .run()
+        .await;
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(ping_count, 1);
+    assert_eq!(pong_count, 1);
+}
+
 // --- Spread syntax with #[effectful] ---
 
 type AskAndConfig = Effects![Ask, GetConfig];

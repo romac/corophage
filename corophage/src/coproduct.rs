@@ -467,6 +467,17 @@ where
 ///
 /// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
 /// [`Yielder::invoke_send`]: crate::coroutine::Yielder::invoke_send
+/// Project an outer resume value at a known index back into a sub-effect
+/// resume coproduct.
+///
+/// Unlike [`EmbedEffect`] which walks the sub-effect coproduct at runtime,
+/// `ProjectResume` handles a single resume value whose position in the outer
+/// coproduct is known at compile time (determined by [`EmbedEffect`]'s index).
+/// It tries each sub-effect's index in turn: if the resume is at that index,
+/// it injects into the sub-resume coproduct; otherwise it tries the next.
+///
+/// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
+/// [`Yielder::invoke_send`]: crate::coroutine::Yielder::invoke_send
 #[doc(hidden)]
 pub trait ProjectResume<'a, SubEffs: MapResume, Indices> {
     fn project(self) -> Resumes<'a, SubEffs>;
@@ -484,18 +495,52 @@ impl<'a, OuterResumes> ProjectResume<'a, CNil, HNil> for OuterResumes {
     }
 }
 
+/// Helper trait: try to extract a value at index `Idx` from a coproduct.
+/// Returns `Ok(value)` if found, `Err(self)` if not.
+#[doc(hidden)]
+pub trait CoprodAt<T, Idx> {
+    fn at(self) -> Result<T, Self>
+    where
+        Self: Sized;
+}
+
+impl<T, Tail> CoprodAt<T, Here> for Coproduct<T, Tail> {
+    #[inline]
+    fn at(self) -> Result<T, Self> {
+        match self {
+            Coproduct::Inl(val) => Ok(val),
+            Coproduct::Inr(_) => Err(self),
+        }
+    }
+}
+
+impl<Head, Tail, T, TailIdx> CoprodAt<T, There<TailIdx>> for Coproduct<Head, Tail>
+where
+    Tail: CoprodAt<T, TailIdx>,
+{
+    #[inline]
+    fn at(self) -> Result<T, Self> {
+        match self {
+            Coproduct::Inl(_) => Err(self),
+            Coproduct::Inr(tail) => match tail.at() {
+                Ok(val) => Ok(val),
+                Err(tail) => Err(Coproduct::Inr(tail)),
+            },
+        }
+    }
+}
+
 impl<'a, OuterResumes, E, SubTail, OuterIdx, TailIndices>
     ProjectResume<'a, Coproduct<E, SubTail>, HCons<OuterIdx, TailIndices>> for OuterResumes
 where
     E: Effect,
     SubTail: MapResume,
-    OuterResumes: CoprodUninjector<E::Resume<'a>, OuterIdx>,
-    <OuterResumes as CoprodUninjector<E::Resume<'a>, OuterIdx>>::Remainder:
-        ProjectResume<'a, SubTail, TailIndices>,
+    OuterResumes: CoprodAt<E::Resume<'a>, OuterIdx>,
+    OuterResumes: ProjectResume<'a, SubTail, TailIndices>,
 {
     #[inline]
     fn project(self) -> Resumes<'a, Coproduct<E, SubTail>> {
-        match self.uninject() {
+        match self.at() {
             Ok(resume) => Coproduct::Inl(resume),
             Err(remainder) => Coproduct::Inr(remainder.project()),
         }
