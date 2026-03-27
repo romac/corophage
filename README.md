@@ -79,6 +79,7 @@ use corophage::{Effect, Never};
 pub struct Log<'a>(pub &'a str);
 impl<'a> Effect for Log<'a> {
     type Resume<'r> = ();
+    fn shorten_resume<'long: 'short, 'short>(resume: ()) -> () { resume }
 }
 
 // An effect to request reading a file.
@@ -86,6 +87,7 @@ impl<'a> Effect for Log<'a> {
 pub struct FileRead(pub String);
 impl Effect for FileRead {
     type Resume<'r> = String;
+    fn shorten_resume<'long: 'short, 'short>(resume: String) -> String { resume }
 }
 
 // An effect that cancels the computation.
@@ -93,8 +95,11 @@ impl Effect for FileRead {
 pub struct Cancel;
 impl Effect for Cancel {
     type Resume<'r> = Never;
+    fn shorten_resume<'long: 'short, 'short>(resume: Never) -> Never { resume }
 }
 ```
+
+Each manual `Effect` impl must provide `shorten_resume`, a one-liner that witnesses the covariance of `Resume<'r>` in `'r`. This is required for [program composition](#5-program-composition) to work correctly. The `#[effect]` macro generates it automatically.
 
 You can also use the `#[effect]` attribute macro to derive the `Effect` impl:
 
@@ -344,6 +349,7 @@ use corophage::prelude::*;
 struct Log<'a>(pub &'a str);
 impl<'a> Effect for Log<'a> {
     type Resume<'r> = ();
+    fn shorten_resume<'long: 'short, 'short>(resume: ()) -> () { resume }
 }
 
 let msg = String::from("hello from a local string");
@@ -374,6 +380,7 @@ struct Lookup<'a> {
 impl<'a> Effect for Lookup<'a> {
     // The handler can resume with a &str borrowed from the map
     type Resume<'r> = &'r str;
+    fn shorten_resume<'long: 'short, 'short>(resume: &'long str) -> &'short str { resume }
 }
 
 let map = HashMap::from([

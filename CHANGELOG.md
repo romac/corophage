@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Manual `Effect` impls require `shorten_resume`** — the `Effect` trait now includes a `shorten_resume` method that witnesses the covariance of `Resume<'r>` in `'r`. This is needed by `invoke` to safely shorten resume lifetimes when composing programs. The body is always just `resume`. The `#[effect]` macro generates it automatically, so this only affects hand-written `impl Effect` blocks.
+
 ## v0.3.2 (2026-03-27)
 
 ### Added

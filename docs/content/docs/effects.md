@@ -43,6 +43,26 @@ pub struct ReadDir { pub path: String, pub recursive: bool }
 pub struct Lookup(pub String);
 ```
 
+## Manual `Effect` implementation
+
+If you need to implement the `Effect` trait by hand (without the macro), you must provide both the `Resume` associated type and the `shorten_resume` method:
+
+```rust
+struct Ask(pub String);
+
+impl Effect for Ask {
+    type Resume<'r> = &'r str;
+
+    fn shorten_resume<'a: 'b, 'b>(resume: &'a str) -> &'b str {
+        resume
+    }
+}
+```
+
+The `shorten_resume` method witnesses that `Resume<'r>` is **covariant** in `'r` -- that is, a resume value with a longer lifetime can be safely used where a shorter lifetime is expected. This is required by [`invoke`](@/docs/programs.md#composing-programs-with-invoke) to allow sub-programs to borrow from shorter-lived data than the outer program.
+
+The body is always just `resume`. The `#[effect]` macro generates this automatically, so you only need to write it when implementing `Effect` by hand.
+
 ## Effect sets with `Effects!`
 
 Effects are grouped into sets using the `Effects!` macro:
