@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.3.2 (2026-03-27)
 
 ### Added
+
+- **`Eff` added to the prelude** — the deprecated `Eff` type alias (renamed to `Effectful` in v0.3.0) is now re-exported from `corophage::prelude` for convenience during migration.
 
 - **`...Spread` syntax in `#[effectful]` and `Effects!`** — reference a pre-defined effects type alias with `...Alias`, using the same spread syntax as frunk's `Coprod!(...Tail)`. Works in both `#[effectful(Extra, ...MyEffs)]` and `Effects![Extra, ...MyEffs]`. Inline effects can precede the spread, and `send`/lifetime arguments compose naturally: `#[effectful('a, Extra, ...MyEffs<'a>, send)]`.
 
