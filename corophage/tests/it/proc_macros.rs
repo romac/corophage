@@ -302,6 +302,71 @@ fn test_invoke_macro() {
     assert_eq!(result, Ok(true));
 }
 
+// --- invoke! + send macro tests ---
+
+#[effectful(Ask, send)]
+fn sub_ask_send(x: i32) -> bool {
+    yield_!(Ask(x))
+}
+
+#[effectful(Ask, send)]
+fn invoke_send_sub() -> bool {
+    invoke!(sub_ask_send(42))
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_invoke_send() {
+    let result = invoke_send_sub()
+        .handle(async |Ask(n)| Control::resume(n > 10))
+        .run()
+        .await;
+
+    assert_eq!(result, Ok(true));
+}
+
+#[effectful(Ask, Log<'static>, send)]
+fn invoke_send_with_effects() -> bool {
+    yield_!(Log("before"));
+    let result = invoke!(sub_ask_send(42));
+    yield_!(Log("after"));
+    result
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_invoke_send_with_effects() {
+    let result = invoke_send_with_effects()
+        .handle(async |Ask(n)| Control::resume(n > 10))
+        .handle(async |_: Log<'static>| Control::resume(()))
+        .run()
+        .await;
+
+    assert_eq!(result, Ok(true));
+}
+
+// nested invoke in send context
+#[effectful(Ask, send)]
+fn invoke_send_nested_inner() -> bool {
+    yield_!(Ask(42))
+}
+
+#[effectful(Ask, send)]
+fn invoke_send_nested_outer() -> bool {
+    invoke!(invoke_send_nested_inner())
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_invoke_send_nested() {
+    let result = invoke_send_nested_outer()
+        .handle(async |Ask(n)| Control::resume(n > 10))
+        .run()
+        .await;
+
+    assert_eq!(result, Ok(true));
+}
+
 // --- Spread syntax with #[effectful] ---
 
 type AskAndConfig = Effects![Ask, GetConfig];

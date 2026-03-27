@@ -202,6 +202,13 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
         quote! { ::corophage::Program::new }
     };
 
+    // Use invoke_send for send functions to work around rust-lang/rust#100013
+    let invoke_method = if args.send {
+        quote! { invoke_send }
+    } else {
+        quote! { invoke }
+    };
+
     let new_body: syn::Block = syn::parse2(quote! {
         {
             #program_constructor(move |__y: ::corophage::Yielder<'_, #effects_type>| async move {
@@ -215,7 +222,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                 #[allow(unused_macros)]
                 macro_rules! invoke {
                     ($prog:expr) => {
-                        __y.invoke($prog).await
+                        __y.#invoke_method($prog).await
                     }
                 }
 

@@ -422,3 +422,82 @@ where
         }
     }
 }
+
+// EmbedEffect + ProjectResume  –  synchronous coproduct conversions for invoke_send
+// ---------------------------------------------------------------------------
+
+/// Embed a sub-effect coproduct into a larger outer-effect coproduct.
+///
+/// This is the synchronous "injection" half of effect forwarding, used by
+/// [`Yielder::invoke_send`] to work around [rust-lang/rust#100013].
+///
+/// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
+/// [`Yielder::invoke_send`]: crate::coroutine::Yielder::invoke_send
+#[doc(hidden)]
+pub trait EmbedEffect<OuterEffs, Indices> {
+    fn embed(self) -> OuterEffs;
+}
+
+impl<OuterEffs> EmbedEffect<OuterEffs, HNil> for CNil {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn embed(self) -> OuterEffs {
+        match self {}
+    }
+}
+
+impl<OuterEffs, E, Tail, OuterIdx, TailIndices> EmbedEffect<OuterEffs, HCons<OuterIdx, TailIndices>>
+    for Coproduct<E, Tail>
+where
+    OuterEffs: CoprodInjector<E, OuterIdx>,
+    Tail: EmbedEffect<OuterEffs, TailIndices>,
+{
+    #[inline]
+    fn embed(self) -> OuterEffs {
+        match self {
+            Coproduct::Inl(effect) => OuterEffs::inject(effect),
+            Coproduct::Inr(tail) => tail.embed(),
+        }
+    }
+}
+
+/// Project an outer resume coproduct back to a sub-effect resume coproduct.
+///
+/// This is the synchronous "uninject" half of effect forwarding, used by
+/// [`Yielder::invoke_send`] to work around [rust-lang/rust#100013].
+///
+/// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
+/// [`Yielder::invoke_send`]: crate::coroutine::Yielder::invoke_send
+#[doc(hidden)]
+pub trait ProjectResume<'a, SubEffs: MapResume, Indices> {
+    fn project(self) -> Resumes<'a, SubEffs>;
+}
+
+// Base case: when all sub-effects have been projected, any remaining outer
+// resume variants are unreachable (the handler only resumes at indices that
+// correspond to effects we actually yielded).
+impl<'a, OuterResumes> ProjectResume<'a, CNil, HNil> for OuterResumes {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn project(self) -> Resumes<'a, CNil> {
+        debug_unreachable!(
+            "ProjectResume: no sub-effect matched — handler resumed at an unexpected index"
+        )
+    }
+}
+
+impl<'a, OuterResumes, E, SubTail, OuterIdx, TailIndices>
+    ProjectResume<'a, Coproduct<E, SubTail>, HCons<OuterIdx, TailIndices>> for OuterResumes
+where
+    E: Effect,
+    SubTail: MapResume,
+    OuterResumes: CoprodUninjector<E::Resume<'a>, OuterIdx>,
+    <OuterResumes as CoprodUninjector<E::Resume<'a>, OuterIdx>>::Remainder:
+        ProjectResume<'a, SubTail, TailIndices>,
+{
+    #[inline]
+    fn project(self) -> Resumes<'a, Coproduct<E, SubTail>> {
+        match self.uninject() {
+            Ok(resume) => Coproduct::Inl(resume),
+            Err(remainder) => Coproduct::Inr(remainder.project()),
+        }
+    }
+}

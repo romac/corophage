@@ -17,7 +17,7 @@ use fauxgen::GeneratorState;
 use fauxgen::GeneratorToken;
 use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
-use crate::coproduct::ForwardEffects;
+use crate::coproduct::{EmbedEffect, ForwardEffects, ProjectResume};
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 use crate::locality::{Local, Locality, Sendable};
 use crate::program::Effectful;
@@ -222,6 +222,69 @@ where
                     };
                     let resume = subeffect.forward(self).await;
                     yielded = co.as_mut().resume(Coproduct::Inr(resume));
+                }
+            }
+        }
+    }
+
+    /// Like [`invoke`](Self::invoke), but for `Send`-able coroutines.
+    ///
+    /// This method works around a Rust compiler limitation
+    /// ([rust-lang/rust#100013]) that prevents the regular `invoke` from being
+    /// used inside `Send` async blocks. Instead of delegating to the
+    /// [`ForwardEffects`] trait (whose `impl Future` return type triggers the
+    /// limitation), this method uses synchronous coproduct conversions
+    /// ([`EmbedEffect`] / [`ProjectResume`]) and the raw generator yield, which
+    /// the compiler *can* prove is `Send`.
+    ///
+    /// The `#[effectful(..., send)]` macro automatically uses this method.
+    ///
+    /// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
+    #[inline]
+    pub async fn invoke_send<SubEffs, R, L, Indices>(
+        &self,
+        program: Effectful<'a, SubEffs, R, L>,
+    ) -> R
+    where
+        SubEffs: Effects<'a> + EmbedEffect<Effs, Indices>,
+        Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
+        L: Locality,
+    {
+        let mut co = std::pin::pin!(program.co);
+        let mut yielded = co.as_mut().resume_with(Start);
+
+        loop {
+            match yielded {
+                GeneratorState::Complete(value) => break value,
+                GeneratorState::Yielded(effect) => {
+                    // INVARIANT: Yielder::yield_ always wraps effects in Inr,
+                    // so the Inl (Start) arm is never yielded after init.
+                    let subeffect = match effect {
+                        Coproduct::Inl(_) => debug_unreachable!(
+                            "Start (Inl) arm should never be yielded after initialization"
+                        ),
+                        Coproduct::Inr(subeffect) => subeffect,
+                    };
+
+                    // Embed sub-effect into the outer coproduct (synchronous).
+                    let outer_effect: Effs = subeffect.embed();
+
+                    // Yield through the raw generator token — this is a
+                    // concrete future from fauxgen that the compiler can
+                    // prove is Send, unlike ForwardEffects::forward's
+                    // `impl Future` which involves GAT lifetimes.
+                    let resume = self.token.yield_(Coproduct::Inr(outer_effect)).await;
+
+                    // Project the outer resume back to sub-effect resume (synchronous).
+                    let sub_resume = match resume {
+                        Coproduct::Inr(value) => Coproduct::Inr(value.project()),
+                        Coproduct::Inl(_) => {
+                            debug_unreachable!(
+                                "Start (Inl) arm should never be sent as a resume value"
+                            )
+                        }
+                    };
+                    yielded = co.as_mut().resume(sub_resume);
                 }
             }
         }
