@@ -11,9 +11,7 @@ struct GetConfig;
 
 impl Effect for GetConfig {
     type Resume<'r> = &'r str;
-}
 
-impl CovariantResume for GetConfig {
     fn shorten_resume<'a: 'b, 'b>(resume: &'a str) -> &'b str {
         resume
     }
@@ -23,9 +21,7 @@ struct Log<'a>(pub &'a str);
 
 impl<'a> Effect for Log<'a> {
     type Resume<'r> = ();
-}
 
-impl<'a> CovariantResume for Log<'a> {
     fn shorten_resume<'a_: 'b, 'b>(resume: ()) {
         resume
     }
@@ -148,9 +144,7 @@ struct Lookup<'a> {
 
 impl<'a> Effect for Lookup<'a> {
     type Resume<'r> = &'r str;
-}
 
-impl<'a> CovariantResume for Lookup<'a> {
     fn shorten_resume<'a_: 'b, 'b>(resume: &'a_ str) -> &'b str {
         resume
     }

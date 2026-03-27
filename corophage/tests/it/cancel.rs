@@ -6,9 +6,7 @@ struct Trigger;
 
 impl Effect for Trigger {
     type Resume<'r> = Never;
-}
 
-impl CovariantResume for Trigger {
     fn shorten_resume<'a: 'b, 'b>(resume: Never) -> Never {
         match resume {}
     }
@@ -18,9 +16,7 @@ struct Log(pub &'static str);
 
 impl Effect for Log {
     type Resume<'r> = ();
-}
 
-impl CovariantResume for Log {
     fn shorten_resume<'a: 'b, 'b>(resume: ()) {
         resume
     }
@@ -30,9 +26,7 @@ struct Fetch(pub &'static str);
 
 impl Effect for Fetch {
     type Resume<'r> = String;
-}
 
-impl CovariantResume for Fetch {
     fn shorten_resume<'a: 'b, 'b>(resume: String) -> String {
         resume
     }

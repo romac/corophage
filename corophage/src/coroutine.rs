@@ -18,7 +18,7 @@ use fauxgen::GeneratorToken;
 use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
 use crate::coproduct::{EmbedEffect, ProjectResume};
-use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, ShortenResumes, Start};
+use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 use crate::locality::{Local, Locality, Sendable};
 use crate::program::Effectful;
 
@@ -215,7 +215,7 @@ where
     ) -> R
     where
         'a: 'b,
-        SubEffs: Effects<'b> + EmbedEffect<Effs, Indices> + ShortenResumes,
+        SubEffs: Effects<'b> + EmbedEffect<Effs, Indices>,
         Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
         L: Locality,
     {

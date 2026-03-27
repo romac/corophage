@@ -15,9 +15,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
         impl #impl_generics ::corophage::Effect for #name #ty_generics #where_clause {
             type Resume<'r> = #resume_type;
-        }
 
-        impl #impl_generics ::corophage::CovariantResume for #name #ty_generics #where_clause {
             #[inline]
             fn shorten_resume<'__a: '__b, '__b>(
                 resume: <Self as ::corophage::Effect>::Resume<'__a>,

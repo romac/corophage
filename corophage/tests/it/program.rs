@@ -5,9 +5,7 @@ struct Ask(&'static str);
 
 impl Effect for Ask {
     type Resume<'r> = &'static str;
-}
 
-impl CovariantResume for Ask {
     fn shorten_resume<'a: 'b, 'b>(resume: &'static str) -> &'static str {
         resume
     }
@@ -17,9 +15,7 @@ struct Counter;
 
 impl Effect for Counter {
     type Resume<'r> = u64;
-}
 
-impl CovariantResume for Counter {
     fn shorten_resume<'a: 'b, 'b>(resume: u64) -> u64 {
         resume
     }
@@ -176,9 +172,7 @@ fn handle_multiple() {
 
     impl Effect for Other {
         type Resume<'r> = ();
-    }
 
-    impl CovariantResume for Other {
         fn shorten_resume<'a: 'b, 'b>(resume: ()) {
             resume
         }
@@ -212,9 +206,7 @@ async fn async_handle_multiple() {
 
     impl Effect for Other {
         type Resume<'r> = ();
-    }
 
-    impl CovariantResume for Other {
         fn shorten_resume<'a: 'b, 'b>(resume: ()) {
             resume
         }
@@ -248,9 +240,7 @@ fn sync_out_of_order_handlers() {
 
     impl Effect for Other {
         type Resume<'r> = ();
-    }
 
-    impl CovariantResume for Other {
         fn shorten_resume<'a: 'b, 'b>(resume: ()) {
             resume
         }
@@ -279,9 +269,7 @@ async fn async_out_of_order_handlers() {
 
     impl Effect for Other {
         type Resume<'r> = ();
-    }
 
-    impl CovariantResume for Other {
         fn shorten_resume<'a: 'b, 'b>(resume: ()) {
             resume
         }

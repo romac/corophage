@@ -5,6 +5,24 @@ use frunk_core::indices::{Here, There};
 ///
 /// Each effect defines a [`Resume`](Effect::Resume) type that determines
 /// what value the handler must provide to resume the computation.
+///
+/// The [`shorten_resume`](Effect::shorten_resume) method witnesses that
+/// `Resume<'r>` is covariant in `'r`, allowing resume values with a longer
+/// lifetime to be safely used where a shorter lifetime is expected.  This is
+/// needed by [`Yielder::invoke`](crate::Yielder::invoke) when invoking
+/// sub-programs that borrow from shorter-lived data than the outer program.
+///
+/// The `#[effect]` macro derives both items automatically.  If you implement
+/// `Effect` by hand you must also provide `shorten_resume`; for most types
+/// the body is simply `resume`:
+///
+/// ```ignore
+/// struct MyEffect;
+/// impl Effect for MyEffect {
+///     type Resume<'r> = &'r str;
+///     fn shorten_resume<'a: 'b, 'b>(resume: &'a str) -> &'b str { resume }
+/// }
+/// ```
 pub trait Effect {
     /// The type of value that the handler must provide to resume the computation
     /// after this effect is yielded.
@@ -12,37 +30,11 @@ pub trait Effect {
     /// This is a generic associated type parameterized by a lifetime `'r`,
     /// allowing handlers to resume with borrowed data (e.g., `&'r str`).
     type Resume<'r>;
-}
 
-/// Trait for effects whose [`Resume`](Effect::Resume) type is covariant in
-/// the lifetime parameter, allowing resume values with a longer lifetime to be
-/// safely used where a shorter lifetime is expected.
-///
-/// This is needed by [`Yielder::invoke`](crate::Yielder::invoke) when invoking
-/// sub-programs that borrow from shorter-lived data than the outer program.
-///
-/// # When to implement
-///
-/// Most resume types are covariant:
-/// - Lifetime-independent types: `()`, `bool`, `String`, `Vec<T>`, etc.
-/// - Covariant references: `&'r str`, `&'r T`
-///
-/// The `#[effect]` macro automatically derives this trait for all effects.
-/// You only need to implement it manually if you implement [`Effect`] by hand.
-///
-/// # Example
-///
-/// ```ignore
-/// struct MyEffect;
-/// impl Effect for MyEffect {
-///     type Resume<'r> = &'r str;
-/// }
-/// impl CovariantResume for MyEffect {
-///     fn shorten_resume<'a: 'b, 'b>(resume: &'a str) -> &'b str { resume }
-/// }
-/// ```
-pub trait CovariantResume: Effect {
     /// Convert a resume value from a longer lifetime to a shorter one.
+    ///
+    /// This witnesses the covariance of [`Resume`](Effect::Resume) in its
+    /// lifetime parameter.
     fn shorten_resume<'a: 'b, 'b>(resume: Self::Resume<'a>) -> Self::Resume<'b>;
 }
 
@@ -53,14 +45,37 @@ pub trait CovariantResume: Effect {
 pub trait MapResume {
     /// The coproduct of resume types corresponding to the effects.
     type Output<'r>;
+
+    /// Convert all resume values in the coproduct from lifetime `'a` to `'b`.
+    ///
+    /// Used by [`Yielder::invoke`](crate::Yielder::invoke) to convert resume
+    /// values from the outer handler's lifetime to the sub-program's shorter
+    /// lifetime.
+    #[doc(hidden)]
+    fn shorten_resumes<'a: 'b, 'b>(resumes: Self::Output<'a>) -> Self::Output<'b>;
 }
 
 impl MapResume for CNil {
     type Output<'r> = CNil;
+
+    #[inline]
+    fn shorten_resumes<'a: 'b, 'b>(resumes: CNil) -> CNil {
+        resumes
+    }
 }
 
 impl<H: Effect, T: MapResume> MapResume for Coproduct<H, T> {
     type Output<'r> = Coproduct<H::Resume<'r>, <T as MapResume>::Output<'r>>;
+
+    #[inline]
+    fn shorten_resumes<'a: 'b, 'b>(
+        resumes: Coproduct<H::Resume<'a>, T::Output<'a>>,
+    ) -> Coproduct<H::Resume<'b>, T::Output<'b>> {
+        match resumes {
+            Coproduct::Inl(head) => Coproduct::Inl(H::shorten_resume(head)),
+            Coproduct::Inr(tail) => Coproduct::Inr(T::shorten_resumes(tail)),
+        }
+    }
 }
 
 /// A bound combining [`MapResume`], `Send`, `Sync`, and a lifetime,
@@ -113,42 +128,10 @@ pub struct Start;
 
 impl Effect for Start {
     type Resume<'r> = Start;
-}
 
-impl CovariantResume for Start {
     #[inline]
     fn shorten_resume<'a: 'b, 'b>(resume: Start) -> Start {
         resume
-    }
-}
-
-/// Convert a coproduct of resume values from a longer lifetime to a shorter one.
-///
-/// This is used by [`Yielder::invoke`](crate::Yielder::invoke) to convert resume
-/// values produced by the outer handler (with lifetime `'a`) into the shorter
-/// lifetime `'b` expected by the sub-program.
-#[doc(hidden)]
-pub trait ShortenResumes: MapResume {
-    /// Shorten all resume values in the coproduct from lifetime `'a` to `'b`.
-    fn shorten_resumes<'a: 'b, 'b>(resumes: Self::Output<'a>) -> Self::Output<'b>;
-}
-
-impl ShortenResumes for CNil {
-    #[inline]
-    fn shorten_resumes<'a: 'b, 'b>(resumes: CNil) -> CNil {
-        resumes
-    }
-}
-
-impl<H: CovariantResume, T: ShortenResumes + MapResume> ShortenResumes for Coproduct<H, T> {
-    #[inline]
-    fn shorten_resumes<'a: 'b, 'b>(
-        resumes: Coproduct<H::Resume<'a>, T::Output<'a>>,
-    ) -> Coproduct<H::Resume<'b>, T::Output<'b>> {
-        match resumes {
-            Coproduct::Inl(head) => Coproduct::Inl(H::shorten_resume(head)),
-            Coproduct::Inr(tail) => Coproduct::Inr(T::shorten_resumes(tail)),
-        }
     }
 }
 

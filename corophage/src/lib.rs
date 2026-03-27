@@ -21,8 +21,6 @@ use coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
 
 #[doc(hidden)]
 pub use coproduct::{EmbedEffect, ProjectResume};
-#[doc(hidden)]
-pub use effect::ShortenResumes;
 
 mod control;
 mod effect;
@@ -39,7 +37,7 @@ pub mod coroutine;
 
 pub use control::{Cancelled, Control};
 pub use coroutine::Yielder;
-pub use effect::{CovariantResume, Effect};
+pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
 #[allow(deprecated)]
 pub use program::{Eff, Effectful, Program};

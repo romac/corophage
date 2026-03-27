@@ -6,9 +6,7 @@ struct Bar;
 
 impl Effect for Foo {
     type Resume<'r> = ();
-}
 
-impl CovariantResume for Foo {
     fn shorten_resume<'a: 'b, 'b>(resume: ()) {
         resume
     }
@@ -16,9 +14,7 @@ impl CovariantResume for Foo {
 
 impl Effect for Bar {
     type Resume<'r> = ();
-}
 
-impl CovariantResume for Bar {
     fn shorten_resume<'a: 'b, 'b>(resume: ()) {
         resume
     }

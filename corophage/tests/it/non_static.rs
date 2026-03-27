@@ -6,6 +6,10 @@ struct Log<'a>(pub &'a str);
 
 impl<'a> Effect for Log<'a> {
     type Resume<'r> = ();
+
+    fn shorten_resume<'a_: 'b, 'b>(resume: ()) {
+        resume
+    }
 }
 
 /// Test that effects can borrow non-'static data.

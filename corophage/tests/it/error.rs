@@ -46,9 +46,7 @@ struct Ask(pub &'static str);
 
 impl Effect for Ask {
     type Resume<'r> = &'static str;
-}
 
-impl CovariantResume for Ask {
     fn shorten_resume<'a: 'b, 'b>(resume: &'static str) -> &'static str {
         resume
     }
