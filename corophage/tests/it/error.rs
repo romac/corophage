@@ -48,6 +48,12 @@ impl Effect for Ask {
     type Resume<'r> = &'static str;
 }
 
+impl CovariantResume for Ask {
+    fn shorten_resume<'a: 'b, 'b>(resume: &'static str) -> &'static str {
+        resume
+    }
+}
+
 type AskEffects = Effects![Ask];
 
 #[test]
@@ -84,7 +90,7 @@ fn sync_single_effect_multiple_yields() {
     let result = sync::run_stateful(
         co,
         &mut state,
-        &mut hlist![|s: &mut u32, _: Ask| {
+        &hlist![|s: &mut u32, _: Ask| {
             *s += 1;
             Control::resume(match *s {
                 1 => "one",

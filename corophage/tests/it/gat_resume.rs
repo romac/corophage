@@ -13,10 +13,22 @@ impl Effect for GetConfig {
     type Resume<'r> = &'r str;
 }
 
+impl CovariantResume for GetConfig {
+    fn shorten_resume<'a: 'b, 'b>(resume: &'a str) -> &'b str {
+        resume
+    }
+}
+
 struct Log<'a>(pub &'a str);
 
 impl<'a> Effect for Log<'a> {
     type Resume<'r> = ();
+}
+
+impl<'a> CovariantResume for Log<'a> {
+    fn shorten_resume<'a_: 'b, 'b>(resume: ()) {
+        resume
+    }
 }
 
 /// The handler resumes with a `&str` that borrows from a local `String`,
@@ -76,7 +88,7 @@ fn sync_gat_resume_with_stateful_handler() {
     let result = sync::run_stateful(
         co,
         &mut call_count,
-        &mut hlist![
+        &hlist![
             |s: &mut u32, _: GetConfig| {
                 *s += 1;
                 // Resume with a non-'static &str borrowed from local data
@@ -136,6 +148,12 @@ struct Lookup<'a> {
 
 impl<'a> Effect for Lookup<'a> {
     type Resume<'r> = &'r str;
+}
+
+impl<'a> CovariantResume for Lookup<'a> {
+    fn shorten_resume<'a_: 'b, 'b>(resume: &'a_ str) -> &'b str {
+        resume
+    }
 }
 
 /// The resumption value borrows from data carried by the effect itself.
@@ -207,7 +225,7 @@ fn sync_gat_resume_borrows_from_effect_with_state() {
     let result = sync::run_stateful(
         co,
         &mut lookups,
-        &mut hlist![|s: &mut Vec<String>, Lookup { map, key }| {
+        &hlist![|s: &mut Vec<String>, Lookup { map, key }| {
             s.push(key.to_string());
             let value = map.get(key).unwrap();
             Control::resume(value.as_str())

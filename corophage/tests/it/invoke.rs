@@ -7,10 +7,22 @@ impl Effect for Ask {
     type Resume<'r> = &'static str;
 }
 
+impl CovariantResume for Ask {
+    fn shorten_resume<'a: 'b, 'b>(resume: &'static str) -> &'static str {
+        resume
+    }
+}
+
 struct Print(String);
 
 impl Effect for Print {
     type Resume<'r> = ();
+}
+
+impl CovariantResume for Print {
+    fn shorten_resume<'a: 'b, 'b>(resume: ()) {
+        resume
+    }
 }
 
 #[allow(dead_code)]
@@ -18,6 +30,12 @@ struct Log(&'static str);
 
 impl Effect for Log {
     type Resume<'r> = ();
+}
+
+impl CovariantResume for Log {
+    fn shorten_resume<'a: 'b, 'b>(resume: ()) {
+        resume
+    }
 }
 
 fn greet<'a>() -> Effectful<'a, Effects![Ask, Print], ()> {
@@ -58,6 +76,12 @@ fn sync_invoke_subprogram_returns_value() {
 
     impl Effect for Add {
         type Resume<'r> = i32;
+    }
+
+    impl CovariantResume for Add {
+        fn shorten_resume<'a: 'b, 'b>(resume: i32) -> i32 {
+            resume
+        }
     }
 
     fn compute<'a>() -> Effectful<'a, Effects![Add], i32> {

@@ -53,7 +53,7 @@ fn sync_non_static_log_with_state() {
     let result = sync::run_stateful(
         co,
         &mut count,
-        &mut hlist![|s: &mut u32, Log(_)| {
+        &hlist![|s: &mut u32, Log(_)| {
             *s += 1;
             Control::resume(())
         }],

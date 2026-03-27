@@ -71,7 +71,7 @@ fn run_stateful() {
     let result = corophage::sync::run_stateful(
         co(),
         &mut state,
-        &mut hlist![
+        &hlist![
             cancel,
             log,
             file_read,

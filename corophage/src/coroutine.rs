@@ -18,7 +18,7 @@ use fauxgen::GeneratorToken;
 use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
 use crate::coproduct::{EmbedEffect, ProjectResume};
-use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
+use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, ShortenResumes, Start};
 use crate::locality::{Local, Locality, Sendable};
 use crate::program::Effectful;
 
@@ -203,10 +203,19 @@ where
     ///
     /// Returns the sub-program's result directly. If the outer handler cancels,
     /// the entire coroutine is dropped, so `invoke` never returns in that case.
+    ///
+    /// The sub-program may use a lifetime `'b` shorter than the outer program's `'a`.
+    /// This allows sequential invocations that borrow from the same mutable reference,
+    /// since each invocation only borrows for its own duration rather than for the
+    /// entire outer computation lifetime.
     #[inline]
-    pub async fn invoke<SubEffs, R, L, Indices>(&self, program: Effectful<'a, SubEffs, R, L>) -> R
+    pub async fn invoke<'b, SubEffs, R, L, Indices>(
+        &self,
+        program: Effectful<'b, SubEffs, R, L>,
+    ) -> R
     where
-        SubEffs: Effects<'a> + EmbedEffect<Effs, Indices>,
+        'a: 'b,
+        SubEffs: Effects<'b> + EmbedEffect<Effs, Indices> + ShortenResumes,
         Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
         L: Locality,
     {
@@ -233,15 +242,21 @@ where
                     let resume = self.token.yield_(Coproduct::Inr(outer_effect)).await;
 
                     // Project the outer resume back to sub-effect resume (synchronous).
-                    let sub_resume = match resume {
-                        Coproduct::Inr(value) => Coproduct::Inr(value.project()),
+                    // This produces Resumes<'a, SubEffs> (the outer handler's lifetime).
+                    let resume_long: Resumes<'a, SubEffs> = match resume {
+                        Coproduct::Inr(value) => value.project(),
                         Coproduct::Inl(_) => {
                             debug_unreachable!(
                                 "Start (Inl) arm should never be sent as a resume value"
                             )
                         }
                     };
-                    yielded = co.as_mut().resume(sub_resume);
+
+                    // Convert from the outer lifetime 'a to the sub-program's lifetime 'b.
+                    // This is safe because all effect resume types implement CovariantResume.
+                    let resume_short: Resumes<'b, SubEffs> = SubEffs::shorten_resumes(resume_long);
+
+                    yielded = co.as_mut().resume(Coproduct::Inr(resume_short));
                 }
             }
         }

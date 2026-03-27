@@ -14,6 +14,38 @@ pub trait Effect {
     type Resume<'r>;
 }
 
+/// Trait for effects whose [`Resume`](Effect::Resume) type is covariant in
+/// the lifetime parameter, allowing resume values with a longer lifetime to be
+/// safely used where a shorter lifetime is expected.
+///
+/// This is needed by [`Yielder::invoke`](crate::Yielder::invoke) when invoking
+/// sub-programs that borrow from shorter-lived data than the outer program.
+///
+/// # When to implement
+///
+/// Most resume types are covariant:
+/// - Lifetime-independent types: `()`, `bool`, `String`, `Vec<T>`, etc.
+/// - Covariant references: `&'r str`, `&'r T`
+///
+/// The `#[effect]` macro automatically derives this trait for all effects.
+/// You only need to implement it manually if you implement [`Effect`] by hand.
+///
+/// # Example
+///
+/// ```ignore
+/// struct MyEffect;
+/// impl Effect for MyEffect {
+///     type Resume<'r> = &'r str;
+/// }
+/// impl CovariantResume for MyEffect {
+///     fn shorten_resume<'a: 'b, 'b>(resume: &'a str) -> &'b str { resume }
+/// }
+/// ```
+pub trait CovariantResume: Effect {
+    /// Convert a resume value from a longer lifetime to a shorter one.
+    fn shorten_resume<'a: 'b, 'b>(resume: Self::Resume<'a>) -> Self::Resume<'b>;
+}
+
 /// Maps a coproduct of effects to a coproduct of their resume types.
 ///
 /// This trait is automatically implemented for coproducts of [`Effect`] types
@@ -81,6 +113,43 @@ pub struct Start;
 
 impl Effect for Start {
     type Resume<'r> = Start;
+}
+
+impl CovariantResume for Start {
+    #[inline]
+    fn shorten_resume<'a: 'b, 'b>(resume: Start) -> Start {
+        resume
+    }
+}
+
+/// Convert a coproduct of resume values from a longer lifetime to a shorter one.
+///
+/// This is used by [`Yielder::invoke`](crate::Yielder::invoke) to convert resume
+/// values produced by the outer handler (with lifetime `'a`) into the shorter
+/// lifetime `'b` expected by the sub-program.
+#[doc(hidden)]
+pub trait ShortenResumes: MapResume {
+    /// Shorten all resume values in the coproduct from lifetime `'a` to `'b`.
+    fn shorten_resumes<'a: 'b, 'b>(resumes: Self::Output<'a>) -> Self::Output<'b>;
+}
+
+impl ShortenResumes for CNil {
+    #[inline]
+    fn shorten_resumes<'a: 'b, 'b>(resumes: CNil) -> CNil {
+        resumes
+    }
+}
+
+impl<H: CovariantResume, T: ShortenResumes + MapResume> ShortenResumes for Coproduct<H, T> {
+    #[inline]
+    fn shorten_resumes<'a: 'b, 'b>(
+        resumes: Coproduct<H::Resume<'a>, T::Output<'a>>,
+    ) -> Coproduct<H::Resume<'b>, T::Output<'b>> {
+        match resumes {
+            Coproduct::Inl(head) => Coproduct::Inl(H::shorten_resume(head)),
+            Coproduct::Inr(tail) => Coproduct::Inr(T::shorten_resumes(tail)),
+        }
+    }
 }
 
 /// Wraps an effect coproduct with a [`Start`] signal at the head.

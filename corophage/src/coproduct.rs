@@ -1,6 +1,6 @@
 use std::future::Future;
 
-pub use frunk_core::coproduct::{CNil, CoprodInjector, CoprodUninjector, Coproduct};
+pub use frunk_core::coproduct::{CNil, CoprodInjector, Coproduct};
 pub use frunk_core::hlist::{HCons, HNil};
 use frunk_core::indices::{Here, There};
 

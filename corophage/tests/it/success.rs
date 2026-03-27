@@ -9,10 +9,22 @@ impl Effect for Ask {
     type Resume<'r> = &'static str;
 }
 
+impl CovariantResume for Ask {
+    fn shorten_resume<'a: 'b, 'b>(resume: &'static str) -> &'static str {
+        resume
+    }
+}
+
 struct Counter;
 
 impl Effect for Counter {
     type Resume<'r> = u64;
+}
+
+impl CovariantResume for Counter {
+    fn shorten_resume<'a: 'b, 'b>(resume: u64) -> u64 {
+        resume
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -68,7 +80,7 @@ fn sync_ok_multiple_yields() {
     let result = sync::run_stateful(
         co,
         &mut state,
-        &mut hlist![|s: &mut u64, _: Counter| {
+        &hlist![|s: &mut u64, _: Counter| {
             *s += 1;
             Control::resume(*s)
         }],
@@ -113,7 +125,7 @@ fn sync_run_stateful_ok() {
     let result = sync::run_stateful(
         co,
         &mut state,
-        &mut hlist![|s: &mut u64, _: Counter| Control::resume(*s)],
+        &hlist![|s: &mut u64, _: Counter| Control::resume(*s)],
     );
 
     assert_eq!(result, Ok(10u64));
@@ -142,7 +154,7 @@ async fn async_run_stateful_ok() {
     let result = asynk::run_stateful(
         co,
         &mut state,
-        &mut hlist![async |s: &mut u64, _: Counter| {
+        &hlist![async |s: &mut u64, _: Counter| {
             *s += 10;
             Control::resume(*s)
         }],

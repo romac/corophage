@@ -8,8 +8,20 @@ impl Effect for Foo {
     type Resume<'r> = ();
 }
 
+impl CovariantResume for Foo {
+    fn shorten_resume<'a: 'b, 'b>(resume: ()) {
+        resume
+    }
+}
+
 impl Effect for Bar {
     type Resume<'r> = ();
+}
+
+impl CovariantResume for Bar {
+    fn shorten_resume<'a: 'b, 'b>(resume: ()) {
+        resume
+    }
 }
 
 type CoEffs = Effects![Foo, Bar];

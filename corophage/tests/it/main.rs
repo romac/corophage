@@ -7,6 +7,7 @@ mod invoke;
 mod non_static;
 mod proc_macros;
 mod program;
+mod repro_mut_borrow;
 mod resume;
 mod send;
 mod success;

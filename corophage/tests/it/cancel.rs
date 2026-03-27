@@ -8,16 +8,34 @@ impl Effect for Trigger {
     type Resume<'r> = Never;
 }
 
+impl CovariantResume for Trigger {
+    fn shorten_resume<'a: 'b, 'b>(resume: Never) -> Never {
+        match resume {}
+    }
+}
+
 struct Log(pub &'static str);
 
 impl Effect for Log {
     type Resume<'r> = ();
 }
 
+impl CovariantResume for Log {
+    fn shorten_resume<'a: 'b, 'b>(resume: ()) {
+        resume
+    }
+}
+
 struct Fetch(pub &'static str);
 
 impl Effect for Fetch {
     type Resume<'r> = String;
+}
+
+impl CovariantResume for Fetch {
+    fn shorten_resume<'a: 'b, 'b>(resume: String) -> String {
+        resume
+    }
 }
 
 #[test]
@@ -33,7 +51,7 @@ fn sync_early_cancel_no_side_effects() {
     let result = sync::run_stateful(
         co,
         &mut state,
-        &mut hlist![
+        &hlist![
             |_s: &mut Vec<&str>, _: Trigger| Control::cancel(),
             |s: &mut Vec<&str>, Log(m)| {
                 s.push(m);
@@ -84,7 +102,7 @@ fn sync_cancel_mid_pipeline() {
     let result = sync::run_stateful(
         co,
         &mut state,
-        &mut hlist![
+        &hlist![
             |_s: &mut Vec<String>, _: Trigger| Control::cancel(),
             |s: &mut Vec<String>, Log(m)| {
                 s.push(m.to_string());
@@ -113,7 +131,7 @@ fn sync_cancel_preserves_state_before_cancel() {
     let result = sync::run_stateful(
         co,
         &mut state,
-        &mut hlist![
+        &hlist![
             |s: &mut u64, _: Fetch| {
                 *s += 1;
                 Control::resume(String::new())
