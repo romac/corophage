@@ -21,9 +21,11 @@
 //!
 //! [stepwise]: https://share.unison-lang.org/@pchiusano/stepwise
 //!
-//! Run with: `cargo run --example stepwise`
+//! Run with: `cargo run --example debugger`
 
+use std::fmt::Display;
 use std::io::{self, BufRead, Write};
+use std::str::FromStr;
 
 use corophage::prelude::*;
 
@@ -32,16 +34,16 @@ use corophage::prelude::*;
 /// Pause the computation with a label and a value.
 ///
 /// The handler may inspect, replace, or simply pass through the value.
-/// The computation resumes with whatever `i64` the handler provides.
-#[effect(i64)]
-struct Pause {
+/// The computation resumes with whatever `T` the handler provides.
+#[effect(T)]
+struct Pause<T> {
     label: String,
-    value: i64,
+    value: T,
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-fn pause(label: &str, value: i64) -> Pause {
+fn pause<T>(label: &str, value: T) -> Pause<T> {
     Pause {
         label: label.into(),
         value,
@@ -58,7 +60,7 @@ fn pause(label: &str, value: i64) -> Pause {
 /// y = pause "y" (x + x + pause "what's this?" (99 + 1))
 /// x + y
 /// ```
-#[effectful(Pause)]
+#[effectful(Pause<i64>)]
 fn example_program() -> i64 {
     let x = yield_!(pause("x", 1 + 1));
     let inner = yield_!(pause("what's this?", 99 + 1));
@@ -71,10 +73,10 @@ fn example_program() -> i64 {
 /// What the debugger decided at a pause point.
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
-struct Decision {
+struct Decision<T> {
     label: String,
-    original: i64,
-    resumed: i64,
+    original: T,
+    resumed: T,
 }
 
 /// Debugger mode.
@@ -89,11 +91,11 @@ enum Mode {
 }
 
 /// Mutable state threaded through the handler.
-struct DebuggerState {
+struct DebuggerState<T> {
     /// Decisions from a prior run to replay automatically.
-    replay: Vec<Decision>,
+    replay: Vec<Decision<T>>,
     /// Decisions recorded during this run.
-    decisions: Vec<Decision>,
+    decisions: Vec<Decision<T>>,
     /// Current debugger mode.
     mode: Mode,
     /// Set to `true` when the user requests "back".
@@ -102,7 +104,11 @@ struct DebuggerState {
 
 // ── Handler ────────────────────────────────────────────────────────────────
 
-fn debugger_handler(state: &mut DebuggerState, effect: Pause) -> Control<i64> {
+fn debugger_handler<T>(state: &mut DebuggerState<T>, effect: Pause<T>) -> Control<T>
+where
+    T: Clone + Display + FromStr + PartialEq + Send + Sync,
+    <T as FromStr>::Err: Display,
+{
     let index = state.decisions.len();
 
     // Replay phase: auto-resume with the previously recorded value.
@@ -124,8 +130,8 @@ fn debugger_handler(state: &mut DebuggerState, effect: Pause) -> Control<i64> {
     if matches!(state.mode, Mode::Silent) {
         state.decisions.push(Decision {
             label: effect.label,
-            original: effect.value,
-            resumed: effect.value,
+            original: effect.value.clone(),
+            resumed: effect.value.clone(),
         });
         return Control::resume(effect.value);
     }
@@ -139,8 +145,8 @@ fn debugger_handler(state: &mut DebuggerState, effect: Pause) -> Control<i64> {
         println!();
         state.decisions.push(Decision {
             label: effect.label,
-            original: effect.value,
-            resumed: effect.value,
+            original: effect.value.clone(),
+            resumed: effect.value.clone(),
         });
         return Control::resume(effect.value);
     }
@@ -169,8 +175,8 @@ fn debugger_handler(state: &mut DebuggerState, effect: Pause) -> Control<i64> {
                 println!();
                 state.decisions.push(Decision {
                     label: effect.label,
-                    original: effect.value,
-                    resumed: effect.value,
+                    original: effect.value.clone(),
+                    resumed: effect.value.clone(),
                 });
                 return Control::resume(effect.value);
             }
@@ -188,8 +194,8 @@ fn debugger_handler(state: &mut DebuggerState, effect: Pause) -> Control<i64> {
                 state.mode = Mode::Go;
                 state.decisions.push(Decision {
                     label: effect.label,
-                    original: effect.value,
-                    resumed: effect.value,
+                    original: effect.value.clone(),
+                    resumed: effect.value.clone(),
                 });
                 return Control::resume(effect.value);
             }
@@ -199,8 +205,8 @@ fn debugger_handler(state: &mut DebuggerState, effect: Pause) -> Control<i64> {
                 state.mode = Mode::Silent;
                 state.decisions.push(Decision {
                     label: effect.label,
-                    original: effect.value,
-                    resumed: effect.value,
+                    original: effect.value.clone(),
+                    resumed: effect.value.clone(),
                 });
                 return Control::resume(effect.value);
             }
@@ -213,18 +219,18 @@ fn debugger_handler(state: &mut DebuggerState, effect: Pause) -> Control<i64> {
                 let mut val_input = String::new();
                 io::stdin().lock().read_line(&mut val_input).unwrap();
 
-                match val_input.trim().parse::<i64>() {
+                match val_input.trim().parse::<T>() {
                     Ok(new_val) => {
                         println!();
                         state.decisions.push(Decision {
                             label: effect.label,
                             original: effect.value,
-                            resumed: new_val,
+                            resumed: new_val.clone(),
                         });
                         return Control::resume(new_val);
                     }
-                    Err(_) => {
-                        println!("    Invalid number, try again.");
+                    Err(e) => {
+                        println!("    Invalid value: {e}, try again.");
                     }
                 }
             }
@@ -242,7 +248,7 @@ fn main() {
     println!("=== Stepwise Debugger ===");
     println!();
 
-    let mut replay: Vec<Decision> = Vec::new();
+    let mut replay: Vec<Decision<i64>> = Vec::new();
 
     loop {
         let mut state = DebuggerState {
