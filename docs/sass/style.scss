@@ -499,6 +499,95 @@ h6 {
   line-height: 1.6;
 }
 
+// Showcase examples
+.showcase-section {
+  padding: 2.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.showcase-inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  h2 {
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+    text-align: center;
+  }
+  > p {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    margin-bottom: 2rem;
+  }
+}
+
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+.showcase-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color 0.15s;
+  &:hover {
+    border-color: var(--text-subtle);
+  }
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--sand);
+    margin-bottom: 0;
+  }
+  > p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.65;
+    margin-bottom: 0;
+    flex: 1;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    margin: 0;
+  }
+}
+
+.showcase-card-links {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  a:not(.btn) {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    &:hover {
+      color: var(--text);
+    }
+  }
+  .btn {
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .showcase-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 // Acknowledgments
 .acknowledgments-section {
   padding: 2.5rem 1.5rem;

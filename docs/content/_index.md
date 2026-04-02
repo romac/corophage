@@ -349,6 +349,71 @@ assert_eq!(result, Ok(()));
 </div>
 </section>
 
+<section class="showcase-section">
+<div class="showcase-inner">
+
+## Real-world examples
+
+<p>See how corophage handles production-style problems.</p>
+
+<div class="showcase-grid">
+<div class="showcase-card">
+
+### Order processing saga
+
+A multi-step async workflow where each step is an effect. When a step fails, `Control::cancel()` halts the computation — the caller reads accumulated state and runs compensating rollbacks in reverse order.
+
+```rust
+let result = process_order(order)
+    .handle(handle_reserve)
+    .handle(handle_payment)
+    .handle(handle_confirmation)
+    .handle(handle_shipping)
+    .run_stateful(&mut state).await;
+
+match result {
+    Ok(summary)   => println!("done: {summary}"),
+    Err(_)        => state.compensate(),
+}
+```
+
+<div class="showcase-card-links">
+<a href="/docs/example-saga/" class="btn btn-secondary">Read more</a>
+<a href="https://github.com/romac/corophage/blob/main/corophage/examples/saga.rs">View source</a>
+</div>
+
+</div>
+<div class="showcase-card">
+
+### Stepwise debugger
+
+An interactive debugger — with rewind — built on a single `Pause` effect. The "back" command cancels the computation and replays it from scratch, stopping one step earlier. This works because effectful computations are deterministic given the same handler responses.
+
+```rust
+loop {
+    let result = example_program()
+        .handle(debugger_handler)
+        .run_sync_stateful(&mut state);
+
+    if state.went_back {
+        replay = state.decisions; // re-run one step earlier
+    } else {
+        break;
+    }
+}
+```
+
+<div class="showcase-card-links">
+<a href="/docs/example-debugger/" class="btn btn-secondary">Read more</a>
+<a href="https://github.com/romac/corophage/blob/main/corophage/examples/debugger.rs">View source</a>
+</div>
+
+</div>
+</div>
+
+</div>
+</section>
+
 <section class="cta-section">
 <div class="cta-inner">
 
