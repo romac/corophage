@@ -23,7 +23,7 @@ macros = ["dep:corophage-macros"]
 
 [dev-dependencies]
 divan = "0.1"
-tokio = { version = "1", default-features = false, features = ["macros", "rt", "time"] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt", "sync", "time"] }
 trybuild = "1"
 
 [[bench]]
