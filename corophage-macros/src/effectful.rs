@@ -168,11 +168,11 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     };
 
     let effects_type = match (effects.as_slice(), spread) {
-        ([], None) => quote! { ::frunk_core::coproduct::CNil },
+        ([], None) => quote! { ::corophage::Effects![] },
         (effects, None) => quote! { ::corophage::Effects![#(#effects),*] },
         (effects, Some(spread)) => {
             let spread = SpreadType(spread);
-            quote! { ::frunk_core::Coprod!(#(#effects,)* #spread) }
+            quote! { ::corophage::Effects![#(#effects,)* #spread] }
         }
     };
 

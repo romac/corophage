@@ -39,13 +39,13 @@ macro_rules! invoke {
 #[macro_export]
 macro_rules! Effects {
     [] => {
-        ::frunk_core::Coprod!()
+        $crate::__frunk_core::coproduct::CNil
     };
     [...$Rest:ty] => {
         $Rest
     };
     [$A:ty, $($tok:tt)*] => {
-        ::frunk_core::coproduct::Coproduct<$A, $crate::Effects![$($tok)*]>
+        $crate::__frunk_core::coproduct::Coproduct<$A, $crate::Effects![$($tok)*]>
     };
     [$A:ty] => {
         $crate::Effects![$A,]

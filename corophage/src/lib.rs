@@ -35,6 +35,9 @@ pub mod prelude;
 
 pub mod coroutine;
 
+#[doc(hidden)]
+pub use frunk_core as __frunk_core;
+
 pub use control::{Cancelled, Control};
 pub use coroutine::Yielder;
 pub use effect::Effect;
@@ -60,10 +63,10 @@ macro_rules! run {
                     let $effect = match effect {
                         // INVARIANT: Yielder::yield_ always wraps effects in Inr,
                         // so the Inl (Start) arm is never yielded after init.
-                        ::frunk_core::coproduct::Coproduct::Inl(_) => debug_unreachable!(
+                        $crate::__frunk_core::coproduct::Coproduct::Inl(_) => debug_unreachable!(
                             "Start (Inl) arm should never be yielded after initialization"
                         ),
-                        ::frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
+                        $crate::__frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
                     };
 
                     let resume: $crate::control::CoControl<$lt, $effs> = $handle;
@@ -74,7 +77,7 @@ macro_rules! run {
                         $crate::control::CoControl::Resume(r) => {
                             yielded = co
                                 .as_mut()
-                                .resume(::frunk_core::coproduct::Coproduct::Inr(r))
+                                .resume($crate::__frunk_core::coproduct::Coproduct::Inr(r))
                         }
                     }
                 }
