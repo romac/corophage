@@ -1,6 +1,7 @@
 mod asynk;
 mod cancel;
 mod common;
+#[cfg(not(miri))]
 mod downstream;
 mod error;
 mod gat_resume;
