@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.1 (2026-05-18)
+
+### Fixed
+
+- **Public macros no longer require downstream crates to depend on `frunk_core` directly** — `Effects!`, empty effect sets, spread-based `#[effectful]` signatures, and internal runner macro expansions now route through `corophage`'s hidden `frunk_core` re-export.
+
+### Added
+
+- **Expanded examples and website docs** — added saga-style order processing, stepwise debugger, and choreographic programming examples, plus website pages for the saga and debugger examples.
+
 ## v0.4.0 (2026-03-28)
 
 ### Fixed
