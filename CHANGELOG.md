@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`corophage::dyn_dispatch` — escape hatch for [rust-lang/rust#100013](https://github.com/rust-lang/rust/issues/100013)** — the default hlist dispatch cannot prove `Send` when ~20+ stateful async handlers run under `tokio::spawn`, because the recursive `AsyncFindHandlerWith` chain trips a higher-ranked lifetime inference bug. The new module bypasses the chain: users implement a single `EffectHandler::handle` method whose body is one `match` over the whole effect coproduct. Trade-off: one heap allocation per yielded effect, and resume values are constructed via a `resume::<_, E, _>(value)` helper instead of returning per-effect `Control<E::Resume<'a>>`.
+
+  New API: `EffectHandler` trait, `Program::run_dyn_stateful`, `match_effect!` macro (hides the `Coproduct::Inr(...)` cascade), `resume` helper, and `CoControl` (re-exported from `dyn_dispatch` only — deliberately not in the prelude, since it lets callers construct arbitrary resume coproducts).
+
 ## v0.4.1 (2026-05-18)
 
 ### Fixed

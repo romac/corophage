@@ -27,6 +27,8 @@ mod effect;
 mod locality;
 mod program;
 
+pub mod dyn_dispatch;
+
 #[macro_use]
 mod macros;
 
