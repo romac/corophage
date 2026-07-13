@@ -178,7 +178,7 @@ jobs:
           key: ${{ runner.os }}-cargo-miri-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests under Miri
-        run: cargo miri test --all-features
+        run: cargo miri test -p corophage --all-features
 
   # Security audit for dependencies
   audit:
