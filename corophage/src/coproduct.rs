@@ -447,14 +447,13 @@ pub trait ProjectResume<'a, SubEffs: MapResume, Indices> {
 }
 
 // Base case: when all sub-effects have been projected, any remaining outer
-// resume variants are unreachable (the handler only resumes at indices that
-// correspond to effects we actually yielded).
+// resume variants indicate an invalid projection. This trait is publicly
+// callable because it appears in Yielder::invoke's bounds, so keep the failure
+// checked even though correct internal dispatch never reaches it.
 impl<'a, OuterResumes> ProjectResume<'a, CNil, HNil> for OuterResumes {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn project(self) -> Resumes<'a, CNil> {
-        debug_unreachable!(
-            "ProjectResume: no sub-effect matched — handler resumed at an unexpected index"
-        )
+        panic!("ProjectResume: no sub-effect matched — handler resumed at an unexpected index")
     }
 }
 

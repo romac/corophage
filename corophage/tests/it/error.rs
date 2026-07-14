@@ -1,6 +1,7 @@
 use corophage::coroutine::Co;
 use corophage::prelude::*;
-use corophage::{asynk, sync};
+use corophage::{ProjectResume, asynk, sync};
+use frunk_core::coproduct::CNil;
 use frunk_core::hlist::{HCons, HNil};
 use frunk_core::indices::{Here, There};
 
@@ -57,6 +58,15 @@ fn mismatched_public_indices_panic() {
         co,
         &mut hlist![|_: Ask| Control::resume("answer")],
     );
+}
+
+#[test]
+fn empty_resume_projection_panics() {
+    fn project() -> CNil {
+        <u8 as ProjectResume<'static, CNil, HNil>>::project(1)
+    }
+
+    assert!(std::panic::catch_unwind(project).is_err());
 }
 
 // Section B: Single-effect coroutines

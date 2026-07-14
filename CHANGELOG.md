@@ -6,6 +6,8 @@
 
 - **Overlapping `Yielder` operations can no longer cause undefined behavior** — `yield_` and `invoke` now require exclusive `&mut self` access, so safe Rust rejects starting a second operation before awaiting the first. Manual `Program::new` and `Co::new` closures must bind their `Yielder` parameter as mutable. Incorrect explicit dispatch indices also produce a checked panic in release builds.
 
+- **Invalid resume projections no longer cause undefined behavior** — directly invoking the hidden `ProjectResume` helper with an unmatched resume now produces a checked panic in all build profiles.
+
 ## v0.4.1 (2026-05-18)
 
 ### Fixed
