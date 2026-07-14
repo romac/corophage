@@ -194,6 +194,8 @@ type AllEffects = Effects![Cancel, ...IoEffects];
 
 When you call `yield_!` (or `y.yield_(...).await` in the manual style), the computation pauses, the effect is handled, and execution resumes with the value provided by the handler.
 
+A `Yielder` supports one effect operation at a time. Await each `yield_` or `invoke` call before starting another; overlapping operations, such as passing two `yield_` futures to `join!`, panic because the underlying coroutine has a single resume slot.
+
 > [!NOTE]
 > Handlers can be attached in any order when using `Program::handle()`. The type system tracks which effects are still unhandled regardless of attachment order. However, handlers passed as an `hlist!` to the low-level `sync::run`/`asynk::run` functions must match the `Effects![...]` declaration order.
 

@@ -127,6 +127,8 @@ let program = Program::new(|y: Yielder<'_, Effs>| async move {
 
 When you `await` the result of `y.yield_(some_effect)`, the computation pauses, the effect is handled, and the `await` resolves to the value provided by the handler.
 
+A `Yielder` supports one effect operation at a time. Await each `yield_` or `invoke` call before starting another; overlapping operations, such as passing two `yield_` futures to `join!`, panic because the underlying coroutine has a single resume slot.
+
 ## Attaching handlers
 
 Handlers are attached one at a time with `.handle()`. Handlers can be attached in any order — the type system tracks which effects remain unhandled.

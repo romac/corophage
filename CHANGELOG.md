@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Overlapping `Yielder` operations no longer cause undefined behavior** — starting a second `yield_` or `invoke` operation before awaiting the first now panics instead of corrupting fauxgen's single resume slot. Incorrect explicit dispatch indices also produce a checked panic in release builds.
+
 ## v0.4.1 (2026-05-18)
 
 ### Fixed

@@ -1,6 +1,8 @@
 use corophage::coroutine::Co;
 use corophage::prelude::*;
 use corophage::{asynk, sync};
+use frunk_core::hlist::{HCons, HNil};
+use frunk_core::indices::{Here, There};
 
 // Section A: Cancelled trait tests
 
@@ -38,6 +40,31 @@ fn cancelled_copy_and_eq() {
     let a = Cancelled;
     let b = a; // Copy
     assert_eq!(a, b); // PartialEq
+}
+
+#[test]
+#[should_panic(expected = "overlapping Yielder operations are not supported")]
+fn overlapping_effect_operations_panic() {
+    let co: Co<'_, AskEffects, ()> = Co::new(|yielder| async move {
+        let _ = tokio::join!(yielder.yield_(Ask("first")), yielder.yield_(Ask("second")),);
+    });
+
+    let _ = sync::run(co, &mut hlist![|_: Ask| Control::resume("answer")]);
+}
+
+#[test]
+#[should_panic(expected = "handler resumed at the wrong effect index")]
+fn mismatched_public_indices_panic() {
+    type DuplicateAskEffects = Effects![Ask, Ask];
+    type MismatchedDispatchIndices = HCons<(Here, Here), HCons<(Here, Here), HNil>>;
+
+    let co: Co<'_, DuplicateAskEffects, &'static str> =
+        Co::new(|yielder| async move { yielder.yield_::<Ask, There<Here>>(Ask("second")).await });
+
+    let _ = sync::run::<_, _, _, _, MismatchedDispatchIndices>(
+        co,
+        &mut hlist![|_: Ask| Control::resume("answer")],
+    );
 }
 
 // Section B: Single-effect coroutines
