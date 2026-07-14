@@ -33,7 +33,7 @@ fn same_resume() {
     }
 
     pub fn co() -> Co<'static, CoEffs, ()> {
-        Co::new(|y| async move {
+        Co::new(|mut y| async move {
             y.yield_(Foo).await;
             y.yield_(Bar).await;
         })

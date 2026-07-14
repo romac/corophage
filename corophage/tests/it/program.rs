@@ -25,7 +25,7 @@ impl Effect for Counter {
 fn sync_builder_style() {
     type Effs = Effects![Counter, Ask];
 
-    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
@@ -41,7 +41,7 @@ fn sync_builder_style() {
 fn sync_free_function_style() {
     type Effs = Effects![Counter, Ask];
 
-    let p = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let p = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
@@ -60,7 +60,7 @@ fn sync_single_effect() {
 
     let result =
         Program::new(
-            |yielder: Yielder<'_, Effs>| async move { yielder.yield_(Ask("hello")).await },
+            |mut yielder: Yielder<'_, Effs>| async move { yielder.yield_(Ask("hello")).await },
         )
         .handle(|_: Ask| Control::resume("world"))
         .run_sync();
@@ -84,9 +84,11 @@ fn sync_cancel() {
     type Effs = Effects![Ask];
 
     let result =
-        Program::new(|yielder: Yielder<'_, Effs>| async move { yielder.yield_(Ask("q")).await })
-            .handle(|_: Ask| Control::<&'static str>::cancel())
-            .run_sync();
+        Program::new(
+            |mut yielder: Yielder<'_, Effs>| async move { yielder.yield_(Ask("q")).await },
+        )
+        .handle(|_: Ask| Control::<&'static str>::cancel())
+        .run_sync();
 
     assert_eq!(result, Err(Cancelled));
 }
@@ -96,7 +98,7 @@ fn sync_cancel() {
 async fn async_builder_style() {
     type Effs = Effects![Counter, Ask];
 
-    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
@@ -114,7 +116,7 @@ async fn async_builder_style() {
 async fn async_free_function_style() {
     type Effs = Effects![Counter, Ask];
 
-    let p = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let p = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
@@ -132,7 +134,7 @@ fn sync_run_stateful_state() {
     type Effs = Effects![Counter];
 
     let mut state: u64 = 0;
-    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         let a = yielder.yield_(Counter).await;
         let b = yielder.yield_(Counter).await;
         a + b
@@ -154,7 +156,7 @@ async fn async_run_stateful_state() {
 
     let mut state: u64 = 5;
     let result =
-        Program::new(|yielder: Yielder<'_, Effs>| async move { yielder.yield_(Counter).await })
+        Program::new(|mut yielder: Yielder<'_, Effs>| async move { yielder.yield_(Counter).await })
             .handle(async |s: &mut u64, _: Counter| {
                 *s += 10;
                 Control::resume(*s)
@@ -187,7 +189,7 @@ fn handle_multiple() {
         |_: Ask| Control::resume("yes")
     ];
 
-    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
@@ -221,7 +223,7 @@ async fn async_handle_multiple() {
         async |_: Ask| { Control::resume("yes") },
     ];
 
-    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
         (answer, n)
@@ -248,7 +250,7 @@ fn sync_out_of_order_handlers() {
 
     type Effs = Effects![Other, Counter, Ask];
 
-    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         yielder.yield_(Other).await;
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
@@ -277,7 +279,7 @@ async fn async_out_of_order_handlers() {
 
     type Effs = Effects![Other, Counter, Ask];
 
-    let result = Program::new(|yielder: Yielder<'_, Effs>| async move {
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
         yielder.yield_(Other).await;
         let n = yielder.yield_(Counter).await;
         let answer = yielder.yield_(Ask("question")).await;
@@ -294,7 +296,7 @@ async fn async_out_of_order_handlers() {
 
 #[test]
 fn sync_turbofish_effects() {
-    let result = Program::new::<Effects![Counter, Ask], _>(|y| async move {
+    let result = Program::new::<Effects![Counter, Ask], _>(|mut y| async move {
         let n = y.yield_(Counter).await;
         let answer = y.yield_(Ask("question")).await;
         (answer, n)
@@ -313,7 +315,7 @@ fn from_co() {
     type Effs = Effects![Ask];
 
     let co: Co<'_, Effs, &'static str> =
-        Co::new(|yielder| async move { yielder.yield_(Ask("hello")).await });
+        Co::new(|mut yielder| async move { yielder.yield_(Ask("hello")).await });
 
     let result = Program::from_co(co)
         .handle(|_: Ask| Control::resume("world"))

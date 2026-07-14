@@ -10,7 +10,6 @@
 use std::future::Future;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use fauxgen::__private::SyncGenerator;
 use fauxgen::Generator;
@@ -141,23 +140,14 @@ where
 /// Handle passed to computation closures for yielding effects.
 ///
 /// Use [`yield_`](Yielder::yield_) to perform an effect and receive the handler's
-/// resume value.
+/// resume value. Effect operations require exclusive access, so safe Rust cannot
+/// start another [`yield_`](Yielder::yield_) or [`invoke`](Yielder::invoke) call
+/// while one is still in flight.
 pub struct Yielder<'a, Effs>
 where
     Effs: MapResume,
 {
     token: GeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>,
-    operation_in_flight: AtomicBool,
-}
-
-struct OperationGuard<'a> {
-    operation_in_flight: &'a AtomicBool,
-}
-
-impl Drop for OperationGuard<'_> {
-    fn drop(&mut self) {
-        self.operation_in_flight.store(false, Ordering::Release);
-    }
 }
 
 impl<'a, Effs> Yielder<'a, Effs>
@@ -166,39 +156,19 @@ where
 {
     #[inline]
     fn new(token: GeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>) -> Self {
-        Self {
-            token,
-            operation_in_flight: AtomicBool::new(false),
-        }
-    }
-
-    #[inline]
-    fn begin_operation(&self) -> OperationGuard<'_> {
-        if self.operation_in_flight.swap(true, Ordering::AcqRel) {
-            panic!("overlapping Yielder operations are not supported");
-        }
-
-        OperationGuard {
-            operation_in_flight: &self.operation_in_flight,
-        }
+        Self { token }
     }
 
     /// Yield an effect to the handler and suspend until resumed.
     ///
     /// Returns the resume value provided by the handler for this effect.
-    ///
-    /// # Panics
-    ///
-    /// Panics if another [`Yielder`] operation is still in flight. Await each
-    /// call to `yield_` or [`invoke`](Yielder::invoke) before starting another.
     #[inline]
-    pub async fn yield_<E, Index>(&self, effect: E) -> E::Resume<'a>
+    pub async fn yield_<E, Index>(&mut self, effect: E) -> E::Resume<'a>
     where
         E: Effect,
         Effs: CoprodInjector<E, Index>,
         <Effs as MapResume>::Output<'a>: CoprodUninjector<E::Resume<'a>, Index>,
     {
-        let _operation = self.begin_operation();
         let resume = self
             .token
             .yield_(Coproduct::Inr(Effs::inject(effect)))
@@ -238,14 +208,9 @@ where
     /// This allows sequential invocations that borrow from the same mutable reference,
     /// since each invocation only borrows for its own duration rather than for the
     /// entire outer computation lifetime.
-    ///
-    /// # Panics
-    ///
-    /// Panics if another [`Yielder`] operation is still in flight. Await each
-    /// call to `invoke` or [`yield_`](Yielder::yield_) before starting another.
     #[inline]
     pub async fn invoke<'b, SubEffs, R, L, Indices>(
-        &self,
+        &mut self,
         program: Effectful<'b, SubEffs, R, L>,
     ) -> R
     where
@@ -254,7 +219,6 @@ where
         Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
         L: Locality,
     {
-        let _operation = self.begin_operation();
         let mut co = std::pin::pin!(program.co);
         let mut yielded = co.as_mut().resume_with(Start);
 

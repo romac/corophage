@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `yielder` as mutable more than once at a time
+  --> tests/compile_fail/overlapping_yielder_operations.rs:12:22
+   |
+11 |         let first = yielder.yield_(Ask("first"));
+   |                     ------- first mutable borrow occurs here
+12 |         let second = yielder.yield_(Ask("second"));
+   |                      ^^^^^^^ second mutable borrow occurs here
+13 |         let _ = (first.await, second.await);
+   |                  ----- first borrow later used here

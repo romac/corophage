@@ -517,7 +517,7 @@ type ExtendedEffs = Effects![GetConfig, ...BaseEffs];
 
 #[test]
 fn test_effects_macro_spread() {
-    let result = Program::new(|y: Yielder<'_, ExtendedEffs>| async move {
+    let result = Program::new(|mut y: Yielder<'_, ExtendedEffs>| async move {
         let config = y.yield_(GetConfig).await;
         let answer = y.yield_(Ask(42)).await;
         format!("{config}: {answer}")

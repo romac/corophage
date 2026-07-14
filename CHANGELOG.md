@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Overlapping `Yielder` operations no longer cause undefined behavior** — starting a second `yield_` or `invoke` operation before awaiting the first now panics instead of corrupting fauxgen's single resume slot. Incorrect explicit dispatch indices also produce a checked panic in release builds.
+- **Overlapping `Yielder` operations can no longer cause undefined behavior** — `yield_` and `invoke` now require exclusive `&mut self` access, so safe Rust rejects starting a second operation before awaiting the first. Manual `Program::new` and `Co::new` closures must bind their `Yielder` parameter as mutable. Incorrect explicit dispatch indices also produce a checked panic in release builds.
 
 ## v0.4.1 (2026-05-18)
 

@@ -33,7 +33,7 @@ struct Report {
 fn sync_ok_unit_return() {
     type Effs = Effects![Ask];
 
-    let co: Co<'_, Effs, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, ()> = Co::new(|mut yielder| async move {
         let _: &'static str = yielder.yield_(Ask("q")).await;
     });
 
@@ -46,7 +46,7 @@ fn sync_ok_value_return() {
     type Effs = Effects![Ask];
 
     let co: Co<'_, Effs, &'static str> =
-        Co::new(|yielder| async move { yielder.yield_(Ask("the question")).await });
+        Co::new(|mut yielder| async move { yielder.yield_(Ask("the question")).await });
 
     let result = sync::run(co, &mut hlist![|Ask(_)| Control::resume("42")]);
     assert_eq!(result, Ok("42"));
@@ -66,7 +66,7 @@ fn sync_ok_no_yields() {
 fn sync_ok_multiple_yields() {
     type Effs = Effects![Counter];
 
-    let co: Co<'_, Effs, u64> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, u64> = Co::new(|mut yielder| async move {
         let a = yielder.yield_(Counter).await;
         let b = yielder.yield_(Counter).await;
         a + b
@@ -90,7 +90,7 @@ fn sync_ok_multiple_yields() {
 fn sync_ok_struct_return() {
     type Effs = Effects![Counter, Ask];
 
-    let co: Co<'_, Effs, Report> = Co::new(|yielder| async move {
+    let co: Co<'_, Effs, Report> = Co::new(|mut yielder| async move {
         let n = yielder.yield_(Counter).await;
         let label = yielder.yield_(Ask("tag")).await;
         Report { count: n, label }
@@ -115,7 +115,7 @@ fn sync_ok_struct_return() {
 fn sync_run_stateful_ok() {
     type Effs = Effects![Counter];
 
-    let co: Co<'_, Effs, u64> = Co::new(|yielder| async move { yielder.yield_(Counter).await });
+    let co: Co<'_, Effs, u64> = Co::new(|mut yielder| async move { yielder.yield_(Counter).await });
 
     let mut state: u64 = 10;
     let result = sync::run_stateful(
@@ -133,7 +133,7 @@ async fn async_ok_value_return() {
     type Effs = Effects![Ask];
 
     let co: Co<'_, Effs, &'static str> =
-        Co::new(|yielder| async move { yielder.yield_(Ask("async")).await });
+        Co::new(|mut yielder| async move { yielder.yield_(Ask("async")).await });
 
     let result = asynk::run(co, &mut hlist![async |_: Ask| Control::resume("done")]).await;
     assert_eq!(result, Ok("done"));
@@ -144,7 +144,7 @@ async fn async_ok_value_return() {
 async fn async_run_stateful_ok() {
     type Effs = Effects![Counter];
 
-    let co: Co<'_, Effs, u64> = Co::new(|yielder| async move { yielder.yield_(Counter).await });
+    let co: Co<'_, Effs, u64> = Co::new(|mut yielder| async move { yielder.yield_(Counter).await });
 
     let mut state: u64 = 5;
     let result = asynk::run_stateful(

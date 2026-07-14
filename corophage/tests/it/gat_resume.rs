@@ -43,7 +43,7 @@ fn sync_gat_resume_borrows_local_data() {
     let config_ref = config_data.as_str();
     let log_ref = log_msg.as_str();
 
-    let co: Co<'_, Effs<'_>, String> = Co::new(move |y| async move {
+    let co: Co<'_, Effs<'_>, String> = Co::new(move |mut y| async move {
         let config: &str = y.yield_(GetConfig).await;
         y.yield_(Log(log_ref)).await;
         config.to_owned()
@@ -73,7 +73,7 @@ fn sync_gat_resume_with_stateful_handler() {
     let config_ref = config_data.as_str();
     let log_ref = log_msg.as_str();
 
-    let co: Co<'_, Effs<'_>, String> = Co::new(move |y| async move {
+    let co: Co<'_, Effs<'_>, String> = Co::new(move |mut y| async move {
         let c1: &str = y.yield_(GetConfig).await;
         y.yield_(Log(log_ref)).await;
         let c2: &str = y.yield_(GetConfig).await;
@@ -110,7 +110,7 @@ async fn async_gat_resume_borrows_local_data() {
     let config_ref = config_data.as_str();
     let log_ref = log_msg.as_str();
 
-    let co: Co<'_, Effs<'_>, String> = Co::new(move |y| async move {
+    let co: Co<'_, Effs<'_>, String> = Co::new(move |mut y| async move {
         let config: &str = y.yield_(GetConfig).await;
         y.yield_(Log(log_ref)).await;
         config.to_owned()
@@ -168,7 +168,7 @@ fn sync_gat_resume_borrows_from_effect() {
 
     let co: Co<'_, Effs<'_>, String> = Co::new({
         let map = &map;
-        move |y| async move {
+        move |mut y| async move {
             let host: &str = y
                 .yield_(Lookup {
                     map,
@@ -208,7 +208,7 @@ fn sync_gat_resume_borrows_from_effect_with_state() {
 
     let co: Co<'_, Effs<'_>, String> = Co::new({
         let map = &map;
-        move |y| async move {
+        move |mut y| async move {
             let url: &str = y.yield_(Lookup { map, key: "url" }).await;
             let token: &str = y.yield_(Lookup { map, key: "token" }).await;
             format!("{url}?token={token}")

@@ -43,23 +43,15 @@ fn cancelled_copy_and_eq() {
 }
 
 #[test]
-#[should_panic(expected = "overlapping Yielder operations are not supported")]
-fn overlapping_effect_operations_panic() {
-    let co: Co<'_, AskEffects, ()> = Co::new(|yielder| async move {
-        let _ = tokio::join!(yielder.yield_(Ask("first")), yielder.yield_(Ask("second")),);
-    });
-
-    let _ = sync::run(co, &mut hlist![|_: Ask| Control::resume("answer")]);
-}
-
-#[test]
 #[should_panic(expected = "handler resumed at the wrong effect index")]
 fn mismatched_public_indices_panic() {
     type DuplicateAskEffects = Effects![Ask, Ask];
     type MismatchedDispatchIndices = HCons<(Here, Here), HCons<(Here, Here), HNil>>;
 
     let co: Co<'_, DuplicateAskEffects, &'static str> =
-        Co::new(|yielder| async move { yielder.yield_::<Ask, There<Here>>(Ask("second")).await });
+        Co::new(
+            |mut yielder| async move { yielder.yield_::<Ask, There<Here>>(Ask("second")).await },
+        );
 
     let _ = sync::run::<_, _, _, _, MismatchedDispatchIndices>(
         co,
@@ -84,7 +76,7 @@ type AskEffects = Effects![Ask];
 #[test]
 fn sync_single_effect_resume() {
     let co: Co<'_, AskEffects, &'static str> =
-        Co::new(|yielder| async move { yielder.yield_(Ask("q")).await });
+        Co::new(|mut yielder| async move { yielder.yield_(Ask("q")).await });
 
     let result = sync::run(co, &mut hlist![|Ask(_)| Control::resume("42")]);
     assert_eq!(result, Ok("42"));
@@ -92,7 +84,7 @@ fn sync_single_effect_resume() {
 
 #[test]
 fn sync_single_effect_cancel() {
-    let co: Co<'_, AskEffects, &'static str> = Co::new(|yielder| async move {
+    let co: Co<'_, AskEffects, &'static str> = Co::new(|mut yielder| async move {
         yielder.yield_(Ask("forbidden")).await;
         "unreachable"
     });
@@ -104,7 +96,7 @@ fn sync_single_effect_cancel() {
 #[test]
 fn sync_single_effect_multiple_yields() {
     let co: Co<'_, AskEffects, (&'static str, &'static str, &'static str)> =
-        Co::new(|yielder| async move {
+        Co::new(|mut yielder| async move {
             let a = yielder.yield_(Ask("q1")).await;
             let b = yielder.yield_(Ask("q2")).await;
             let c = yielder.yield_(Ask("q3")).await;
@@ -131,7 +123,7 @@ fn sync_single_effect_multiple_yields() {
 
 #[test]
 fn sync_handler_accumulates_effects() {
-    let co: Co<'_, AskEffects, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, AskEffects, ()> = Co::new(|mut yielder| async move {
         yielder.yield_(Ask("q1")).await;
         yielder.yield_(Ask("q2")).await;
         yielder.yield_(Ask("q3")).await;
@@ -156,7 +148,7 @@ async fn async_single_effect_with_real_sleep() {
     use std::time::Duration;
 
     let co: Co<'_, AskEffects, &'static str> =
-        Co::new(|yielder| async move { yielder.yield_(Ask("q")).await });
+        Co::new(|mut yielder| async move { yielder.yield_(Ask("q")).await });
 
     let result = asynk::run(
         co,
@@ -177,7 +169,7 @@ async fn async_handler_accumulates_via_refcell() {
 
     let log: RefCell<Vec<&str>> = RefCell::new(vec![]);
 
-    let co: Co<'_, AskEffects, ()> = Co::new(|yielder| async move {
+    let co: Co<'_, AskEffects, ()> = Co::new(|mut yielder| async move {
         yielder.yield_(Ask("a")).await;
         yielder.yield_(Ask("b")).await;
     });

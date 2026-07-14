@@ -9,7 +9,7 @@ fn assert_send<T: Send>(_: &T) {}
 #[test]
 fn co_send_is_send() {
     fn co() -> CoSend<'static, Effects![FileRead], String> {
-        CoSend::new(|y| async move { y.yield_(FileRead("test".to_string())).await })
+        CoSend::new(|mut y| async move { y.yield_(FileRead("test".to_string())).await })
     }
 
     let co = co();
@@ -20,7 +20,7 @@ fn co_send_is_send() {
 #[cfg_attr(miri, ignore)]
 async fn co_send_can_be_spawned() {
     fn co() -> CoSend<'static, Effects![FileRead], String> {
-        CoSend::new(|y| async move { y.yield_(FileRead("test".to_string())).await })
+        CoSend::new(|mut y| async move { y.yield_(FileRead("test".to_string())).await })
     }
 
     let handle = tokio::spawn(async move {

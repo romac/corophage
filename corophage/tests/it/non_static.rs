@@ -23,7 +23,7 @@ fn sync_non_static_log() {
     let msg = String::from("hello from a local string");
     let msg_ref = msg.as_str();
 
-    let co: Co<'_, Effs<'_>, ()> = Co::new(move |y| async move {
+    let co: Co<'_, Effs<'_>, ()> = Co::new(move |mut y| async move {
         y.yield_(Log(msg_ref)).await;
     });
 
@@ -48,7 +48,7 @@ fn sync_non_static_log_with_state() {
     let msg = String::from("stateful hello");
     let msg_ref = msg.as_str();
 
-    let co: Co<'_, Effs<'_>, ()> = Co::new(move |y| async move {
+    let co: Co<'_, Effs<'_>, ()> = Co::new(move |mut y| async move {
         y.yield_(Log(msg_ref)).await;
         y.yield_(Log(msg_ref)).await;
     });
@@ -76,7 +76,7 @@ async fn async_non_static_log() {
     let msg = String::from("async hello");
     let msg_ref = msg.as_str();
 
-    let co: Co<'_, Effs<'_>, ()> = Co::new(move |y| async move {
+    let co: Co<'_, Effs<'_>, ()> = Co::new(move |mut y| async move {
         y.yield_(Log(msg_ref)).await;
     });
 

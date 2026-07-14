@@ -38,7 +38,7 @@ use corophage::prelude::*;
 type MyEffects = Effects![Log, FileRead, GetState, SetState];
 
 // This describes WHAT to do, not HOW.
-let result = Program::new(|y: Yielder<'_, MyEffects>| async move {
+let result = Program::new(|mut y: Yielder<'_, MyEffects>| async move {
     y.yield_(Log("Starting...")).await;
     let config = y.yield_(FileRead("config.toml")).await;
     let state = y.yield_(GetState).await;
@@ -173,7 +173,7 @@ use corophage::prelude::*;
 
 type Effs = Effects![Log<'static>, FileRead];
 
-let result = Program::new(|y: Yielder<'_, Effs>| async move {
+let result = Program::new(|mut y: Yielder<'_, Effs>| async move {
     y.yield_(Log("fetching...")).await;
     y.yield_(FileRead("data.txt".to_string())).await
 })
@@ -194,7 +194,7 @@ type AllEffects = Effects![Cancel, ...IoEffects];
 
 When you call `yield_!` (or `y.yield_(...).await` in the manual style), the computation pauses, the effect is handled, and execution resumes with the value provided by the handler.
 
-A `Yielder` supports one effect operation at a time. Await each `yield_` or `invoke` call before starting another; overlapping operations, such as passing two `yield_` futures to `join!`, panic because the underlying coroutine has a single resume slot.
+A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another.
 
 > [!NOTE]
 > Handlers can be attached in any order when using `Program::handle()`. The type system tracks which effects are still unhandled regardless of attachment order. However, handlers passed as an `hlist!` to the low-level `sync::run`/`asynk::run` functions must match the `Effects![...]` declaration order.
@@ -227,7 +227,7 @@ Handlers can share mutable state via `run_sync_stateful` / `run_stateful`. The s
 ```rust,ignore
 let mut count: u64 = 0;
 
-let result = Program::new(|y: Yielder<'_, Effects![Counter]>| async move {
+let result = Program::new(|mut y: Yielder<'_, Effects![Counter]>| async move {
     let a = y.yield_(Counter).await;
     let b = y.yield_(Counter).await;
     a + b
@@ -286,7 +286,7 @@ assert_eq!(result, Ok(()));
 With the manual `Program::new` API, use `y.invoke(program).await`:
 
 ```rust,ignore
-let result = Program::new(|y: Yielder<'_, Effects![Ask, Print, Log]>| async move {
+let result = Program::new(|mut y: Yielder<'_, Effects![Ask, Print, Log]>| async move {
     y.yield_(Log("Starting...")).await;
     y.invoke(greet()).await;
     y.yield_(Log("Done!")).await;
@@ -308,7 +308,7 @@ use corophage::{Co, CoSend, sync, Control};
 use corophage::prelude::*;
 
 // Co — the computation type (not Send)
-let co: Co<'_, Effects![FileRead], String> = Co::new(|y| async move {
+let co: Co<'_, Effects![FileRead], String> = Co::new(|mut y| async move {
     y.yield_(FileRead("data.txt".to_string())).await
 });
 
@@ -325,7 +325,7 @@ let result = Program::from_co(co).handle(/* ... */).run_sync();
 
 ```rust,ignore
 fn my_computation() -> CoSend<'static, Effects![FileRead], String> {
-    CoSend::new(|y| async move {
+    CoSend::new(|mut y| async move {
         y.yield_(FileRead("test".to_string())).await
     })
 }
@@ -357,7 +357,7 @@ impl<'a> Effect for Log<'a> {
 let msg = String::from("hello from a local string");
 let msg_ref = msg.as_str();
 
-let result = Program::new(move |y: Yielder<'_, Effects![Log<'_>]>| async move {
+let result = Program::new(move |mut y: Yielder<'_, Effects![Log<'_>]>| async move {
     y.yield_(Log(msg_ref)).await;
 })
 .handle(|Log(m)| { println!("{m}"); Control::resume(()) })
@@ -392,7 +392,7 @@ let map = HashMap::from([
 
 let result = Program::new({
     let map = &map;
-    move |y: Yielder<'_, Effects![Lookup<'_>]>| async move {
+    move |mut y: Yielder<'_, Effects![Lookup<'_>]>| async move {
         let host: &str = y.yield_(Lookup { map, key: "host" }).await;
         let port: &str = y.yield_(Lookup { map, key: "port" }).await;
         format!("{host}:{port}")

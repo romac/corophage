@@ -121,7 +121,7 @@ You can also create programs directly with `Program::new` instead of `#[effectfu
 ```rust
 type MyEffects = Effects![Log, FileRead];
 
-let program = Program::new(|y: Yielder<'_, MyEffects>| async move {
+let program = Program::new(|mut y: Yielder<'_, MyEffects>| async move {
     y.yield_(Log("Starting...".into())).await;
     let config = y.yield_(FileRead("config.toml".into())).await;
     config

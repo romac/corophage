@@ -22,7 +22,7 @@ impl State {
 // Test 1: Direct yields work fine with &mut
 // ============================================================
 fn process_direct<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], ()> {
-    Program::new(move |y: Yielder<'_, Effects![DoWork]>| async move {
+    Program::new(move |mut y: Yielder<'_, Effects![DoWork]>| async move {
         state.do_something();
         y.yield_(DoWork).await;
         state.do_something();
@@ -78,14 +78,14 @@ fn test_invoke_with_mut_ref() {
 // ============================================================
 
 fn sub_fn_manual<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], ()> {
-    Program::new(move |y: Yielder<'_, Effects![DoWork]>| async move {
+    Program::new(move |mut y: Yielder<'_, Effects![DoWork]>| async move {
         state.do_something();
         y.yield_(DoWork).await;
     })
 }
 
 fn process_manual<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], ()> {
-    Program::new(move |y: Yielder<'_, Effects![DoWork]>| async move {
+    Program::new(move |mut y: Yielder<'_, Effects![DoWork]>| async move {
         y.invoke(sub_fn_manual(state)).await;
         state.do_something();
         y.invoke(sub_fn_manual(state)).await;
@@ -142,16 +142,16 @@ fn test_invoke_with_question_mark_and_mut_ref() {
 // Test 5: Inline sub-function approach (always worked)
 // ============================================================
 
-async fn sub_fn_inline(y: &Yielder<'_, Effects![DoWork]>, state: &mut State) {
+async fn sub_fn_inline(y: &mut Yielder<'_, Effects![DoWork]>, state: &mut State) {
     state.do_something();
     y.yield_(DoWork).await;
 }
 
 fn process_inline<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], ()> {
-    Program::new(move |y: Yielder<'_, Effects![DoWork]>| async move {
-        sub_fn_inline(&y, state).await;
+    Program::new(move |mut y: Yielder<'_, Effects![DoWork]>| async move {
+        sub_fn_inline(&mut y, state).await;
         state.do_something();
-        sub_fn_inline(&y, state).await;
+        sub_fn_inline(&mut y, state).await;
     })
 }
 

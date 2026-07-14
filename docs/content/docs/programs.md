@@ -118,7 +118,7 @@ struct Counter;
 
 type Effs = Effects![Log, Counter];
 
-let program = Program::new(|y: Yielder<'_, Effs>| async move {
+let program = Program::new(|mut y: Yielder<'_, Effs>| async move {
     y.yield_(Log("hello".into())).await;
     let n = y.yield_(Counter).await;
     n * 2
@@ -127,7 +127,7 @@ let program = Program::new(|y: Yielder<'_, Effs>| async move {
 
 When you `await` the result of `y.yield_(some_effect)`, the computation pauses, the effect is handled, and the `await` resolves to the value provided by the handler.
 
-A `Yielder` supports one effect operation at a time. Await each `yield_` or `invoke` call before starting another; overlapping operations, such as passing two `yield_` futures to `join!`, panic because the underlying coroutine has a single resume slot.
+A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another.
 
 ## Attaching handlers
 
@@ -227,7 +227,7 @@ assert_eq!(result, Ok(()));
 With the manual `Program::new` API, use `y.invoke(program).await`:
 
 ```rust
-let result = Program::new(|y: Yielder<'_, Effects![Ask, Print, Log]>| async move {
+let result = Program::new(|mut y: Yielder<'_, Effects![Ask, Print, Log]>| async move {
     y.yield_(Log("Starting...")).await;
     y.invoke(greet()).await;
     y.yield_(Log("Done!")).await;
@@ -262,7 +262,7 @@ tokio::spawn(async move {
 Or with the manual API:
 
 ```rust
-let program = Program::new_send(|y: Yielder<'_, Effs>| async move {
+let program = Program::new_send(|mut y: Yielder<'_, Effs>| async move {
     y.yield_(Counter).await
 });
 

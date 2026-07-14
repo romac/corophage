@@ -23,7 +23,7 @@ use crate::locality::{Local, Locality, Sendable};
 /// type MyEffs = Effects![Counter, Ask];
 ///
 /// fn my_computation<'a>() -> Effectful<'a, MyEffs, String> {
-///     Program::new(|y: Yielder<'_, MyEffs>| async move {
+///     Program::new(|mut y: Yielder<'_, MyEffs>| async move {
 ///         // ...
 ///         "result".to_string()
 ///     })
@@ -55,10 +55,10 @@ impl<'a, Result> Program<'a, CNil, Result, Local, CNil, HNil> {
     ///
     /// ```ignore
     /// // With closure annotation:
-    /// Program::new(|y: Yielder<'_, Effs>| async move { ... })
+    /// Program::new(|mut y: Yielder<'_, Effs>| async move { ... })
     ///
     /// // With turbofish:
-    /// Program::new::<Effects![Counter, Ask], _>(|y| async move { ... })
+    /// Program::new::<Effects![Counter, Ask], _>(|mut y| async move { ... })
     /// ```
     pub fn new<Effs, F>(
         f: impl FnOnce(Yielder<'a, Effs>) -> F + 'a,
@@ -79,10 +79,10 @@ impl<'a, Result> Program<'a, CNil, Result, Sendable, CNil, HNil> {
     ///
     /// ```ignore
     /// // With closure annotation:
-    /// Program::new_send(|y: Yielder<'_, Effs>| async move { ... })
+    /// Program::new_send(|mut y: Yielder<'_, Effs>| async move { ... })
     ///
     /// // With turbofish:
-    /// Program::new_send::<Effects![Counter, Ask], _>(|y| async move { ... })
+    /// Program::new_send::<Effects![Counter, Ask], _>(|mut y| async move { ... })
     /// ```
     pub fn new_send<Effs, F>(
         f: impl FnOnce(Yielder<'a, Effs>) -> F + Send + 'a,

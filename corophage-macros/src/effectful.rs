@@ -204,7 +204,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
     let new_body: syn::Block = syn::parse2(quote! {
         {
-            #program_constructor(move |__y: ::corophage::Yielder<'_, #effects_type>| async move {
+            #program_constructor(move |mut __y: ::corophage::Yielder<'_, #effects_type>| async move {
                 #[allow(unused_macros)]
                 macro_rules! yield_ {
                     ($eff:expr) => {
