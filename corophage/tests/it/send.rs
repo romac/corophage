@@ -1,4 +1,4 @@
-use corophage::coroutine::CoSend;
+use corophage::CoSend;
 use corophage::prelude::*;
 use corophage::sync;
 

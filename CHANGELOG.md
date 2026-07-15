@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **`Co` and `CoSend` are now available from the crate root** — the documented `corophage::{Co, CoSend}` imports now compile without routing through the `coroutine` module.
+
 - **Proc-macro expansion is now hygienic** — `#[effect]` and `#[effectful]` honor Cargo dependency renames and no longer collide with user parameters named `__y` or effect lifetimes named `'r`.
 
 - **Overlapping `Yielder` operations can no longer cause undefined behavior** — `yield_` and `invoke` now require exclusive `&mut self` access, so safe Rust rejects starting a second operation before awaiting the first. Manual `Program::new` and `Co::new` closures must bind their `Yielder` parameter as mutable. Incorrect explicit dispatch indices also produce a checked panic in release builds.

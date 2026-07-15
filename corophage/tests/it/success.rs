@@ -1,4 +1,4 @@
-use corophage::coroutine::Co;
+use corophage::Co;
 use corophage::prelude::*;
 use corophage::{asynk, sync};
 

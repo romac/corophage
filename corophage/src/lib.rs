@@ -42,7 +42,7 @@ pub mod coroutine;
 pub use frunk_core as __frunk_core;
 
 pub use control::{Cancelled, Control};
-pub use coroutine::Yielder;
+pub use coroutine::{Co, CoSend, Yielder};
 pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
 #[allow(deprecated)]
