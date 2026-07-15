@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+// Gives proc-macro expansions a stable absolute path when invoked in this package.
+extern crate self as corophage;
+
 /// Unsafe unreachable hint that panics in debug builds instead of causing UB.
 ///
 /// In release builds, this compiles to `core::hint::unreachable_unchecked()`.

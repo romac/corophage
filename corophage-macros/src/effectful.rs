@@ -8,6 +8,8 @@ use syn::{
     TypeParamBound, WherePredicate, parse_quote,
 };
 
+use crate::crate_path;
+
 struct EffectfulArgs {
     lifetime: Option<Lifetime>,
     effects: Vec<Type>,
@@ -150,6 +152,7 @@ impl Parse for EffectArg {
 pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     let args: EffectfulArgs = syn::parse2(attr)?;
     let mut func: ItemFn = syn::parse2(item)?;
+    let corophage = crate_path::corophage()?;
 
     if func.sig.asyncness.is_some() {
         return Err(syn::Error::new_spanned(
@@ -172,19 +175,19 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     };
 
     let effects_type = match (effects.as_slice(), spread) {
-        ([], None) => quote! { ::corophage::Effects![] },
-        (effects, None) => quote! { ::corophage::Effects![#(#effects),*] },
+        ([], None) => quote! { #corophage::Effects![] },
+        (effects, None) => quote! { #corophage::Effects![#(#effects),*] },
         (effects, Some(spread)) => {
             let spread = SpreadType(spread);
-            quote! { ::corophage::Effects![#(#effects,)* #spread] }
+            quote! { #corophage::Effects![#(#effects,)* #spread] }
         }
     };
 
     // Build the new return type
     let new_return_type = if args.send {
-        quote! { ::corophage::Effectful<#eff_lifetime, #effects_type, #return_type, ::corophage::Sendable> }
+        quote! { #corophage::Effectful<#eff_lifetime, #effects_type, #return_type, #corophage::Sendable> }
     } else {
-        quote! { ::corophage::Effectful<#eff_lifetime, #effects_type, #return_type> }
+        quote! { #corophage::Effectful<#eff_lifetime, #effects_type, #return_type> }
     };
 
     // Ensure captured arguments can live for the lifetime of the program.
@@ -202,25 +205,26 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
     // Build the new body with local macro_rules! for yield_!
     let program_constructor = if args.send {
-        quote! { ::corophage::Program::new_send }
+        quote! { #corophage::Program::new_send }
     } else {
-        quote! { ::corophage::Program::new }
+        quote! { #corophage::Program::new }
     };
+    let yielder = Ident::new("__corophage_yielder", proc_macro2::Span::mixed_site());
 
     let new_body: syn::Block = syn::parse2(quote! {
         {
-            #program_constructor(move |mut __y: ::corophage::Yielder<'_, #effects_type>| async move {
+            #program_constructor(move |mut #yielder: #corophage::Yielder<'_, #effects_type>| async move {
                 #[allow(unused_macros)]
                 macro_rules! yield_ {
                     ($eff:expr) => {
-                        __y.yield_($eff).await
+                        #yielder.yield_($eff).await
                     }
                 }
 
                 #[allow(unused_macros)]
                 macro_rules! invoke {
                     ($prog:expr) => {
-                        __y.invoke($prog).await
+                        #yielder.invoke($prog).await
                     }
                 }
 

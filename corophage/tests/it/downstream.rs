@@ -5,7 +5,7 @@ use std::process::Command;
 
 #[test]
 #[cfg(not(miri))]
-fn public_macros_do_not_require_direct_frunk_core_dependency() {
+fn public_macros_support_a_renamed_dependency_without_direct_frunk_core() {
     let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let temp_dir = env::temp_dir().join(format!(
         "corophage-downstream-macro-smoke-{}",
@@ -29,7 +29,7 @@ publish = false
 [workspace]
 
 [dependencies]
-corophage = {{ path = "{}" }}
+coro = {{ package = "corophage", path = "{}" }}
 "#,
             crate_dir.display()
         ),
@@ -38,7 +38,7 @@ corophage = {{ path = "{}" }}
 
     fs::write(
         temp_dir.join("src/main.rs"),
-        r#"use corophage::prelude::*;
+        r#"use coro::prelude::*;
 
 #[effect(())]
 struct Log;

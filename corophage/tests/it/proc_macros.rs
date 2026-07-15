@@ -20,6 +20,16 @@ pub struct Log<'a>(pub &'a str);
 #[effect(&'r str)]
 struct GetConfig;
 
+#[effect(&'r str)]
+#[allow(dead_code)]
+struct ResumeLifetimeNameCollision<'r>(&'r str);
+
+fn resume_lifetime_is_independent<'effect, 'resume>(
+    resume: <ResumeLifetimeNameCollision<'effect> as Effect>::Resume<'resume>,
+) -> &'resume str {
+    resume
+}
+
 #[effect(T)]
 #[allow(dead_code)]
 struct Identity<T: std::fmt::Debug>(T);
@@ -54,6 +64,11 @@ fn simple_ask(x: i32) -> bool {
     yield_!(Ask(x))
 }
 
+#[effectful(Ask)]
+fn arguments_named_like_generated_yielder(__y: i32, __corophage_yielder: i32) -> (i32, i32, bool) {
+    (__y, __corophage_yielder, yield_!(Ask(__y)))
+}
+
 #[test]
 fn test_simple_effectful() {
     let result = simple_ask(42)
@@ -61,6 +76,22 @@ fn test_simple_effectful() {
         .run_sync();
 
     assert_eq!(result, Ok(true));
+}
+
+#[test]
+fn test_generated_yielder_does_not_shadow_arguments() {
+    let result = arguments_named_like_generated_yielder(42, 7)
+        .handle(|Ask(n)| Control::resume(n > 10))
+        .run_sync();
+
+    assert_eq!(result, Ok((42, 7, true)));
+}
+
+#[test]
+fn test_resume_lifetime_does_not_conflict_with_effect_lifetime() {
+    let resume = String::from("resume");
+
+    assert_eq!(resume_lifetime_is_independent(resume.as_str()), "resume");
 }
 
 #[effectful]
