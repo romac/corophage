@@ -147,6 +147,8 @@ assert_eq!(result, Ok("contents of data.txt".to_string()));
 
 The `#[effectful]` macro transforms your function to return a `Program` and lets you use `yield_!(effect)` to perform effects.
 
+Borrowed and generic arguments are captured for the lifetime of the returned program automatically, so ordinary signatures such as `fn length(value: &str)` do not need artificial lifetime annotations.
+
 If you have a pre-defined effects type alias, you can spread it into the attribute with `...Alias` (same syntax as frunk's `Coprod!(...Tail)`):
 
 ```rust,ignore

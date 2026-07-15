@@ -10,6 +10,8 @@
 
 - **Async `Sendable` programs can now be spawned** — the future returned by `Program::run` for `Program::new_send` and `#[effectful(..., send)]` computations is now `Send` when the result and handler futures are `Send`, making it compatible with `tokio::spawn`.
 
+- **`#[effectful]` now accepts ordinary borrowed and generic arguments** — elided references, `&self` receivers, generic parameters, and argument-position `impl Trait` are tied to the generated program lifetime automatically, without artificial lifetime annotations or outlives bounds.
+
 ## v0.4.1 (2026-05-18)
 
 ### Fixed

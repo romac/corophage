@@ -34,6 +34,15 @@ The `#[effectful(Eff1, Eff2, ...)]` macro:
 
 ### Lifetime handling
 
+Borrowed and generic arguments are captured for the lifetime of the returned program automatically. Elided references, `&self` receivers, generic parameters, and argument-position `impl Trait` do not need artificial lifetime annotations or outlives bounds.
+
+```rust
+#[effectful]
+fn length(value: &str) -> usize {
+    value.len()
+}
+```
+
 If your effects borrow data, the macro infers the lifetime automatically when the function has exactly one lifetime parameter:
 
 ```rust

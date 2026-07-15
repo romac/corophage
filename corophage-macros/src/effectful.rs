@@ -2,7 +2,11 @@ use proc_macro2::{Punct, Spacing, TokenStream};
 use quote::{ToTokens, TokenStreamExt, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{GenericParam, Ident, ItemFn, Lifetime, LifetimeParam, Result, ReturnType, Token, Type};
+use syn::visit_mut::{self, VisitMut};
+use syn::{
+    GenericParam, Ident, ItemFn, Lifetime, LifetimeParam, Result, ReturnType, Token, Type,
+    TypeParamBound, WherePredicate, parse_quote,
+};
 
 struct EffectfulArgs {
     lifetime: Option<Lifetime>,
@@ -183,8 +187,9 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
         quote! { ::corophage::Effectful<#eff_lifetime, #effects_type, #return_type> }
     };
 
-    // Ensure the effect lifetime is in the generics
+    // Ensure captured arguments can live for the lifetime of the program.
     ensure_lifetime_in_generics(&mut func, &eff_lifetime);
+    bind_inputs_to_effect_lifetime(&mut func, &eff_lifetime);
 
     // Update return type
     func.sig.output = ReturnType::Type(
@@ -281,4 +286,95 @@ fn ensure_lifetime_in_generics(func: &mut ItemFn, lifetime: &Lifetime) {
             .params
             .insert(0, GenericParam::Lifetime(lt_param));
     }
+}
+
+fn bind_inputs_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime) {
+    let mut predicates = Vec::new();
+
+    for input in &mut func.sig.inputs {
+        match input {
+            syn::FnArg::Receiver(receiver) => {
+                if let Some((_, lifetime)) = &mut receiver.reference {
+                    match lifetime {
+                        Some(lifetime) if lifetime.ident != "_" => {
+                            if lifetime != effect_lifetime && lifetime.ident != "static" {
+                                let lifetime = lifetime.clone();
+                                predicates.push(parse_quote!(#lifetime: #effect_lifetime));
+                            }
+                        }
+                        lifetime => *lifetime = Some(effect_lifetime.clone()),
+                    }
+                } else {
+                    predicates.push(parse_quote!(Self: #effect_lifetime));
+                }
+            }
+            syn::FnArg::Typed(argument) => {
+                let mut binder = InputLifetimeBinder::new(effect_lifetime);
+                binder.visit_type_mut(&mut argument.ty);
+                predicates.extend(binder.reference_predicates);
+
+                if !binder.contains_impl_trait {
+                    let ty = &argument.ty;
+                    predicates.push(parse_quote!(#ty: #effect_lifetime));
+                }
+            }
+        }
+    }
+
+    func.sig
+        .generics
+        .make_where_clause()
+        .predicates
+        .extend(predicates);
+}
+
+struct InputLifetimeBinder<'a> {
+    effect_lifetime: &'a Lifetime,
+    contains_impl_trait: bool,
+    reference_predicates: Vec<WherePredicate>,
+}
+
+impl<'a> InputLifetimeBinder<'a> {
+    fn new(effect_lifetime: &'a Lifetime) -> Self {
+        Self {
+            effect_lifetime,
+            contains_impl_trait: false,
+            reference_predicates: Vec::new(),
+        }
+    }
+}
+
+impl VisitMut for InputLifetimeBinder<'_> {
+    fn visit_type_reference_mut(&mut self, reference: &mut syn::TypeReference) {
+        match &mut reference.lifetime {
+            Some(lifetime) if lifetime.ident != "_" => {
+                if lifetime != self.effect_lifetime && lifetime.ident != "static" {
+                    let lifetime = lifetime.clone();
+                    let effect_lifetime = self.effect_lifetime;
+                    self.reference_predicates
+                        .push(parse_quote!(#lifetime: #effect_lifetime));
+                }
+            }
+            lifetime => *lifetime = Some(self.effect_lifetime.clone()),
+        }
+
+        visit_mut::visit_type_reference_mut(self, reference);
+    }
+
+    fn visit_type_impl_trait_mut(&mut self, impl_trait: &mut syn::TypeImplTrait) {
+        self.contains_impl_trait = true;
+
+        let effect_lifetime = self.effect_lifetime;
+        if !impl_trait.bounds.iter().any(
+            |bound| matches!(bound, TypeParamBound::Lifetime(lifetime) if lifetime == effect_lifetime),
+        ) {
+            impl_trait
+                .bounds
+                .push(TypeParamBound::Lifetime(effect_lifetime.clone()));
+        }
+    }
+
+    fn visit_type_bare_fn_mut(&mut self, _bare_fn: &mut syn::TypeBareFn) {}
+
+    fn visit_trait_bound_mut(&mut self, _trait_bound: &mut syn::TraitBound) {}
 }

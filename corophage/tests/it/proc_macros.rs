@@ -63,6 +63,43 @@ fn test_simple_effectful() {
     assert_eq!(result, Ok(true));
 }
 
+#[effectful]
+fn borrowed_argument(value: &str) -> usize {
+    value.len()
+}
+
+#[effectful]
+fn generic_argument<T>(value: T) {
+    drop(value);
+}
+
+#[effectful]
+fn impl_trait_argument(value: impl ToString) -> String {
+    value.to_string()
+}
+
+struct EffectfulMethods(String);
+
+impl EffectfulMethods {
+    #[effectful]
+    fn borrowed_receiver(&self) -> usize {
+        self.0.len()
+    }
+}
+
+#[test]
+fn test_effectful_captures_ordinary_arguments() {
+    let value = String::from("hello");
+
+    assert_eq!(borrowed_argument(&value).run_sync(), Ok(5));
+    assert_eq!(generic_argument(&value).run_sync(), Ok(()));
+    assert_eq!(impl_trait_argument(&value).run_sync(), Ok(value.clone()));
+    assert_eq!(
+        EffectfulMethods(value).borrowed_receiver().run_sync(),
+        Ok(5)
+    );
+}
+
 #[effectful(Ask)]
 fn effectful_with_control_flow(x: i32) -> &'static str {
     if yield_!(Ask(x)) {
