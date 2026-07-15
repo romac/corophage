@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Explicit `#[effectful]` lifetimes parse correctly** — a sole named lifetime no longer requires a trailing comma, `'static` remains concrete instead of becoming an invalid generic parameter, and `'_` uses normal lifetime inference.
+
 - **`Co` and `CoSend` are now available from the crate root** — the documented `corophage::{Co, CoSend}` imports now compile without routing through the `coroutine` module.
 
 - **Proc-macro expansion is now hygienic** — `#[effect]` and `#[effectful]` honor Cargo dependency renames and no longer collide with user parameters named `__y` or effect lifetimes named `'r`.

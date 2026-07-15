@@ -99,6 +99,21 @@ fn borrowed_argument(value: &str) -> usize {
     value.len()
 }
 
+#[effectful('a)]
+fn explicit_named_lifetime<'a>(value: &'a str) -> usize {
+    value.len()
+}
+
+#[effectful('static,)]
+fn explicit_static_lifetime() -> &'static str {
+    "static"
+}
+
+#[effectful('_,)]
+fn inferred_placeholder_lifetime(value: &str) -> usize {
+    value.len()
+}
+
 #[effectful]
 fn generic_argument<T>(value: T) {
     drop(value);
@@ -129,6 +144,15 @@ fn test_effectful_captures_ordinary_arguments() {
         EffectfulMethods(value).borrowed_receiver().run_sync(),
         Ok(5)
     );
+}
+
+#[test]
+fn test_effectful_explicit_lifetime_forms() {
+    let value = String::from("hello");
+
+    assert_eq!(explicit_named_lifetime(&value).run_sync(), Ok(5));
+    assert_eq!(explicit_static_lifetime().run_sync(), Ok("static"));
+    assert_eq!(inferred_placeholder_lifetime(&value).run_sync(), Ok(5));
 }
 
 #[effectful(Ask)]

@@ -33,10 +33,11 @@ impl Parse for EffectfulArgs {
             });
         }
 
-        // Check if the first argument is a lifetime
-        if input.peek(Lifetime) && (input.peek2(Token![,]) || input.is_empty()) {
+        // Check if the first argument is a lifetime. A comma is only required
+        // when more attribute arguments follow it.
+        if input.peek(Lifetime) {
             lifetime = Some(input.parse()?);
-            if input.peek(Token![,]) {
+            if !input.is_empty() {
                 let _: Token![,] = input.parse()?;
             }
         }
@@ -239,9 +240,12 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 }
 
 fn determine_lifetime(func: &ItemFn, args: &EffectfulArgs) -> Result<Lifetime> {
-    // If explicitly provided, use it
+    // If explicitly provided, use it. `'_` requests the same inference as an
+    // omitted lifetime rather than becoming an invalid generic parameter.
     if let Some(lt) = &args.lifetime {
-        return Ok(lt.clone());
+        if lt.ident != "_" {
+            return Ok(lt.clone());
+        }
     }
 
     // Collect lifetime params from the function
@@ -278,6 +282,10 @@ fn determine_lifetime(func: &ItemFn, args: &EffectfulArgs) -> Result<Lifetime> {
 }
 
 fn ensure_lifetime_in_generics(func: &mut ItemFn, lifetime: &Lifetime) {
+    if lifetime.ident == "static" || lifetime.ident == "_" {
+        return;
+    }
+
     let already_exists = func.sig.generics.params.iter().any(|p| match p {
         GenericParam::Lifetime(lt) => lt.lifetime == *lifetime,
         _ => false,
