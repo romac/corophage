@@ -8,6 +8,8 @@
 
 - **Invalid resume projections no longer cause undefined behavior** — directly invoking the hidden `ProjectResume` helper with an unmatched resume now produces a checked panic in all build profiles.
 
+- **Async `Sendable` programs can now be spawned** — the future returned by `Program::run` for `Program::new_send` and `#[effectful(..., send)]` computations is now `Send` when the result and handler futures are `Send`, making it compatible with `tokio::spawn`.
+
 ## v0.4.1 (2026-05-18)
 
 ### Fixed

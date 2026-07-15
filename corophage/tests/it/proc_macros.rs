@@ -388,23 +388,34 @@ fn invoke_send_overlapping_resumes() -> () {
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
 async fn test_invoke_send_overlapping_resumes() {
-    let mut ping_count = 0u32;
-    let mut pong_count = 0u32;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    let ping_count = Arc::new(AtomicU32::new(0));
+    let pong_count = Arc::new(AtomicU32::new(0));
+    let ping_handler_count = Arc::clone(&ping_count);
+    let pong_handler_count = Arc::clone(&pong_count);
     let result = invoke_send_overlapping_resumes()
-        .handle(async |_: Ping| {
-            ping_count += 1;
-            Control::resume(())
+        .handle(move |_: Ping| {
+            let ping_count = Arc::clone(&ping_handler_count);
+            async move {
+                ping_count.fetch_add(1, Ordering::Relaxed);
+                Control::resume(())
+            }
         })
-        .handle(async |_: Pong| {
-            pong_count += 1;
-            Control::resume(())
+        .handle(move |_: Pong| {
+            let pong_count = Arc::clone(&pong_handler_count);
+            async move {
+                pong_count.fetch_add(1, Ordering::Relaxed);
+                Control::resume(())
+            }
         })
         .run()
         .await;
 
     assert_eq!(result, Ok(()));
-    assert_eq!(ping_count, 1);
-    assert_eq!(pong_count, 1);
+    assert_eq!(ping_count.load(Ordering::Relaxed), 1);
+    assert_eq!(pong_count.load(Ordering::Relaxed), 1);
 }
 
 // --- Spread syntax with #[effectful] ---

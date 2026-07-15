@@ -129,6 +129,26 @@ async fn async_free_function_style() {
     assert_eq!(result, Ok(("yes", 42)));
 }
 
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn local_async_handler_can_lend_captured_state() {
+    type Effs = Effects![Counter];
+
+    let mut handled = 0;
+    let result =
+        Program::new(|mut yielder: Yielder<'_, Effs>| async move { yielder.yield_(Counter).await })
+            .handle(async |_: Counter| {
+                handled += 1;
+                tokio::task::yield_now().await;
+                Control::resume(42u64)
+            })
+            .run()
+            .await;
+
+    assert_eq!(result, Ok(42u64));
+    assert_eq!(handled, 1);
+}
+
 #[test]
 fn sync_run_stateful_state() {
     type Effs = Effects![Counter];

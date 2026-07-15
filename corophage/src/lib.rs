@@ -97,9 +97,10 @@ pub enum Never {}
 /// Use these functions to run a coroutine with async effect handlers.
 /// For most use cases, prefer [`Program::run`] instead.
 pub mod asynk {
+    use crate::coproduct::{SendAsyncHandleMut, SendFuture};
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
-    use crate::locality::Locality;
+    use crate::locality::{Locality, Sendable};
 
     use super::*;
 
@@ -115,6 +116,29 @@ pub mod asynk {
         ES: Effects<'a> + AsyncHandleMut<'a, ES, F, Indices>,
     {
         run!('a, ES, co, effect => effect.handle_mut(handler).await)
+    }
+
+    /// Run a sendable coroutine with async handlers whose futures are `Send`.
+    #[doc(hidden)]
+    #[inline]
+    pub fn run_send<'a: 'h, 'h, ES, R, F, Indices>(
+        co: GenericCo<'a, ES, R, Sendable>,
+        handler: &'h mut F,
+    ) -> impl Future<Output = Result<R, Cancelled>> + Send + use<'a, 'h, ES, R, F, Indices>
+    where
+        R: Send + 'h,
+        F: Send + 'h,
+        ES: Effects<'a> + SendAsyncHandleMut<'a, ES, F, Indices>,
+        GenericCo<'a, ES, R, Sendable>: Send,
+    {
+        let future =
+            async move { run!('a, ES, co, effect => effect.handle_mut_send(handler).await) };
+
+        // SAFETY: the future captures a `Send` coroutine and handler reference,
+        // its runner state is `Send`, and `SendAsyncHandleMut` guarantees every
+        // awaited dispatch future is `Send`. Rust 1.85 cannot carry those
+        // proofs through #100013.
+        unsafe { SendFuture::new_unchecked(future) }
     }
 
     /// Run a coroutine with an hlist of async handlers and shared mutable state.

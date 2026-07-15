@@ -339,6 +339,8 @@ tokio::spawn(async move {
 });
 ```
 
+Async handlers attached to a `CoSend` program must return `Send` futures. Handlers that capture state across an await should clone it into a non-lending future, for example `move |effect| { let state = Arc::clone(&state); async move { ... } }`. Local `Co` programs continue to accept lending `async |effect| { ... }` handlers.
+
 The direct API (`sync::run`, `sync::run_stateful`, `asynk::run`, `asynk::run_stateful`) accepts a `Co`/`CoSend` and an `hlist!` of all handlers at once. This is useful for concise one-shot execution but requires providing all handlers together.
 
 #### Borrowing non-`'static` data

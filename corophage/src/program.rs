@@ -6,7 +6,9 @@ use frunk_core::coproduct::{CNil, CoproductSubsetter};
 use frunk_core::hlist::{HCons, HNil};
 
 use crate::control::Cancelled;
-use crate::coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith, HandlersToEffects};
+use crate::coproduct::{
+    AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith, HandlersToEffects, SendAsyncHandleMut,
+};
 use crate::coroutine::{Co, CoSend, GenericCo, Yielder};
 use crate::effect::{CanStart, Effects, Resumes};
 use crate::locality::{Local, Locality, Sendable};
@@ -212,16 +214,6 @@ where
         crate::sync::run_stateful(self.co, state, &handlers)
     }
 
-    /// Run the computation asynchronously.
-    #[inline]
-    pub async fn run<Indices>(self) -> Result<R, Cancelled>
-    where
-        Effs: AsyncHandleMut<'a, Effs, Handlers, Indices>,
-    {
-        let mut handlers = self.handlers;
-        crate::asynk::run(self.co, &mut handlers).await
-    }
-
     /// Run the computation asynchronously with shared state.
     #[inline]
     pub async fn run_stateful<S, Indices>(self, state: &mut S) -> Result<R, Cancelled>
@@ -230,5 +222,42 @@ where
     {
         let handlers = self.handlers;
         crate::asynk::run_stateful(self.co, state, &handlers).await
+    }
+}
+
+impl<'a, Effs, R, Handlers> Program<'a, Effs, R, Local, CNil, Handlers>
+where
+    Effs: Effects<'a>,
+{
+    /// Run a local computation asynchronously.
+    #[inline]
+    pub async fn run<Indices>(self) -> Result<R, Cancelled>
+    where
+        Effs: AsyncHandleMut<'a, Effs, Handlers, Indices>,
+    {
+        let mut handlers = self.handlers;
+        crate::asynk::run(self.co, &mut handlers).await
+    }
+}
+
+impl<'a, Effs, R, Handlers> Program<'a, Effs, R, Sendable, CNil, Handlers>
+where
+    Effs: Effects<'a>,
+{
+    /// Run a sendable computation asynchronously.
+    #[inline]
+    // Keep the `Send` promise explicit so callers can rely on it on Rust 1.85.
+    #[allow(clippy::manual_async_fn)]
+    pub fn run<Indices>(self) -> impl Future<Output = Result<R, Cancelled>> + Send
+    where
+        R: Send,
+        Handlers: Send,
+        Effs: SendAsyncHandleMut<'a, Effs, Handlers, Indices>,
+        GenericCo<'a, Effs, R, Sendable>: Send,
+    {
+        async move {
+            let mut handlers = self.handlers;
+            crate::asynk::run_send(self.co, &mut handlers).await
+        }
     }
 }

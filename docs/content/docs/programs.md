@@ -273,3 +273,5 @@ tokio::spawn(async move {
         .await;
 });
 ```
+
+The result and every async handler future must be `Send`. Handlers that capture state across an await should clone it into a non-lending future, for example `move |effect| { let state = Arc::clone(&state); async move { ... } }`. Local programs continue to accept lending `async |effect| { ... }` handlers.

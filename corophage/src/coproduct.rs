@@ -1,4 +1,6 @@
 use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 pub use frunk_core::coproduct::{CNil, CoprodInjector, Coproduct};
 pub use frunk_core::hlist::{HCons, HNil};
@@ -6,6 +8,54 @@ use frunk_core::indices::{Here, There};
 
 use crate::control::{CoControl, Control};
 use crate::effect::{Effect, Effects, InjectResume, MapResume, Resumes};
+
+/// Preserves an existing `Send` proof for an opaque future across rustc's
+/// higher-ranked lifetime limitation (rust-lang/rust#100013).
+pub(crate) struct SendFuture<F> {
+    future: F,
+}
+
+impl<F> SendFuture<F>
+where
+    F: Future + Send,
+{
+    pub(crate) fn new(future: F) -> Self {
+        Self { future }
+    }
+}
+
+impl<F> SendFuture<F>
+where
+    F: Future,
+{
+    /// Construct a wrapper when the future is known to be `Send`, but rustc
+    /// cannot prove it because of rust-lang/rust#100013.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that moving the future between threads is safe.
+    pub(crate) unsafe fn new_unchecked(future: F) -> Self {
+        Self { future }
+    }
+}
+
+// SAFETY: safe construction requires a `Send` future. The only unchecked
+// construction sites establish the same property manually, and the future is
+// never removed from the wrapper.
+unsafe impl<F> Send for SendFuture<F> {}
+
+impl<F> Future for SendFuture<F>
+where
+    F: Future,
+{
+    type Output = F::Output;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: this is a structural pin projection to `future`, which is
+        // never moved while the wrapper is pinned.
+        unsafe { self.map_unchecked_mut(|this| &mut this.future) }.poll(cx)
+    }
+}
 
 // ---------------------------------------------------------------------------
 // declare_find_handler!  –  generates a Find*Handler trait + Here/There impls
@@ -166,6 +216,59 @@ declare_find_handler!(FindHandlerWith, sync, with, Fn);
 declare_find_handler!(AsyncFindHandler, async, mut, AsyncFnMut);
 declare_find_handler!(AsyncFindHandlerWith, async, with, AsyncFn);
 
+/// Find an async handler whose returned future is `Send`.
+///
+/// This separate dispatch path preserves lending, non-`Send` async closures
+/// for local programs while allowing sendable programs to promise that their
+/// complete runner future is `Send`.
+#[doc(hidden)]
+pub trait SendAsyncFindHandler<'a, Effs: Effects<'a>, CH: Effect, InjectIdx, FindIdx> {
+    fn call_handler_send(&mut self, effect: CH)
+    -> impl Future<Output = CoControl<'a, Effs>> + Send;
+}
+
+impl<'a, Effs, CH, F, Fut, FTail, InjectIdx> SendAsyncFindHandler<'a, Effs, CH, InjectIdx, Here>
+    for HCons<F, FTail>
+where
+    Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
+    CH: Effect + Send,
+    F: FnMut(CH) -> Fut + Send,
+    Fut: Future<Output = Control<CH::Resume<'a>>> + Send,
+    FTail: Send,
+{
+    #[inline]
+    // The explicit `+ Send` contract is required on Rust 1.85.
+    #[allow(clippy::manual_async_fn)]
+    fn call_handler_send(
+        &mut self,
+        effect: CH,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        async move {
+            match (self.head)(effect).await {
+                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
+                Control::Cancel => CoControl::Cancel,
+            }
+        }
+    }
+}
+
+impl<'a, Effs, CH, FHead, FTail, InjectIdx, I>
+    SendAsyncFindHandler<'a, Effs, CH, InjectIdx, There<I>> for HCons<FHead, FTail>
+where
+    Effs: Effects<'a>,
+    CH: Effect + Send,
+    FHead: Send,
+    FTail: SendAsyncFindHandler<'a, Effs, CH, InjectIdx, I> + Send,
+{
+    #[inline]
+    fn call_handler_send(
+        &mut self,
+        effect: CH,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        SendFuture::new(self.tail.call_handler_send(effect))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // declare_handle_dispatch!  –  generates a Handle* trait + CNil/Coproduct impls
 // ---------------------------------------------------------------------------
@@ -315,6 +418,57 @@ declare_handle_dispatch!(HandleMut, sync, FindHandler, mut);
 declare_handle_dispatch!(HandleWith, sync, FindHandlerWith, with);
 declare_handle_dispatch!(AsyncHandleMut, async, AsyncFindHandler, mut);
 declare_handle_dispatch!(AsyncHandleWith, async, AsyncFindHandlerWith, with);
+
+/// Dispatch an effect to an async handler while preserving a `Send` future.
+#[doc(hidden)]
+pub trait SendAsyncHandleMut<'a, Effs: Effects<'a>, Handlers, Indices> {
+    fn handle_mut_send(
+        self,
+        handlers: &mut Handlers,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send;
+}
+
+impl<'a, Effs, Handlers> SendAsyncHandleMut<'a, Effs, Handlers, HNil> for CNil
+where
+    Effs: Effects<'a>,
+    Handlers: Send,
+{
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[inline]
+    // The explicit `+ Send` contract is required on Rust 1.85.
+    #[allow(clippy::manual_async_fn)]
+    fn handle_mut_send(self, _: &mut Handlers) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        async move { match self {} }
+    }
+}
+
+impl<'a, Effs, CH, CTail, Handlers, InjectIdx, FindIdx, ITail>
+    SendAsyncHandleMut<'a, Effs, Handlers, HCons<(InjectIdx, FindIdx), ITail>>
+    for Coproduct<CH, CTail>
+where
+    Effs: Effects<'a>,
+    CH: Effect + Send,
+    CTail: SendAsyncHandleMut<'a, Effs, Handlers, ITail> + Send,
+    Handlers: SendAsyncFindHandler<'a, Effs, CH, InjectIdx, FindIdx> + Send,
+{
+    #[inline]
+    fn handle_mut_send(
+        self,
+        handlers: &mut Handlers,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        let future = async move {
+            match self {
+                Coproduct::Inl(head) => handlers.call_handler_send(head).await,
+                Coproduct::Inr(rest) => rest.handle_mut_send(handlers).await,
+            }
+        };
+
+        // SAFETY: the future captures only the `Send` effect coproduct and
+        // handler list, and it awaits only futures whose trait contracts
+        // require `Send`. Rust 1.85 cannot prove this because of #100013.
+        unsafe { SendFuture::new_unchecked(future) }
+    }
+}
 
 // --- HandlersToEffects: compute the effects coproduct from a handler HList ---
 
