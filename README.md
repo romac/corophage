@@ -201,7 +201,7 @@ A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` m
 Computation bodies may also await ordinary futures when executed with `.run().await` or the low-level `asynk` runners. Synchronous runners handle effect suspension but cannot wait for unrelated futures; if one returns `Pending`, use an async runner instead.
 
 > [!NOTE]
-> Handlers can be attached in any order when using `Program::handle()`. The type system tracks which effects are still unhandled regardless of attachment order. However, handlers passed as an `hlist!` to the low-level `sync::run`/`asynk::run` functions must match the `Effects![...]` declaration order.
+> Handlers can be attached in any order, both with `Program::handle()` and in the `hlist!` passed to the low-level `sync::run`/`asynk::run` functions. Low-level handler lists may also contain extra handlers for effects the computation never yields; every effect the computation can yield must still have a compatible handler.
 
 ### 3. Handlers
 
