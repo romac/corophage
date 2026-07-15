@@ -10,9 +10,10 @@
 use std::future::Future;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
+use std::task::{Context, Poll, Waker};
 
-use fauxgen::__private::SyncGenerator;
-use fauxgen::Generator;
+use fauxgen::__private::AsyncGenerator as GeneratorStorage;
+use fauxgen::AsyncGenerator;
 use fauxgen::GeneratorState;
 use fauxgen::GeneratorToken;
 use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
@@ -22,7 +23,7 @@ use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 use crate::locality::{Local, Locality, Sendable};
 use crate::program::Effectful;
 
-type Gen<'a, Effs, Return, L> = SyncGenerator<
+type Gen<'a, Effs, Return, L> = GeneratorStorage<
     <L as Locality>::PinBoxFuture<'a, Return>,
     CanStart<Effs>,
     Resumes<'a, CanStart<Effs>>,
@@ -72,7 +73,7 @@ macro_rules! make_co {
             $f(Yielder::new(token)).await
         }) as $cast;
 
-        let generator = fauxgen::__private::gen_sync(marker, fut);
+        let generator = fauxgen::__private::gen_async(marker, fut);
         Self {
             generator,
             _pin: PhantomPinned,
@@ -112,17 +113,37 @@ where
     Effs: Effects<'a>,
 {
     #[inline]
-    pub(crate) fn resume(
-        self: Pin<&mut Self>,
-        resume: Resumes<'a, CanStart<Effs>>,
-    ) -> GeneratorState<CanStart<Effs>, Return> {
+    fn generator(self: Pin<&mut Self>) -> Pin<&mut Gen<'a, Effs, Return, L>> {
         // SAFETY: This is a structural pin projection from `Pin<&mut GenericCo>` to
         // `Pin<&mut Gen>`. This is sound because:
         // 1. `GenericCo` is `!Unpin` (contains `PhantomPinned`), so it is never moved after pinning.
         // 2. The `generator` field is structurally pinned (not behind an indirection).
         // 3. `GenericCo` has no `Drop` impl that could move the field.
-        let mut g = unsafe { self.map_unchecked_mut(|s| &mut s.generator) };
-        Generator::resume(g.as_mut(), resume)
+        unsafe { self.map_unchecked_mut(|s| &mut s.generator) }
+    }
+
+    #[inline]
+    pub(crate) fn resume(
+        self: Pin<&mut Self>,
+        resume: Resumes<'a, CanStart<Effs>>,
+    ) -> GeneratorState<CanStart<Effs>, Return> {
+        let mut generator = self.generator();
+        let mut context = Context::from_waker(Waker::noop());
+
+        match AsyncGenerator::poll_resume(generator.as_mut(), &mut context, Some(resume)) {
+            Poll::Ready(state) => state,
+            Poll::Pending => {
+                panic!("computation suspended on a non-effect future; use an async runner instead")
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) async fn resume_async(
+        self: Pin<&mut Self>,
+        resume: Resumes<'a, CanStart<Effs>>,
+    ) -> GeneratorState<CanStart<Effs>, Return> {
+        AsyncGenerator::resume(self.generator(), resume).await
     }
 
     #[inline]
@@ -134,6 +155,18 @@ where
         Resumes<'a, CanStart<Effs>>: CoprodInjector<R, Index>,
     {
         self.resume(Resumes::<'a, CanStart<Effs>>::inject(resume))
+    }
+
+    #[inline]
+    pub(crate) async fn resume_with_async<R, Index>(
+        self: Pin<&mut Self>,
+        resume: R,
+    ) -> GeneratorState<CanStart<Effs>, Return>
+    where
+        Resumes<'a, CanStart<Effs>>: CoprodInjector<R, Index>,
+    {
+        self.resume_async(Resumes::<'a, CanStart<Effs>>::inject(resume))
+            .await
     }
 }
 
@@ -220,7 +253,7 @@ where
         L: Locality,
     {
         let mut co = std::pin::pin!(program.co);
-        let mut yielded = co.as_mut().resume_with(Start);
+        let mut yielded = co.as_mut().resume_with_async(Start).await;
 
         loop {
             match yielded {
@@ -256,7 +289,7 @@ where
                     // This is safe because all effect resume types implement CovariantResume.
                     let resume_short: Resumes<'b, SubEffs> = SubEffs::shorten_resumes(resume_long);
 
-                    yielded = co.as_mut().resume(Coproduct::Inr(resume_short));
+                    yielded = co.as_mut().resume_async(Coproduct::Inr(resume_short)).await;
                 }
             }
         }

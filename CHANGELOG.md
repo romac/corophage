@@ -12,6 +12,8 @@
 
 - **`#[effectful]` now accepts ordinary borrowed and generic arguments** — elided references, `&self` receivers, generic parameters, and argument-position `impl Trait` are tied to the generated program lifetime automatically, without artificial lifetime annotations or outlives bounds.
 
+- **Async computation bodies can now await ordinary futures** — `Program::run`, `asynk::run`, and invoked subprograms now drive non-effect suspension points instead of panicking. Synchronous runners continue to support effect suspension and now report a clear error directing callers to an async runner when a computation awaits a pending non-effect future.
+
 ## v0.4.1 (2026-05-18)
 
 ### Fixed

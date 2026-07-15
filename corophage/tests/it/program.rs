@@ -80,6 +80,20 @@ fn sync_no_yields() {
 }
 
 #[test]
+#[should_panic(
+    expected = "computation suspended on a non-effect future; use an async runner instead"
+)]
+fn sync_computation_body_rejects_pending_await() {
+    type Effs = Effects![Ask];
+
+    let _ = Program::new(|_: Yielder<'_, Effs>| async move {
+        std::future::pending::<()>().await;
+    })
+    .handle(|_: Ask| Control::resume(""))
+    .run_sync();
+}
+
+#[test]
 fn sync_cancel() {
     type Effs = Effects![Ask];
 
@@ -109,6 +123,24 @@ async fn async_builder_style() {
     .await;
 
     assert_eq!(result, Ok(("yes", 42)));
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn async_computation_body_can_await() {
+    type Effs = Effects![Counter];
+
+    let result = Program::new(|mut yielder: Yielder<'_, Effs>| async move {
+        tokio::task::yield_now().await;
+        let value = yielder.yield_(Counter).await;
+        tokio::task::yield_now().await;
+        value + 1
+    })
+    .handle(async |_: Counter| Control::resume(42u64))
+    .run()
+    .await;
+
+    assert_eq!(result, Ok(43));
 }
 
 #[tokio::test]

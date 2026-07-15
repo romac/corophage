@@ -198,6 +198,8 @@ When you call `yield_!` (or `y.yield_(...).await` in the manual style), the comp
 
 A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another.
 
+Computation bodies may also await ordinary futures when executed with `.run().await` or the low-level `asynk` runners. Synchronous runners handle effect suspension but cannot wait for unrelated futures; if one returns `Pending`, use an async runner instead.
+
 > [!NOTE]
 > Handlers can be attached in any order when using `Program::handle()`. The type system tracks which effects are still unhandled regardless of attachment order. However, handlers passed as an `hlist!` to the low-level `sync::run`/`asynk::run` functions must match the `Effects![...]` declaration order.
 

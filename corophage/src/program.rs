@@ -195,6 +195,11 @@ where
     L: Locality,
 {
     /// Run the computation synchronously.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the computation body suspends on a non-effect future. Use
+    /// [`run`](Program::run) when the body needs to await ordinary futures.
     #[inline]
     pub fn run_sync<Indices>(self) -> Result<R, Cancelled>
     where
@@ -205,6 +210,11 @@ where
     }
 
     /// Run the computation synchronously with shared state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the computation body suspends on a non-effect future. Use
+    /// [`run_stateful`](Program::run_stateful) when the body needs to await ordinary futures.
     #[inline]
     pub fn run_sync_stateful<S, Indices>(self, state: &mut S) -> Result<R, Cancelled>
     where
@@ -230,6 +240,8 @@ where
     Effs: Effects<'a>,
 {
     /// Run a local computation asynchronously.
+    ///
+    /// Both the computation body and its handlers may await ordinary futures.
     #[inline]
     pub async fn run<Indices>(self) -> Result<R, Cancelled>
     where
@@ -245,6 +257,8 @@ where
     Effs: Effects<'a>,
 {
     /// Run a sendable computation asynchronously.
+    ///
+    /// Both the computation body and its handlers may await ordinary futures.
     #[inline]
     // Keep the `Send` promise explicit so callers can rely on it on Rust 1.85.
     #[allow(clippy::manual_async_fn)]

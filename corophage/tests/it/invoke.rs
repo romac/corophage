@@ -138,6 +138,27 @@ async fn async_invoke_subprogram() {
     assert_eq!(result, Ok(()));
 }
 
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn async_invoke_subprogram_body_can_await() {
+    fn delayed_ask<'a>() -> Effectful<'a, Effects![Ask], &'static str> {
+        Program::new(|mut y: Yielder<'_, Effects![Ask]>| async move {
+            tokio::task::yield_now().await;
+            y.yield_(Ask("name?")).await
+        })
+    }
+
+    let result =
+        Program::new(
+            |mut y: Yielder<'_, Effects![Ask]>| async move { y.invoke(delayed_ask()).await },
+        )
+        .handle(async |_: Ask| Control::resume("world"))
+        .run()
+        .await;
+
+    assert_eq!(result, Ok("world"));
+}
+
 #[test]
 fn sync_invoke_no_effects_subprogram() {
     fn pure_computation<'a>() -> Effectful<'a, Effects![], i32> {

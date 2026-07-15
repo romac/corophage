@@ -22,6 +22,17 @@ fn sendable_program_run_is_send_and_completes() {
     use std::task::{Context, Poll, Waker};
 
     let future = Program::new_send::<Effects![FileRead], _>(|mut y| async move {
+        let mut yielded = false;
+        poll_fn(move |cx| {
+            if yielded {
+                Poll::Ready(())
+            } else {
+                yielded = true;
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            }
+        })
+        .await;
         y.yield_(FileRead("test".to_string())).await
     })
     .handle(async |FileRead(file)| {
@@ -43,6 +54,7 @@ fn sendable_program_run_is_send_and_completes() {
 
     let mut future = std::pin::pin!(future);
     let mut context = Context::from_waker(Waker::noop());
+    assert!(future.as_mut().poll(&mut context).is_pending());
     assert!(future.as_mut().poll(&mut context).is_pending());
     let Poll::Ready(result) = future.as_mut().poll(&mut context) else {
         panic!("sendable program unexpectedly returned pending");
@@ -89,8 +101,26 @@ async fn sendable_program_run_can_be_spawned() {
     assert_eq!(result, Ok("file content for test".to_string()));
 }
 
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn sendable_computation_body_can_await() {
+    let future = Program::new_send::<Effects![FileRead], _>(|mut y| async move {
+        tokio::task::yield_now().await;
+        let contents = y.yield_(FileRead("test".to_string())).await;
+        tokio::task::yield_now().await;
+        contents
+    })
+    .handle(async |FileRead(file)| Control::resume(format!("file content for {file}")))
+    .run();
+    assert_send(&future);
+
+    let result = tokio::spawn(future).await.unwrap();
+    assert_eq!(result, Ok("file content for test".to_string()));
+}
+
 #[effectful(FileRead, send)]
 fn sendable_effectful_program() -> String {
+    tokio::task::yield_now().await;
     yield_!(FileRead("macro".to_string()))
 }
 

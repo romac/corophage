@@ -48,12 +48,30 @@ pub use program::{Eff, Effectful, Program};
 #[cfg(feature = "macros")]
 pub use corophage_macros::{effect, effectful};
 
+macro_rules! resume_co {
+    (sync, $co:expr, $resume:expr) => {
+        $co.resume($resume)
+    };
+    (asynk, $co:expr, $resume:expr) => {
+        $co.resume_async($resume).await
+    };
+}
+
+macro_rules! resume_co_with {
+    (sync, $co:expr, $resume:expr) => {
+        $co.resume_with($resume)
+    };
+    (asynk, $co:expr, $resume:expr) => {
+        $co.resume_with_async($resume).await
+    };
+}
+
 /// Internal macro for running a coroutine with effect handlers.
 macro_rules! run {
-    ($lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
+    ($mode:ident, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
         let mut co = ::std::pin::pin!($co);
 
-        let mut yielded = co.as_mut().resume_with($crate::effect::Start);
+        let mut yielded = resume_co_with!($mode, co.as_mut(), $crate::effect::Start);
 
         loop {
             match yielded {
@@ -75,9 +93,11 @@ macro_rules! run {
                             break Err($crate::control::Cancelled);
                         }
                         $crate::control::CoControl::Resume(r) => {
-                            yielded = co
-                                .as_mut()
-                                .resume($crate::__frunk_core::coproduct::Coproduct::Inr(r))
+                            yielded = resume_co!(
+                                $mode,
+                                co.as_mut(),
+                                $crate::__frunk_core::coproduct::Coproduct::Inr(r)
+                            )
                         }
                     }
                 }
@@ -105,6 +125,8 @@ pub mod asynk {
     use super::*;
 
     /// Run a coroutine with an hlist of async handlers.
+    ///
+    /// Both the computation body and its handlers may await ordinary futures.
     #[doc(hidden)]
     #[inline]
     pub async fn run<'a, ES, R, L, F, Indices>(
@@ -115,7 +137,7 @@ pub mod asynk {
         L: Locality,
         ES: Effects<'a> + AsyncHandleMut<'a, ES, F, Indices>,
     {
-        run!('a, ES, co, effect => effect.handle_mut(handler).await)
+        run!(asynk, 'a, ES, co, effect => effect.handle_mut(handler).await)
     }
 
     /// Run a sendable coroutine with async handlers whose futures are `Send`.
@@ -132,12 +154,12 @@ pub mod asynk {
         GenericCo<'a, ES, R, Sendable>: Send,
     {
         let future =
-            async move { run!('a, ES, co, effect => effect.handle_mut_send(handler).await) };
+            async move { run!(asynk, 'a, ES, co, effect => effect.handle_mut_send(handler).await) };
 
         // SAFETY: the future captures a `Send` coroutine and handler reference,
-        // its runner state is `Send`, and `SendAsyncHandleMut` guarantees every
-        // awaited dispatch future is `Send`. Rust 1.85 cannot carry those
-        // proofs through #100013.
+        // its runner state (including fauxgen's resume future) is `Send`, and
+        // `SendAsyncHandleMut` guarantees every awaited dispatch future is `Send`.
+        // Rust 1.85 cannot carry those proofs through #100013.
         unsafe { SendFuture::new_unchecked(future) }
     }
 
@@ -153,7 +175,7 @@ pub mod asynk {
         L: Locality,
         ES: Effects<'a> + AsyncHandleWith<'a, ES, F, S, Indices>,
     {
-        run!('a, ES, co, effect => effect.handle_with(state, handler).await)
+        run!(asynk, 'a, ES, co, effect => effect.handle_with(state, handler).await)
     }
 }
 
@@ -169,6 +191,11 @@ pub mod sync {
     use super::*;
 
     /// Run a coroutine with an hlist of synchronous handlers.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the computation body suspends on a non-effect future. Use
+    /// [`crate::asynk::run`] when the body needs to await ordinary futures.
     #[doc(hidden)]
     #[inline]
     pub fn run<'a, ES, R, L, F, Indices>(
@@ -179,10 +206,15 @@ pub mod sync {
         L: Locality,
         ES: Effects<'a> + HandleMut<'a, ES, F, Indices>,
     {
-        run!('a, ES, co, effect => effect.handle_mut(handler))
+        run!(sync, 'a, ES, co, effect => effect.handle_mut(handler))
     }
 
     /// Run a coroutine with an hlist of synchronous handlers and shared mutable state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the computation body suspends on a non-effect future. Use
+    /// [`crate::asynk::run_stateful`] when the body needs to await ordinary futures.
     #[doc(hidden)]
     #[inline]
     pub fn run_stateful<'a, ES, R, L, S, F, Indices>(
@@ -194,6 +226,6 @@ pub mod sync {
         L: Locality,
         ES: Effects<'a> + HandleWith<'a, ES, F, S, Indices>,
     {
-        run!('a, ES, co, effect => effect.handle_with(state, handler))
+        run!(sync, 'a, ES, co, effect => effect.handle_with(state, handler))
     }
 }

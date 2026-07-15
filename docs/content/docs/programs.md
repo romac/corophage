@@ -138,6 +138,20 @@ When you `await` the result of `y.yield_(some_effect)`, the computation pauses, 
 
 A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another.
 
+Computation bodies may also await ordinary futures when executed with `.run().await` or a low-level `asynk` runner:
+
+```rust
+let result = Program::new(|mut y: Yielder<'_, Effs>| async move {
+    tokio::task::yield_now().await;
+    y.yield_(Counter).await
+})
+.handle(async |_: Counter| Control::resume(42))
+.run()
+.await;
+```
+
+Synchronous runners handle effect suspension but cannot wait for unrelated futures. If an ordinary future returns `Pending`, use `.run().await` instead.
+
 ## Attaching handlers
 
 Handlers are attached one at a time with `.handle()`. Handlers can be attached in any order — the type system tracks which effects remain unhandled.
@@ -175,8 +189,8 @@ let result = my_program()
 
 Once all effects are handled, you can run the program:
 
-- `.run_sync()` — execute synchronously, returns `Result<R, Cancelled>`
-- `.run().await` — execute asynchronously
+- `.run_sync()` — execute synchronously, returns `Result<R, Cancelled>`; the computation body must not suspend on non-effect futures
+- `.run().await` — execute asynchronously, including ordinary futures awaited by the computation body
 - `.run_sync_stateful(&mut state)` — synchronous with shared mutable state
 - `.run_stateful(&mut state).await` — async with shared mutable state
 
