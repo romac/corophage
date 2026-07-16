@@ -15,7 +15,7 @@ Add `corophage` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-corophage = "0.4.1"
+corophage = "0.5.0"
 ```
 
 ## What are effect handlers?

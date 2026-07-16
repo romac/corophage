@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.5.0 (2026-07-16)
+
 ### Fixed
 
 - **Explicit `#[effectful]` lifetimes parse correctly** — a sole named lifetime no longer requires a trailing comma, `'static` remains concrete instead of becoming an invalid generic parameter, and `'_` uses normal lifetime inference.
