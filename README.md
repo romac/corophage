@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/static/logo/corophage-2b.svg" alt="Corophage logo" width="240">
+</p>
+
 # Corophage
 
 [![Crates.io](https://img.shields.io/crates/v/corophage.svg)](https://crates.io/crates/corophage)
