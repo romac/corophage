@@ -260,7 +260,7 @@ where
     ///
     /// Both the computation body and its handlers may await ordinary futures.
     #[inline]
-    // Keep the `Send` promise explicit so callers can rely on it on Rust 1.85.
+    // Keep the `Send` promise explicit so callers can rely on it.
     #[allow(clippy::manual_async_fn)]
     pub fn run<Indices>(self) -> impl Future<Output = Result<R, Cancelled>> + Send
     where

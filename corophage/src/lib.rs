@@ -162,7 +162,7 @@ pub mod asynk {
         // SAFETY: the future captures a `Send` coroutine and handler reference,
         // its runner state (including fauxgen's resume future) is `Send`, and
         // `SendAsyncHandleMut` guarantees every awaited dispatch future is `Send`.
-        // Rust 1.85 cannot carry those proofs through #100013.
+        // rustc cannot yet carry those proofs through #100013.
         unsafe { SendFuture::new_unchecked(future) }
     }
 

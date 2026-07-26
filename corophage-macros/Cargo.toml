@@ -2,7 +2,7 @@
 name = "corophage-macros"
 version = "0.6.0-pre"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.93"
 license = "MIT OR Apache-2.0"
 authors = ["Romain Ruetschi <github@romac.me>"]
 description = "Proc macros for corophage"

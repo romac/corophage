@@ -17,15 +17,6 @@ pub(crate) struct SendFuture<F> {
 
 impl<F> SendFuture<F>
 where
-    F: Future + Send,
-{
-    pub(crate) fn new(future: F) -> Self {
-        Self { future }
-    }
-}
-
-impl<F> SendFuture<F>
-where
     F: Future,
 {
     /// Construct a wrapper when the future is known to be `Send`, but rustc
@@ -39,9 +30,8 @@ where
     }
 }
 
-// SAFETY: safe construction requires a `Send` future. The only unchecked
-// construction sites establish the same property manually, and the future is
-// never removed from the wrapper.
+// SAFETY: unchecked construction sites establish that the wrapped future is
+// `Send`, and the future is never removed from the wrapper.
 unsafe impl<F> Send for SendFuture<F> {}
 
 impl<F> Future for SendFuture<F>
@@ -237,7 +227,7 @@ where
     FTail: Send,
 {
     #[inline]
-    // The explicit `+ Send` contract is required on Rust 1.85.
+    // Keep the `Send` promise explicit so callers can rely on it.
     #[allow(clippy::manual_async_fn)]
     fn call_handler_send(
         &mut self,
@@ -265,7 +255,7 @@ where
         &mut self,
         effect: CH,
     ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        SendFuture::new(self.tail.call_handler_send(effect))
+        self.tail.call_handler_send(effect)
     }
 }
 
@@ -435,7 +425,7 @@ where
 {
     #[cfg_attr(coverage_nightly, coverage(off))]
     #[inline]
-    // The explicit `+ Send` contract is required on Rust 1.85.
+    // Keep the `Send` promise explicit so callers can rely on it.
     #[allow(clippy::manual_async_fn)]
     fn handle_mut_send(self, _: &mut Handlers) -> impl Future<Output = CoControl<'a, Effs>> + Send {
         async move { match self {} }
@@ -452,21 +442,18 @@ where
     Handlers: SendAsyncFindHandler<'a, Effs, CH, InjectIdx, FindIdx> + Send,
 {
     #[inline]
+    // Keep the `Send` promise explicit so callers can rely on it.
+    #[allow(clippy::manual_async_fn)]
     fn handle_mut_send(
         self,
         handlers: &mut Handlers,
     ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        let future = async move {
+        async move {
             match self {
                 Coproduct::Inl(head) => handlers.call_handler_send(head).await,
                 Coproduct::Inr(rest) => rest.handle_mut_send(handlers).await,
             }
-        };
-
-        // SAFETY: the future captures only the `Send` effect coproduct and
-        // handler list, and it awaits only futures whose trait contracts
-        // require `Send`. Rust 1.85 cannot prove this because of #100013.
-        unsafe { SendFuture::new_unchecked(future) }
+        }
     }
 }
 

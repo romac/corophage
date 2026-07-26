@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- **MSRV raised to Rust 1.93** — corophage now requires Rust 1.93 or later. The newer compiler can prove that recursive async handler dispatch futures are `Send`, removing an internal unchecked `Send` assertion and its associated wrapper plumbing.
+
 ## v0.5.0 (2026-07-16)
 
 ### Fixed

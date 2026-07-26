@@ -13,7 +13,7 @@ Add `corophage` to your `Cargo.toml`:
 corophage = "0.6.0-pre"
 ```
 
-corophage requires **Rust 1.85** or later (stable).
+corophage requires **Rust 1.93** or later (stable).
 
 If you rename the dependency in `Cargo.toml`, the `#[effect]` and `#[effectful]` macros automatically use that Cargo name:
 

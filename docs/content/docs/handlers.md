@@ -26,7 +26,7 @@ A sync handler is a regular closure:
 
 ## Async handlers
 
-An async handler is an async closure (requires Rust 1.85+):
+An async handler is an async closure:
 
 ```rust
 async |FileRead(file)| {
