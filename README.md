@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/static/logo/corophage-2b.svg" alt="Corophage logo" width="240">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/static/logo/corophage-dark.svg">
+    <img src="docs/static/logo/corophage.svg" alt="Corophage logo" width="240">
+  </picture>
 </p>
 
 # Corophage

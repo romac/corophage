@@ -7,7 +7,7 @@ template = "index.html"
 <div class="hero-inner">
 
 <div class="hero-logo">
-<img src="logo/corophage-2b.svg" alt="corophage logo">
+<img src="logo/corophage.svg" alt="corophage logo">
 </div>
 
 # corophage
