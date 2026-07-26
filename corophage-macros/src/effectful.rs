@@ -242,10 +242,10 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 fn determine_lifetime(func: &ItemFn, args: &EffectfulArgs) -> Result<Lifetime> {
     // If explicitly provided, use it. `'_` requests the same inference as an
     // omitted lifetime rather than becoming an invalid generic parameter.
-    if let Some(lt) = &args.lifetime {
-        if lt.ident != "_" {
-            return Ok(lt.clone());
-        }
+    if let Some(lt) = &args.lifetime
+        && lt.ident != "_"
+    {
+        return Ok(lt.clone());
     }
 
     // Collect lifetime params from the function
