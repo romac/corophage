@@ -10,7 +10,7 @@ Add `corophage` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-corophage = "0.5.0"
+corophage = "0.6.0-pre"
 ```
 
 corophage requires **Rust 1.85** or later (stable).
@@ -19,7 +19,7 @@ If you rename the dependency in `Cargo.toml`, the `#[effect]` and `#[effectful]`
 
 ```toml
 [dependencies]
-coro = { package = "corophage", version = "0.5.0" }
+coro = { package = "corophage", version = "0.6.0-pre" }
 ```
 
 You can then import the prelude with `use coro::prelude::*;`.
