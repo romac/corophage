@@ -63,3 +63,48 @@ let result = lookup_config(&map)
 
 assert_eq!(result, Ok("localhost:5432".to_string()));
 ```
+
+## Low-level `Co` and `CoSend` API
+
+`Program` is the primary API, but `Co` and `CoSend` are useful when you need to pass or store a computation before attaching handlers. They are available from the crate root rather than the prelude:
+
+```rust
+use corophage::{Co, sync};
+use corophage::prelude::*;
+
+#[effect(String)]
+struct FileRead(&'static str);
+
+let co: Co<'_, Effects![FileRead], String> = Co::new(|mut y| async move {
+    y.yield_(FileRead("config.toml")).await
+});
+
+let result = sync::run(co, &mut hlist![
+    |FileRead(path)| Control::resume(format!("contents of {path}")),
+]);
+
+assert_eq!(result, Ok("contents of config.toml".to_string()));
+```
+
+Use `CoSend` for a sendable computation. Once its handlers are attached, the future returned by `Program::run` can be passed directly to `tokio::spawn` when the result and all handler futures are `Send`:
+
+```rust
+use corophage::CoSend;
+
+fn read_file() -> CoSend<'static, Effects![FileRead], String> {
+    CoSend::new(|mut y| async move {
+        y.yield_(FileRead("config.toml")).await
+    })
+}
+
+let future = Program::from_co(read_file())
+    .handle(async |FileRead(path)| {
+        Control::resume(format!("contents of {path}"))
+    })
+    .run();
+
+let result = tokio::spawn(future).await.unwrap();
+assert_eq!(result, Ok("contents of config.toml".to_string()));
+```
+
+The low-level `sync::run` and `asynk::run` functions take all handlers in an `hlist!` at once. Handlers may appear in any order, and the list may include extra handlers, but every effect the computation can yield must have a compatible handler.

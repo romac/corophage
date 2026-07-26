@@ -43,6 +43,29 @@ fn length(value: &str) -> usize {
 }
 ```
 
+Generic parameters, argument-position `impl Trait`, and borrowed receivers work the same way:
+
+```rust
+#[effectful]
+fn stringify<T: ToString>(value: T) -> String {
+    value.to_string()
+}
+
+#[effectful]
+fn stringify_impl(value: impl ToString) -> String {
+    value.to_string()
+}
+
+struct Label(String);
+
+impl Label {
+    #[effectful]
+    fn length(&self) -> usize {
+        self.0.len()
+    }
+}
+```
+
 If your effects borrow data, the macro infers the lifetime automatically when the function has exactly one lifetime parameter:
 
 ```rust
@@ -58,6 +81,25 @@ With multiple lifetime parameters, specify the effect lifetime explicitly as the
 #[effectful('a, Log<'a>)]
 fn log_msg<'a, 'b>(msg: &'a str, _other: &'b str) -> () {
     yield_!(Log(msg));
+}
+```
+
+An explicit lifetime can also be the only attribute argument. A named lifetime needs no trailing comma, `'static` remains a concrete lifetime, and `'_` requests the same inference used when the lifetime is omitted:
+
+```rust
+#[effectful('a)]
+fn named<'a>(value: &'a str) -> usize {
+    value.len()
+}
+
+#[effectful('static)]
+fn static_value() -> &'static str {
+    "static"
+}
+
+#[effectful('_)]
+fn inferred(value: &str) -> usize {
+    value.len()
 }
 ```
 
@@ -138,16 +180,19 @@ When you `await` the result of `y.yield_(some_effect)`, the computation pauses, 
 
 A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another.
 
-Computation bodies may also await ordinary futures when executed with `.run().await` or a low-level `asynk` runner:
+Computation bodies may also await ordinary futures. This works inside `#[effectful]` functions, manual `Program::new` closures, and invoked sub-programs when executed with `.run().await` or a low-level `asynk` runner:
 
 ```rust
-let result = Program::new(|mut y: Yielder<'_, Effs>| async move {
+#[effectful(Counter)]
+fn delayed_count() -> u64 {
     tokio::task::yield_now().await;
-    y.yield_(Counter).await
-})
-.handle(async |_: Counter| Control::resume(42))
-.run()
-.await;
+    yield_!(Counter)
+}
+
+let result = delayed_count()
+    .handle(async |_: Counter| Control::resume(42))
+    .run()
+    .await;
 ```
 
 Synchronous runners handle effect suspension but cannot wait for unrelated futures. If an ordinary future returns `Pending`, use `.run().await` instead.

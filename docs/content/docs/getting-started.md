@@ -15,6 +15,15 @@ corophage = "0.5.0"
 
 corophage requires **Rust 1.85** or later (stable).
 
+If you rename the dependency in `Cargo.toml`, the `#[effect]` and `#[effectful]` macros automatically use that Cargo name:
+
+```toml
+[dependencies]
+coro = { package = "corophage", version = "0.5.0" }
+```
+
+You can then import the prelude with `use coro::prelude::*;`.
+
 ## What are effect handlers?
 
 Imagine you are writing a piece of business logic:
