@@ -22,7 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-      - uses: taiki-e/install-action@zola
+      - uses: taiki-e/install-action@251a76b5c93ababb14c9c2f3f651cb1871716a01
+        with:
+          tool: zola@0.23.3
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - run: just build
