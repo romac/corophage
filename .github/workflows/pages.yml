@@ -6,6 +6,11 @@ on:
       - "v*"
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Released crate version without the v prefix"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,16 +32,23 @@ jobs:
           tool: zola@0.23.3
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-      - run: just build
+      - name: Build site
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            export COROPHAGE_RELEASE_VERSION="$MANUAL_RELEASE_VERSION"
+          fi
+          just build
         working-directory: docs
+        env:
+          MANUAL_RELEASE_VERSION: ${{ inputs.release_version }}
       - name: Upload artifact
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: docs/public
 
   deploy:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
