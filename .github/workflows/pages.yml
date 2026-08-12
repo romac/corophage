@@ -34,7 +34,9 @@ jobs:
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Build site
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            export COROPHAGE_RELEASE_VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             export COROPHAGE_RELEASE_VERSION="$MANUAL_RELEASE_VERSION"
           fi
           just build
