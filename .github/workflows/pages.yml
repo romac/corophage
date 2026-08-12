@@ -2,8 +2,8 @@ name: Deploy website to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
   pull_request:
   workflow_dispatch:
 
@@ -28,13 +28,13 @@ jobs:
       - run: just build
         working-directory: docs
       - name: Upload artifact
-        if: github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: docs/public
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
