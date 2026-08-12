@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Generate llms.txt and llms-full.txt from docs markdown files."""
 
+import os
 import re
 from pathlib import Path
 
 DOCS_DIR = Path("content/docs")
 PUBLIC_DIR = Path("public")
 BASE_URL = "https://corophage.rs"
+DEFAULT_RELEASE_VERSION = "0.5.0"
+RELEASE_VERSION_EXPRESSION = (
+    '{{ get_env(name="COROPHAGE_RELEASE_VERSION", default="0.5.0") }}'
+)
 
 HEADER = """\
 # corophage
@@ -34,7 +39,12 @@ def parse_page(path: Path):
     desc = m.group(1) if m else ""
     slug = path.stem
     body = re.sub(r"\A\+\+\+.*?\+\+\+\s*", "", text, flags=re.DOTALL)
+    body = body.replace(RELEASE_VERSION_EXPRESSION, release_version())
     return {"weight": weight, "title": title, "desc": desc, "slug": slug, "body": body}
+
+
+def release_version():
+    return os.environ.get("COROPHAGE_RELEASE_VERSION", DEFAULT_RELEASE_VERSION)
 
 
 def main():
