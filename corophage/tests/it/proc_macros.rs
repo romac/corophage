@@ -1,6 +1,31 @@
 #[cfg(not(miri))]
 #[test]
 fn compile_fail_tests() {
+    const TRYBUILD_CHILD: &str = "COROPHAGE_TRYBUILD_CHILD";
+
+    if std::env::var_os(TRYBUILD_CHILD).is_none() {
+        // Run trybuild in a child with Kache replay disabled. Cached
+        // diagnostics can contain paths from the cache's build root, which
+        // makes snapshots depend on the machine that populated the cache. The
+        // child keeps this environment override isolated from other tests.
+        let output = std::process::Command::new(
+            std::env::current_exe().expect("test executable must have a path"),
+        )
+        .args(["--exact", "proc_macros::compile_fail_tests", "--nocapture"])
+        .env(TRYBUILD_CHILD, "1")
+        .env("KACHE_DISABLED", "1")
+        .output()
+        .expect("trybuild child process must start");
+
+        assert!(
+            output.status.success(),
+            "trybuild child process failed\n\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
     let t = trybuild::TestCases::new();
     t.compile_fail("tests/compile_fail/*.rs");
 }
