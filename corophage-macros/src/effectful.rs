@@ -1,7 +1,10 @@
+use std::collections::HashSet;
+
 use proc_macro2::{Punct, Spacing, TokenStream};
 use quote::{ToTokens, TokenStreamExt, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
+use syn::visit::Visit;
 use syn::visit_mut::{self, VisitMut};
 use syn::{
     GenericParam, Ident, ItemFn, Lifetime, LifetimeParam, Result, ReturnType, Token, Type,
@@ -302,6 +305,9 @@ fn ensure_lifetime_in_generics(func: &mut ItemFn, lifetime: &Lifetime) {
 
 fn bind_inputs_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime) {
     let mut predicates = Vec::new();
+    let mut binder = InputLifetimeBinder::new(effect_lifetime);
+    // Include higher-ranked lifetimes and bounds when avoiding name collisions.
+    binder.visit_signature(&func.sig);
 
     for input in &mut func.sig.inputs {
         match input {
@@ -321,9 +327,9 @@ fn bind_inputs_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime)
                 }
             }
             syn::FnArg::Typed(argument) => {
-                let mut binder = InputLifetimeBinder::new(effect_lifetime);
+                binder.contains_impl_trait = false;
                 binder.visit_type_mut(&mut argument.ty);
-                predicates.extend(binder.reference_predicates);
+                predicates.append(&mut binder.reference_predicates);
 
                 if !binder.contains_impl_trait {
                     let ty = &argument.ty;
@@ -331,6 +337,13 @@ fn bind_inputs_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime)
                 }
             }
         }
+    }
+
+    for lifetime in binder.placeholder_lifetimes {
+        func.sig
+            .generics
+            .params
+            .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime)));
     }
 
     func.sig
@@ -344,6 +357,8 @@ struct InputLifetimeBinder<'a> {
     effect_lifetime: &'a Lifetime,
     contains_impl_trait: bool,
     reference_predicates: Vec<WherePredicate>,
+    used_lifetimes: HashSet<String>,
+    placeholder_lifetimes: Vec<Lifetime>,
 }
 
 impl<'a> InputLifetimeBinder<'a> {
@@ -352,11 +367,41 @@ impl<'a> InputLifetimeBinder<'a> {
             effect_lifetime,
             contains_impl_trait: false,
             reference_predicates: Vec::new(),
+            used_lifetimes: HashSet::new(),
+            placeholder_lifetimes: Vec::new(),
         }
     }
 }
 
+impl<'ast> Visit<'ast> for InputLifetimeBinder<'_> {
+    fn visit_lifetime(&mut self, lifetime: &'ast Lifetime) {
+        self.used_lifetimes.insert(lifetime.ident.to_string());
+    }
+}
+
 impl VisitMut for InputLifetimeBinder<'_> {
+    fn visit_generic_argument_mut(&mut self, argument: &mut syn::GenericArgument) {
+        if let syn::GenericArgument::Lifetime(lifetime) = argument
+            && lifetime.ident == "_"
+        {
+            // `'_` is invalid in the generated `ArgumentType: 'effect` bound.
+            // Give each occurrence its own parameter so invariant wrappers do
+            // not force their contents to share the program's lifetime.
+            let mut suffix = self.placeholder_lifetimes.len();
+            loop {
+                let name = format!("__corophage_input_{suffix}");
+                if self.used_lifetimes.insert(name.clone()) {
+                    *lifetime = Lifetime::new(&format!("'{name}"), proc_macro2::Span::mixed_site());
+                    self.placeholder_lifetimes.push(lifetime.clone());
+                    break;
+                }
+                suffix += 1;
+            }
+        } else {
+            visit_mut::visit_generic_argument_mut(self, argument);
+        }
+    }
+
     fn visit_type_reference_mut(&mut self, reference: &mut syn::TypeReference) {
         match &mut reference.lifetime {
             Some(lifetime) if lifetime.ident != "_" => {

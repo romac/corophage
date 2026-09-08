@@ -34,6 +34,8 @@ pub fn effect(
 ///
 /// Transforms the function to return a `Program` and enables the `yield_!()`
 /// macro inside the function body.
+/// Borrowed wrapper arguments such as `Cow<'_, str>` are supported, including
+/// nested wrappers whose placeholder lifetimes are inferred independently.
 ///
 /// # Arguments
 ///

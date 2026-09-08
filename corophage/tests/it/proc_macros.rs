@@ -30,6 +30,8 @@ fn compile_fail_tests() {
     t.compile_fail("tests/compile_fail/*.rs");
 }
 
+use std::borrow::Cow;
+use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 
 use corophage::prelude::*;
@@ -122,6 +124,109 @@ fn test_resume_lifetime_does_not_conflict_with_effect_lifetime() {
 #[effectful]
 fn borrowed_argument(value: &str) -> usize {
     value.len()
+}
+
+#[effectful]
+fn borrowed_cow_argument(value: Cow<'_, str>) -> usize {
+    value.len()
+}
+
+#[effectful]
+fn nested_placeholder_arguments(values: Option<(Cow<'_, str>, [Cow<'_, str>; 1])>) -> usize {
+    let (first, [second]) = values.unwrap();
+    first.len() + second.len()
+}
+
+#[effectful]
+fn independent_placeholder_arguments(value: RefMut<'_, Cow<'_, str>>, suffix: &str) -> usize {
+    value.len() + suffix.len()
+}
+
+#[test]
+fn test_effectful_placeholder_lifetimes_in_borrowed_wrappers() {
+    let value = String::from("hello");
+    assert_eq!(
+        borrowed_cow_argument(Cow::Borrowed(&value)).run_sync(),
+        Ok(5)
+    );
+    assert_eq!(
+        borrowed_cow_argument(Cow::Owned(value.clone())).run_sync(),
+        Ok(5)
+    );
+    assert_eq!(
+        nested_placeholder_arguments(Some((Cow::Borrowed(&value), [Cow::Borrowed(&value)])))
+            .run_sync(),
+        Ok(10)
+    );
+}
+
+#[test]
+fn test_effectful_wrapper_lifetimes_remain_independent() {
+    let value = String::from("hello");
+    let cell = RefCell::new(Cow::Borrowed(value.as_str()));
+    {
+        let suffix = String::from("!");
+        assert_eq!(
+            independent_placeholder_arguments(cell.borrow_mut(), &suffix).run_sync(),
+            Ok(6)
+        );
+    }
+    // RefMut is invariant in its contents. Their lifetime must stay independent
+    // of both the guard's borrow and the shorter-lived suffix above.
+    assert_eq!(*cell.borrow(), "hello");
+}
+
+#[effectful]
+fn placeholder_lifetime_name_collision<'__corophage_input_0>(
+    value: Cow<'_, str>,
+    suffix: &'__corophage_input_0 str,
+    callback: fn(Cow<'_, str>) -> usize,
+    higher_ranked: impl for<'__corophage_input_1> Fn(&'__corophage_input_1 str) -> usize,
+) -> usize {
+    let local = value.into_owned();
+    callback(Cow::Borrowed(&local)) + higher_ranked(&local) + suffix.len()
+}
+
+#[test]
+fn test_effectful_placeholder_lifetimes_avoid_name_collisions() {
+    let value = String::from("hello");
+    // Callback placeholders belong to the callback's signature, so they must
+    // still accept a borrow of the local string created inside the computation.
+    assert_eq!(
+        placeholder_lifetime_name_collision(
+            Cow::Borrowed(&value),
+            "!",
+            |value| value.len(),
+            str::len,
+        )
+        .run_sync(),
+        Ok(11)
+    );
+}
+
+#[effectful('scope, send)]
+fn explicit_sendable_placeholder_argument<'scope, T>(
+    value: Cow<'_, str>,
+    other: T,
+    suffix: &'scope str,
+) -> usize
+where
+    T: AsRef<str> + Send,
+{
+    value.len() + other.as_ref().len() + suffix.len()
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_effectful_placeholder_lifetimes_with_explicit_lifetime_and_send() {
+    let value = String::from("hello");
+    let suffix = String::from("!");
+    let future =
+        explicit_sendable_placeholder_argument(Cow::Borrowed(&value), &value, &suffix).run();
+
+    fn assert_send(_: &impl Send) {}
+    assert_send(&future);
+    assert_eq!(future.await, Ok(11));
 }
 
 #[effectful('a)]

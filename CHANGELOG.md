@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Placeholder lifetimes in borrowed wrapper arguments compile** — `#[effectful]` now accepts arguments such as `Cow<'_, str>` and nested borrowed wrappers without generating invalid lifetime bounds. Each placeholder remains independent, including in invariant wrappers such as `RefMut`.
+
 - **Ready async handlers yield cooperatively** — async runners now yield to the executor after a bounded number of effect dispatches, so a long or infinite effect loop with immediately ready handlers gives other tasks and cancellation a chance to run. This applies to local, sendable, and stateful async execution.
 
 ### Changed

@@ -43,6 +43,20 @@ fn length(value: &str) -> usize {
 }
 ```
 
+Borrowed wrappers can use placeholder lifetimes, including in nested argument types. Each placeholder is inferred independently:
+
+```rust
+use std::borrow::Cow;
+
+#[effectful]
+fn cow_length(value: Cow<'_, str>) -> usize {
+    value.len()
+}
+
+let text = String::from("hello");
+assert_eq!(cow_length(Cow::Borrowed(&text)).run_sync(), Ok(5));
+```
+
 Generic parameters, argument-position `impl Trait`, and borrowed receivers work the same way:
 
 ```rust

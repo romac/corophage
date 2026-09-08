@@ -1,0 +1,12 @@
+error[E0597]: `value` does not live long enough
+  --> tests/compile_fail/effectful_placeholder_borrow_escapes.rs:14:40
+   |
+13 |         let value = String::from("borrowed");
+   |             ----- binding `value` declared here
+14 |         program = length(Cow::Borrowed(&value));
+   |                                        ^^^^^^ borrowed value does not live long enough
+15 |     }
+   |     - `value` dropped here while still borrowed
+16 |     // The captured borrow must remain valid until the program runs or is dropped.
+17 |     program.run_sync().unwrap();
+   |     ------- borrow later used here
