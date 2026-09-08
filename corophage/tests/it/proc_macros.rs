@@ -127,6 +127,101 @@ fn borrowed_argument(value: &str) -> usize {
 }
 
 #[effectful]
+fn advance_nested_reference(value: &mut &str) -> usize {
+    *value = &value[1..];
+    value.len()
+}
+
+#[effectful]
+fn advance_placeholder_reference(value: &'_ mut &'_ str) -> usize {
+    *value = &value[1..];
+    value.len()
+}
+
+#[effectful('borrow)]
+fn advance_with_named_outer_reference<'borrow>(value: &'borrow mut &str) -> usize {
+    *value = &value[1..];
+    value.len()
+}
+
+#[test]
+fn test_effectful_nested_reference_lifetimes_allow_sequential_calls() {
+    let text = String::from("abcde");
+    let mut remaining = text.as_str();
+
+    drop(advance_nested_reference(&mut remaining));
+    assert_eq!(remaining, "abcde");
+    assert_eq!(advance_nested_reference(&mut remaining).run_sync(), Ok(4));
+    assert_eq!(advance_nested_reference(&mut remaining).run_sync(), Ok(3));
+    assert_eq!(
+        advance_placeholder_reference(&mut remaining).run_sync(),
+        Ok(2)
+    );
+    assert_eq!(
+        advance_with_named_outer_reference(&mut remaining).run_sync(),
+        Ok(1)
+    );
+    assert_eq!(remaining, "e");
+}
+
+#[effectful(Log<'static>, send)]
+fn increment_nested_mutable_reference(value: &mut &mut usize) -> usize {
+    **value += 1;
+    yield_!(Log("incremented"));
+    **value
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_effectful_nested_mutable_references_with_send() {
+    let mut count = 0;
+    let mut reference = &mut count;
+
+    for expected in 1..=2 {
+        let future = increment_nested_mutable_reference(&mut reference)
+            .handle(async |_: Log<'static>| {
+                tokio::task::yield_now().await;
+                Control::resume(())
+            })
+            .run();
+
+        fn assert_send(_: &impl Send) {}
+        assert_send(&future);
+        assert_eq!(future.await, Ok(expected));
+    }
+    assert_eq!(count, 2);
+}
+
+#[effectful]
+fn remove_empty_references(values: &mut Vec<&str>) -> usize {
+    values.retain(|value| !value.is_empty());
+    values.len()
+}
+
+#[test]
+fn test_effectful_references_inside_invariant_wrappers() {
+    let text = String::from("hello");
+    let mut values = vec![text.as_str(), ""];
+
+    assert_eq!(remove_empty_references(&mut values).run_sync(), Ok(1));
+    assert_eq!(remove_empty_references(&mut values).run_sync(), Ok(1));
+    assert_eq!(values, vec!["hello"]);
+}
+
+// Keep output elision in this regression even though the macro names input lifetimes.
+#[allow(mismatched_lifetime_syntaxes)]
+#[effectful]
+fn return_borrowed_argument(value: &str) -> &str {
+    &value[1..]
+}
+
+#[test]
+fn test_effectful_reference_return_lifetime_elision() {
+    let text = String::from("hello");
+    assert_eq!(return_borrowed_argument(&text).run_sync(), Ok("ello"));
+}
+
+#[effectful]
 fn borrowed_cow_argument(value: Cow<'_, str>) -> usize {
     value.len()
 }

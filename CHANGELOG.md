@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Nested reference arguments keep independent lifetimes** — `#[effectful]` no longer equates elided reference lifetimes with the program lifetime. Sequential calls with arguments such as `&mut &str` and `&mut &mut T` can now reuse the outer mutable borrow after each program completes, while active programs retain their required borrows.
+
 - **Placeholder lifetimes in borrowed wrapper arguments compile** — `#[effectful]` now accepts arguments such as `Cow<'_, str>` and nested borrowed wrappers without generating invalid lifetime bounds. Each placeholder remains independent, including in invariant wrappers such as `RefMut`.
 
 - **Ready async handlers yield cooperatively** — async runners now yield to the executor after a bounded number of effect dispatches, so a long or infinite effect loop with immediately ready handlers gives other tasks and cancellation a chance to run. This applies to local, sendable, and stateful async execution.

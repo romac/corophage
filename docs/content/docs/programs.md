@@ -57,6 +57,22 @@ let text = String::from("hello");
 assert_eq!(cow_length(Cow::Borrowed(&text)).run_sync(), Ok(5));
 ```
 
+Nested references also keep independent lifetimes. For example, the outer borrow in `&mut &str` can end before the inner string data expires. This permits sequential calls after each program completes or is dropped:
+
+```rust
+#[effectful]
+fn advance(value: &mut &str) -> usize {
+    *value = &value[1..];
+    value.len()
+}
+
+let text = String::from("abc");
+let mut remaining = text.as_str();
+assert_eq!(advance(&mut remaining).run_sync(), Ok(2));
+assert_eq!(advance(&mut remaining).run_sync(), Ok(1));
+assert_eq!(remaining, "c");
+```
+
 Generic parameters, argument-position `impl Trait`, and borrowed receivers work the same way:
 
 ```rust

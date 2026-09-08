@@ -1,0 +1,10 @@
+error[E0499]: cannot borrow `remaining` as mutable more than once at a time
+  --> tests/compile_fail/effectful_overlapping_reference_borrows.rs:13:26
+   |
+10 |     let first = advance(&mut remaining);
+   |                         -------------- first mutable borrow occurs here
+...
+13 |     let second = advance(&mut remaining);
+   |                          ^^^^^^^^^^^^^^ second mutable borrow occurs here
+14 |     first.run_sync().unwrap();
+   |     ----- first borrow later used here

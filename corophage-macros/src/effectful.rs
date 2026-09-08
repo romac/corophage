@@ -339,7 +339,7 @@ fn bind_inputs_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime)
         }
     }
 
-    for lifetime in binder.placeholder_lifetimes {
+    for lifetime in binder.inferred_lifetimes {
         func.sig
             .generics
             .params
@@ -358,7 +358,7 @@ struct InputLifetimeBinder<'a> {
     contains_impl_trait: bool,
     reference_predicates: Vec<WherePredicate>,
     used_lifetimes: HashSet<String>,
-    placeholder_lifetimes: Vec<Lifetime>,
+    inferred_lifetimes: Vec<Lifetime>,
 }
 
 impl<'a> InputLifetimeBinder<'a> {
@@ -368,7 +368,20 @@ impl<'a> InputLifetimeBinder<'a> {
             contains_impl_trait: false,
             reference_predicates: Vec::new(),
             used_lifetimes: HashSet::new(),
-            placeholder_lifetimes: Vec::new(),
+            inferred_lifetimes: Vec::new(),
+        }
+    }
+
+    fn fresh_input_lifetime(&mut self) -> Lifetime {
+        let mut suffix = self.inferred_lifetimes.len();
+        loop {
+            let name = format!("__corophage_input_{suffix}");
+            if self.used_lifetimes.insert(name.clone()) {
+                let lifetime = Lifetime::new(&format!("'{name}"), proc_macro2::Span::mixed_site());
+                self.inferred_lifetimes.push(lifetime.clone());
+                return lifetime;
+            }
+            suffix += 1;
         }
     }
 }
@@ -387,32 +400,27 @@ impl VisitMut for InputLifetimeBinder<'_> {
             // `'_` is invalid in the generated `ArgumentType: 'effect` bound.
             // Give each occurrence its own parameter so invariant wrappers do
             // not force their contents to share the program's lifetime.
-            let mut suffix = self.placeholder_lifetimes.len();
-            loop {
-                let name = format!("__corophage_input_{suffix}");
-                if self.used_lifetimes.insert(name.clone()) {
-                    *lifetime = Lifetime::new(&format!("'{name}"), proc_macro2::Span::mixed_site());
-                    self.placeholder_lifetimes.push(lifetime.clone());
-                    break;
-                }
-                suffix += 1;
-            }
+            *lifetime = self.fresh_input_lifetime();
         } else {
             visit_mut::visit_generic_argument_mut(self, argument);
         }
     }
 
     fn visit_type_reference_mut(&mut self, reference: &mut syn::TypeReference) {
-        match &mut reference.lifetime {
-            Some(lifetime) if lifetime.ident != "_" => {
-                if lifetime != self.effect_lifetime && lifetime.ident != "static" {
-                    let lifetime = lifetime.clone();
-                    let effect_lifetime = self.effect_lifetime;
-                    self.reference_predicates
-                        .push(parse_quote!(#lifetime: #effect_lifetime));
-                }
+        let lifetime = match &reference.lifetime {
+            Some(lifetime) if lifetime.ident != "_" => lifetime.clone(),
+            _ => {
+                // Nested references need distinct lifetimes: the outer borrow
+                // may end while the data behind an inner reference stays live.
+                let lifetime = self.fresh_input_lifetime();
+                reference.lifetime = Some(lifetime.clone());
+                lifetime
             }
-            lifetime => *lifetime = Some(self.effect_lifetime.clone()),
+        };
+        if lifetime != *self.effect_lifetime && lifetime.ident != "static" {
+            let effect_lifetime = self.effect_lifetime;
+            self.reference_predicates
+                .push(parse_quote!(#lifetime: #effect_lifetime));
         }
 
         visit_mut::visit_type_reference_mut(self, reference);

@@ -156,6 +156,8 @@ The `#[effectful]` macro transforms your function to return a `Program` and lets
 
 Borrowed and generic arguments are captured for the lifetime of the returned program automatically, so ordinary signatures such as `fn length(value: &str)` do not need artificial lifetime annotations. Borrowed wrapper arguments such as `Cow<'_, str>` are also supported, including nested wrappers with independent placeholder lifetimes.
 
+Nested reference arguments such as `&mut &str` keep independent lifetimes for the outer borrow and inner data. The outer mutable borrow can be reused after the program completes or is dropped.
+
 If you have a pre-defined effects type alias, you can spread it into the attribute with `...Alias` (same syntax as frunk's `Coprod!(...Tail)`):
 
 ```rust,ignore

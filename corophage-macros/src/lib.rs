@@ -36,6 +36,8 @@ pub fn effect(
 /// macro inside the function body.
 /// Borrowed wrapper arguments such as `Cow<'_, str>` are supported, including
 /// nested wrappers whose placeholder lifetimes are inferred independently.
+/// Elided reference lifetimes are also independent, allowing sequential calls
+/// with nested references such as `&mut &str` after each program completes.
 ///
 /// # Arguments
 ///
