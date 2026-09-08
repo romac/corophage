@@ -225,6 +225,9 @@ where
     }
 
     /// Run the computation asynchronously with shared state.
+    ///
+    /// Yields to the executor after a bounded number of effect dispatches, even
+    /// when handlers are immediately ready. See [`crate::asynk`] for the limits.
     #[inline]
     pub async fn run_stateful<S, Indices>(self, state: &mut S) -> Result<R, Cancelled>
     where
@@ -242,6 +245,8 @@ where
     /// Run a local computation asynchronously.
     ///
     /// Both the computation body and its handlers may await ordinary futures.
+    /// Yields to the executor after a bounded number of effect dispatches, even
+    /// when handlers are immediately ready. See [`crate::asynk`] for the limits.
     #[inline]
     pub async fn run<Indices>(self) -> Result<R, Cancelled>
     where
@@ -259,6 +264,8 @@ where
     /// Run a sendable computation asynchronously.
     ///
     /// Both the computation body and its handlers may await ordinary futures.
+    /// Yields to the executor after a bounded number of effect dispatches, even
+    /// when handlers are immediately ready. See [`crate::asynk`] for the limits.
     #[inline]
     // Keep the `Send` promise explicit so callers can rely on it.
     #[allow(clippy::manual_async_fn)]

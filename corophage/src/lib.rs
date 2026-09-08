@@ -69,9 +69,44 @@ macro_rules! resume_co_with {
     };
 }
 
+// Keep short computations in one poll while bounding runs of ready handlers.
+const ASYNC_DISPATCH_BUDGET: usize = 128;
+
+#[inline]
+async fn yield_to_executor() {
+    let mut yielded = false;
+    std::future::poll_fn(|cx| {
+        if yielded {
+            std::task::Poll::Ready(())
+        } else {
+            yielded = true;
+            cx.waker().wake_by_ref();
+            std::task::Poll::Pending
+        }
+    })
+    .await;
+}
+
 /// Internal macro for running a coroutine with effect handlers.
 macro_rules! run {
-    ($mode:ident, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
+    (asynk, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
+        let mut budget = $crate::ASYNC_DISPATCH_BUDGET;
+        run!(@loop asynk, $lt, $effs, $co, $effect => {
+            // Check before dispatch so completion does not require an extra poll.
+            // Other suspension points may yield sooner; this counter bounds each
+            // run of ready handlers without depending on a particular executor.
+            if budget == 0 {
+                $crate::yield_to_executor().await;
+                budget = $crate::ASYNC_DISPATCH_BUDGET;
+            }
+            budget -= 1;
+            $handle
+        })
+    }};
+    (sync, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {
+        run!(@loop sync, $lt, $effs, $co, $effect => $handle)
+    };
+    (@loop $mode:ident, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
         let mut co = ::std::pin::pin!($co);
 
         let mut yielded = resume_co_with!($mode, co.as_mut(), $crate::effect::Start);
@@ -119,6 +154,11 @@ pub enum Never {}
 ///
 /// Use these functions to run a coroutine with async effect handlers.
 /// For most use cases, prefer [`Program::run`] instead.
+///
+/// Runners yield to the executor after a bounded number of effect dispatches,
+/// even when handlers are immediately ready. Each runner has its own budget.
+/// This provides scheduling opportunities, but does not guarantee task ordering
+/// or preempt a computation body or handler that does not return from its poll.
 pub mod asynk {
     use crate::coproduct::{SendAsyncHandleMut, SendFuture};
     use crate::coroutine::GenericCo;

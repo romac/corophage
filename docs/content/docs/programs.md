@@ -239,6 +239,8 @@ Once all effects are handled, you can run the program:
 - `.run_sync_stateful(&mut state)` — synchronous with shared mutable state
 - `.run_stateful(&mut state).await` — async with shared mutable state
 
+Async runners yield to the executor after a bounded number of effect dispatches, even when handlers are immediately ready. Each runner has its own budget (currently 128 dispatches; this value may change). This applies to `.run().await`, `.run_stateful(&mut state).await`, and the low-level `asynk` runners. It gives the executor opportunities to schedule other tasks and process cancellation, but does not guarantee task ordering or preempt a computation body or handler that does not return from its poll.
+
 ## Partially-handled programs
 
 A partially-handled program is a first-class value you can pass around, store, or extend later:

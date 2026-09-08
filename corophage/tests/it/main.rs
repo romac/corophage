@@ -4,6 +4,7 @@ mod common;
 #[cfg(not(miri))]
 mod downstream;
 mod error;
+mod fairness;
 mod gat_resume;
 mod invoke;
 mod non_static;

@@ -207,6 +207,8 @@ A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` m
 
 Computation bodies may also await ordinary futures when executed with `.run().await` or the low-level `asynk` runners. Synchronous runners handle effect suspension but cannot wait for unrelated futures; if one returns `Pending`, use an async runner instead.
 
+Async runners, including `.run_stateful(&mut state).await`, yield to the executor after a bounded number of effect dispatches, even when handlers are immediately ready. Each runner has its own budget (currently 128 dispatches; this value may change). This gives the executor opportunities to schedule other tasks and process cancellation. It does not guarantee task ordering or preempt a computation body or handler that does not return from its poll.
+
 > [!NOTE]
 > Handlers can be attached in any order, both with `Program::handle()` and in the `hlist!` passed to the low-level `sync::run`/`asynk::run` functions. Low-level handler lists may also contain extra handlers for effects the computation never yields; every effect the computation can yield must still have a compatible handler.
 

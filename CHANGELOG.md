@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Ready async handlers yield cooperatively** — async runners now yield to the executor after a bounded number of effect dispatches, so a long or infinite effect loop with immediately ready handlers gives other tasks and cancellation a chance to run. This applies to local, sendable, and stateful async execution.
+
 ### Changed
 
 - **MSRV raised to Rust 1.93** — corophage now requires Rust 1.93 or later. The newer compiler can prove that recursive async handler dispatch futures are `Send`, removing an internal unchecked `Send` assertion and its associated wrapper plumbing.
