@@ -83,6 +83,45 @@ assert_eq!(result, Ok(84));
 assert_eq!(state.x, 84);
 ```
 
+## Send-able async execution
+
+Programs created with `Program::new_send` or `#[effectful(..., send)]` can run with shared state inside `tokio::spawn`. The state and result must be `Send`, handlers must be `Send + Sync`, and each handler future must be `Send`. Handlers can retain their `&mut S` argument across awaits:
+
+```rust
+use corophage::prelude::*;
+
+#[effect(u64)]
+struct Counter;
+
+async fn increment(state: &mut u64, _: Counter) -> Control<u64> {
+    tokio::task::yield_now().await;
+    *state += 1;
+    Control::resume(*state)
+}
+
+let program = Program::new_send::<Effects![Counter], _>(|mut y| async move {
+    let first = y.yield_(Counter).await;
+    let second = y.yield_(Counter).await;
+    first + second
+})
+.handle(increment);
+
+let (result, state) = tokio::spawn(async move {
+    let mut state = 0;
+    let result = program.run_stateful(&mut state).await;
+    (result, state)
+})
+.await
+.unwrap();
+
+assert_eq!(result, Ok(3));
+assert_eq!(state, 2);
+```
+
+The state is owned by the spawned task, so its mutable borrow stays valid until execution finishes. Outside `tokio::spawn`, a sendable runner can also borrow state and effect data from the surrounding scope; it does not require `'static` data.
+
+Sendable stateful handlers use the same restriction on captured data as sendable stateless handlers: a returned future can borrow the explicit state argument, but must not borrow from the closure's captures. Use an `async fn` as above, or clone captured data into an owned future. Use `Program::new` for local execution with lending captures, non-`Send` state, or non-`Send` handler futures.
+
 ## Alternatives
 
 If your handlers don't need shared state, use `.run_sync()` / `.run()` instead. You can also use `RefCell` or other interior mutability patterns to share state without `run_stateful`.

@@ -150,3 +150,115 @@ async fn borrowed_sendable_program_run_is_send() {
     assert_send(&future);
     assert_eq!(future.await, Ok("handled borrowed".to_string()));
 }
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn sendable_program_run_stateful_can_be_spawned() {
+    async fn read(state: &mut usize, FileRead(file): FileRead) -> Control<String> {
+        *state += 1;
+        tokio::task::yield_now().await;
+        Control::resume(format!("read {file} #{}", *state))
+    }
+
+    let program = Program::new_send::<Effects![Log<'static>, FileRead], _>(|mut y| async move {
+        tokio::task::yield_now().await;
+        let first = y.yield_(FileRead("first".to_string())).await;
+        y.yield_(Log("between reads")).await;
+        let second = y.yield_(FileRead("second".to_string())).await;
+        (first, second)
+    })
+    // Attach in the opposite order to exercise both handler lookup branches.
+    .handle(read)
+    .handle(async |state: &mut usize, _: Log<'static>| {
+        tokio::task::yield_now().await;
+        *state += 10;
+        Control::resume(())
+    });
+
+    let (result, state) = tokio::spawn(async move {
+        let mut state = 0;
+        let future = program.run_stateful(&mut state);
+        assert_send(&future);
+        let result = future.await;
+        (result, state)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(
+        result,
+        Ok(("read first #1".to_string(), "read second #12".to_string()))
+    );
+    assert_eq!(state, 12);
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn sendable_stateful_program_can_borrow_data() {
+    async fn record<'a>(state: &mut Vec<&'a str>, Log(message): Log<'a>) -> Control<()> {
+        tokio::task::yield_now().await;
+        state.push(message);
+        Control::resume(())
+    }
+
+    let message = String::from("borrowed");
+    let message = message.as_str();
+    let mut state = Vec::new();
+    let future = Program::new_send::<Effects![Log<'_>], _>(move |mut y| async move {
+        y.yield_(Log(message)).await;
+        message
+    })
+    .handle(record)
+    .run_stateful(&mut state);
+
+    assert_send(&future);
+    assert_eq!(future.await, Ok("borrowed"));
+    assert_eq!(state, vec!["borrowed"]);
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn sendable_stateful_program_can_cancel() {
+    let program = Program::new_send::<Effects![Cancel, FileRead], _>(|mut y| async move {
+        y.yield_(Cancel).await;
+        panic!("cancelled computation must not resume");
+    })
+    .handle(async |state: &mut usize, _: Cancel| {
+        *state += 1;
+        tokio::task::yield_now().await;
+        Control::cancel()
+    })
+    .handle(async |_: &mut usize, _: FileRead| -> Control<String> {
+        panic!("handler must not run after cancellation");
+    });
+
+    let (result, state) = tokio::spawn(async move {
+        let mut state = 0;
+        let result: Result<(), _> = program.run_stateful(&mut state).await;
+        (result, state)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(result, Err(Cancelled));
+    assert_eq!(state, 1);
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn sendable_stateful_program_without_effects_can_be_spawned() {
+    let result = tokio::spawn(async move {
+        let mut state = 7;
+        let result = Program::new_send::<Effects![], _>(|_| async {
+            tokio::task::yield_now().await;
+            42
+        })
+        .run_stateful(&mut state)
+        .await;
+        (result, state)
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(result, (Ok(42), 7));
+}

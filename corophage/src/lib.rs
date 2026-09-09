@@ -160,7 +160,7 @@ pub enum Never {}
 /// This provides scheduling opportunities, but does not guarantee task ordering
 /// or preempt a computation body or handler that does not return from its poll.
 pub mod asynk {
-    use crate::coproduct::{SendAsyncHandleMut, SendFuture};
+    use crate::coproduct::{SendAsyncHandleMut, SendAsyncHandleWith, SendFuture};
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
     use crate::locality::{Locality, Sendable};
@@ -219,6 +219,33 @@ pub mod asynk {
         ES: Effects<'a> + AsyncHandleWith<'a, ES, F, S, Indices>,
     {
         run!(asynk, 'a, ES, co, effect => effect.handle_with(state, handler).await)
+    }
+
+    /// Run a sendable coroutine with shared state and `Send` handler futures.
+    #[doc(hidden)]
+    #[inline]
+    pub fn run_stateful_send<'a: 'h, 'h, ES, R, S, F, Indices>(
+        co: GenericCo<'a, ES, R, Sendable>,
+        state: &'h mut S,
+        handler: &'h F,
+    ) -> impl Future<Output = Result<R, Cancelled>> + Send + use<'a, 'h, ES, R, S, F, Indices>
+    where
+        R: Send + 'h,
+        S: Send + 'h,
+        F: Sync + 'h,
+        ES: Effects<'a> + SendAsyncHandleWith<'a, ES, F, S, Indices>,
+        crate::effect::Resumes<'a, ES>: Send,
+        GenericCo<'a, ES, R, Sendable>: Send,
+    {
+        let future = async move {
+            run!(asynk, 'a, ES, co, effect => effect.handle_with_send(state, handler).await)
+        };
+
+        // SAFETY: the coroutine, mutable state reference, shared handler
+        // reference, and resume values are `Send`. Every awaited dispatch future
+        // is `Send` by `SendAsyncHandleWith`. As in `run_send`, rustc cannot carry
+        // these proofs through the resume future because of #100013.
+        unsafe { SendFuture::new_unchecked(future) }
     }
 }
 

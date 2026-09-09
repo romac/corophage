@@ -1,0 +1,26 @@
+error[E0277]: `Cell<i32>` cannot be shared between threads safely
+  --> tests/compile_fail/sendable_stateful_non_sync_handler.rs:20:6
+   |
+20 |     .run_stateful(&mut state);
+   |      ^^^^^^^^^^^^ `Cell<i32>` cannot be shared between threads safely
+   |
+   = help: within `HCons<{closure@$DIR/tests/compile_fail/sendable_stateful_non_sync_handler.rs:15:13: 15:46}, HNil>`, the trait `Sync` is not implemented for `Cell<i32>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` or `std::sync::atomic::AtomicI32` instead
+note: required because it's used within this closure
+  --> tests/compile_fail/sendable_stateful_non_sync_handler.rs:15:13
+   |
+15 |     .handle(move |state: &mut usize, _: Tick| {
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `HCons<{closure@$DIR/tests/compile_fail/sendable_stateful_non_sync_handler.rs:15:13: 15:46}, HNil>`
+  --> $CARGO/frunk_core-$VERSION/src/hlist.rs
+   |
+   | pub struct HCons<H, T> {
+   |            ^^^^^
+note: required by a bound in `corophage::Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
+  --> src/program.rs
+   |
+   |     pub fn run_stateful<S, Indices>(
+   |            ------------ required by a bound in this associated function
+...
+   |         Handlers: Send + Sync,
+   |                          ^^^^ required by this bound in `Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`

@@ -220,6 +220,30 @@ async fn async_run_stateful_state() {
     assert_eq!(state, 15u64);
 }
 
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn local_stateful_handler_can_borrow_non_send_state() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let captured = Rc::new(Cell::new(0));
+    let mut state = Rc::new(Cell::new(5));
+    let result =
+        Program::new::<Effects![Counter], _>(|mut y| async move { y.yield_(Counter).await })
+            .handle(async |state: &mut Rc<Cell<u64>>, _: Counter| {
+                tokio::task::yield_now().await;
+                captured.set(captured.get() + 1);
+                state.set(state.get() + 10);
+                Control::resume(state.get())
+            })
+            .run_stateful(&mut state)
+            .await;
+
+    assert_eq!(result, Ok(15));
+    assert_eq!(state.get(), 15);
+    assert_eq!(captured.get(), 1);
+}
+
 #[test]
 fn handle_multiple() {
     struct Other;

@@ -8,6 +8,7 @@ use frunk_core::hlist::{HCons, HNil};
 use crate::control::Cancelled;
 use crate::coproduct::{
     AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith, HandlersToEffects, SendAsyncHandleMut,
+    SendAsyncHandleWith,
 };
 use crate::coroutine::{Co, CoSend, GenericCo, Yielder};
 use crate::effect::{CanStart, Effects, Resumes};
@@ -223,8 +224,13 @@ where
         let handlers = self.handlers;
         crate::sync::run_stateful(self.co, state, &handlers)
     }
+}
 
-    /// Run the computation asynchronously with shared state.
+impl<'a, Effs, R, Handlers> Program<'a, Effs, R, Local, CNil, Handlers>
+where
+    Effs: Effects<'a>,
+{
+    /// Run a local computation asynchronously with shared state.
     ///
     /// Yields to the executor after a bounded number of effect dispatches, even
     /// when handlers are immediately ready. See [`crate::asynk`] for the limits.
@@ -236,12 +242,7 @@ where
         let handlers = self.handlers;
         crate::asynk::run_stateful(self.co, state, &handlers).await
     }
-}
 
-impl<'a, Effs, R, Handlers> Program<'a, Effs, R, Local, CNil, Handlers>
-where
-    Effs: Effects<'a>,
-{
     /// Run a local computation asynchronously.
     ///
     /// Both the computation body and its handlers may await ordinary futures.
@@ -261,6 +262,33 @@ impl<'a, Effs, R, Handlers> Program<'a, Effs, R, Sendable, CNil, Handlers>
 where
     Effs: Effects<'a>,
 {
+    /// Run a sendable computation asynchronously with shared state.
+    ///
+    /// The state and result must be `Send`, handlers must be `Send + Sync`, and
+    /// every handler future must be `Send`. Handlers can borrow the state across
+    /// awaits. Yields to the executor after a bounded number of effect dispatches,
+    /// even when handlers are immediately ready. See [`crate::asynk`] for the limits.
+    #[inline]
+    // Keep the `Send` promise explicit so callers can rely on it.
+    #[allow(clippy::manual_async_fn)]
+    pub fn run_stateful<S, Indices>(
+        self,
+        state: &mut S,
+    ) -> impl Future<Output = Result<R, Cancelled>> + Send
+    where
+        R: Send,
+        S: Send,
+        Handlers: Send + Sync,
+        Effs: SendAsyncHandleWith<'a, Effs, Handlers, S, Indices>,
+        Resumes<'a, Effs>: Send,
+        GenericCo<'a, Effs, R, Sendable>: Send,
+    {
+        async move {
+            let handlers = self.handlers;
+            crate::asynk::run_stateful_send(self.co, state, &handlers).await
+        }
+    }
+
     /// Run a sendable computation asynchronously.
     ///
     /// Both the computation body and its handlers may await ordinary futures.

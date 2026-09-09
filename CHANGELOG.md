@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Stateful async execution preserves `Send`** — `Program::new_send(...).run_stateful(&mut state)` now returns a `Send` future when the state and result are `Send`, handlers are `Send + Sync`, and each handler future is `Send`. Handlers can borrow the shared state across awaits. Local programs retain support for non-`Send` state and handlers.
+
 - **Explicit effect lifetimes work in enclosing `impl` and `trait` scopes** — `#[effectful('a)]` can reuse an enclosing lifetime in methods, associated functions, and default trait methods without redeclaring it. Generated input lifetime names also avoid the selected effect lifetime.
 
 - **Nested reference arguments keep independent lifetimes** — `#[effectful]` no longer equates elided reference lifetimes with the program lifetime. Sequential calls with arguments such as `&mut &str` and `&mut &mut T` can now reuse the outer mutable borrow after each program completes, while active programs retain their required borrows.

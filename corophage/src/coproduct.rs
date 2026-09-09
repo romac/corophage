@@ -259,6 +259,75 @@ where
     }
 }
 
+// Name the future separately for each state borrow. A single `Fut` parameter
+// cannot describe handlers that retain `&mut S` across an await.
+trait SendStatefulFn<State, CH, R>: Fn(State, CH) -> Self::Future {
+    type Future: Future<Output = Control<R>> + Send;
+}
+
+impl<State, CH, R, F, Fut> SendStatefulFn<State, CH, R> for F
+where
+    F: Fn(State, CH) -> Fut,
+    Fut: Future<Output = Control<R>> + Send,
+{
+    type Future = Fut;
+}
+
+/// Find a stateful async handler whose returned future is `Send`.
+#[doc(hidden)]
+pub trait SendAsyncFindHandlerWith<'a, Effs: Effects<'a>, CH: Effect, S, InjectIdx, FindIdx> {
+    fn call_handler_with_send(
+        &self,
+        state: &mut S,
+        effect: CH,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send;
+}
+
+impl<'a, Effs, CH, F, FTail, S, InjectIdx>
+    SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, Here> for HCons<F, FTail>
+where
+    Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
+    CH: Effect + Send,
+    S: Send,
+    F: for<'s> SendStatefulFn<&'s mut S, CH, CH::Resume<'a>> + Sync,
+    FTail: Sync,
+{
+    #[inline]
+    // Keep the `Send` promise explicit so callers can rely on it.
+    #[allow(clippy::manual_async_fn)]
+    fn call_handler_with_send(
+        &self,
+        state: &mut S,
+        effect: CH,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        async move {
+            match (self.head)(state, effect).await {
+                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
+                Control::Cancel => CoControl::Cancel,
+            }
+        }
+    }
+}
+
+impl<'a, Effs, CH, FHead, FTail, S, InjectIdx, I>
+    SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, There<I>> for HCons<FHead, FTail>
+where
+    Effs: Effects<'a>,
+    CH: Effect + Send,
+    S: Send,
+    FHead: Sync,
+    FTail: SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, I> + Sync,
+{
+    #[inline]
+    fn call_handler_with_send(
+        &self,
+        state: &mut S,
+        effect: CH,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        self.tail.call_handler_with_send(state, effect)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // declare_handle_dispatch!  –  generates a Handle* trait + CNil/Coproduct impls
 // ---------------------------------------------------------------------------
@@ -452,6 +521,62 @@ where
             match self {
                 Coproduct::Inl(head) => handlers.call_handler_send(head).await,
                 Coproduct::Inr(rest) => rest.handle_mut_send(handlers).await,
+            }
+        }
+    }
+}
+
+/// Dispatch an effect to a stateful async handler while preserving a `Send` future.
+#[doc(hidden)]
+pub trait SendAsyncHandleWith<'a, Effs: Effects<'a>, Handlers, S, Indices> {
+    fn handle_with_send(
+        self,
+        state: &mut S,
+        handlers: &Handlers,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send;
+}
+
+impl<'a, Effs, Handlers, S> SendAsyncHandleWith<'a, Effs, Handlers, S, HNil> for CNil
+where
+    Effs: Effects<'a>,
+    S: Send,
+    Handlers: Sync,
+{
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[inline]
+    // Keep the `Send` promise explicit so callers can rely on it.
+    #[allow(clippy::manual_async_fn)]
+    fn handle_with_send(
+        self,
+        _: &mut S,
+        _: &Handlers,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        async move { match self {} }
+    }
+}
+
+impl<'a, Effs, CH, CTail, Handlers, S, InjectIdx, FindIdx, ITail>
+    SendAsyncHandleWith<'a, Effs, Handlers, S, HCons<(InjectIdx, FindIdx), ITail>>
+    for Coproduct<CH, CTail>
+where
+    Effs: Effects<'a>,
+    CH: Effect + Send,
+    S: Send,
+    CTail: SendAsyncHandleWith<'a, Effs, Handlers, S, ITail> + Send,
+    Handlers: SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, FindIdx> + Sync,
+{
+    #[inline]
+    // Keep the `Send` promise explicit so callers can rely on it.
+    #[allow(clippy::manual_async_fn)]
+    fn handle_with_send(
+        self,
+        state: &mut S,
+        handlers: &Handlers,
+    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
+        async move {
+            match self {
+                Coproduct::Inl(head) => handlers.call_handler_with_send(state, head).await,
+                Coproduct::Inr(rest) => rest.handle_with_send(state, handlers).await,
             }
         }
     }

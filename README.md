@@ -259,6 +259,8 @@ assert_eq!(result, Ok(3));
 assert_eq!(count, 2);
 ```
 
+For async execution with `Program::new_send` or `#[effectful(..., send)]`, `.run_stateful(&mut state)` returns a `Send` future. The state and result must be `Send`, handlers must be `Send + Sync`, and each handler future must be `Send`. An `async fn` handler can borrow `&mut S` across awaits. Use `Program::new` for local execution with non-`Send` state or handlers.
+
 > [!NOTE]
 > If your handlers don't need shared state, use `.run_sync()` / `.run()` instead. You can also use `RefCell` or other interior mutability patterns to share state without `run_stateful`.
 

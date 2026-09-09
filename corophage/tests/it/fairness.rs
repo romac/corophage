@@ -123,6 +123,28 @@ fn ready_sendable_handlers_yield() {
 }
 
 #[test]
+fn ready_sendable_stateful_handlers_yield() {
+    let handled = AtomicUsize::new(0);
+    let mut state = 0;
+    let program = Program::new_send(ready_effects).handle(async |state: &mut usize, tick: Tick| {
+        *state += 1;
+        handle_tick(&handled, tick)
+    });
+
+    // Move the runner, including its state borrow, after a scheduling yield.
+    let mut future = Box::pin(program.run_stateful(&mut state));
+    let mut cx = Context::from_waker(Waker::noop());
+    assert!(future.as_mut().poll(&mut cx).is_pending());
+    std::thread::scope(|scope| {
+        scope
+            .spawn(|| drive_in_batches(future, &handled))
+            .join()
+            .unwrap();
+    });
+    assert_eq!(state, EFFECT_COUNT);
+}
+
+#[test]
 fn invoked_effects_share_the_outer_runner_budget() {
     let handled = AtomicUsize::new(0);
     let future = Program::new::<Effects![Tick], _>(|mut y| async move {

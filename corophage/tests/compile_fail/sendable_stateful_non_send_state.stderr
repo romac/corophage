@@ -1,0 +1,17 @@
+error[E0277]: `Rc<{integer}>` cannot be sent between threads safely
+ --> tests/compile_fail/sendable_stateful_non_send_state.rs:9:23
+  |
+9 |         .run_stateful(&mut state);
+  |          ------------ ^^^^^^^^^^ `Rc<{integer}>` cannot be sent between threads safely
+  |          |
+  |          required by a bound introduced by this call
+  |
+  = help: the trait `Send` is not implemented for `Rc<{integer}>`
+note: required by a bound in `corophage::Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
+ --> src/program.rs
+  |
+  |     pub fn run_stateful<S, Indices>(
+  |            ------------ required by a bound in this associated function
+...
+  |         S: Send,
+  |            ^^^^ required by this bound in `Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
