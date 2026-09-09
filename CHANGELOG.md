@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- **Execution comparisons use isolated Cargo targets** — the measurement script now overrides `CARGO_TARGET_DIR` and Cargo target-directory configuration for both revisions and the candidate-only cases, keeping clean builds and executable lookup consistent.
+
 - **Nesting benchmarks measure their stated depths** — the depth-15 and depth-20 fixtures now form single nested chains with one leaf effect. The depth-10 yielding fixture yields once at each of ten levels. Shared fixtures have regression checks for peak active depth and effect counts, and the website reports refreshed measurements.
 
 - **Stateful async execution preserves `Send`** — `Program::new_send(...).run_stateful(&mut state)` now returns a `Send` future when the state and result are `Send`, handlers are `Send + Sync`, and each handler future is `Send`. Handlers can borrow the shared state across awaits. Local programs retain support for non-`Send` state and handlers.

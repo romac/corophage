@@ -91,7 +91,11 @@ codegen-units = 1
             # Copy the same resolved versions into both standalone builds. Cargo
             # only adds the probe package and prunes unused dev dependencies.
             (package / "Cargo.lock").write_text((ROOT / "Cargo.lock").read_text())
-            command = ["cargo", "build", "--offline", "--release"]
+            # Override Cargo environment/configuration so each revision has a
+            # fresh target directory and the executable path stays predictable.
+            target = package / "target"
+            build_command = ["cargo", "build", "--offline", "--release", "--target-dir", str(target)]
+            command = build_command.copy()
             if label == "candidate":
                 command += ["--features", "candidate"]
             print(f"Building {label}...", flush=True)
@@ -100,7 +104,7 @@ codegen-units = 1
             seconds = time.monotonic() - start
             if completed.returncode:
                 raise RuntimeError(completed.stderr)
-            binary = package / "target/release/execution-probe"
+            binary = target / "release/execution-probe"
             measurements = [json.loads(line) for line in run([str(binary)]).splitlines()]
             result["revisions"][label] = {
                 "clean_build_seconds": seconds,
@@ -110,7 +114,7 @@ codegen-units = 1
             }
             print(f"{label}: {seconds:.2f}s build, {binary.stat().st_size} bytes", flush=True)
             if label == "candidate":
-                run(["cargo", "build", "--offline", "--release", "--features", "extras"], cwd=package, env=env)
+                run(build_command + ["--features", "extras"], cwd=package, env=env)
                 result["candidate_extras"] = [json.loads(line) for line in run([str(binary)]).splitlines() if any(name in line for name in ["boxed_", "local_lending_"])]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
