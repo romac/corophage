@@ -128,6 +128,12 @@ impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, Mode>
 
 impl<'a, Effs: Effects<'a>, F: Future> Program<'a, Effs, F> {
     /// Convert an unhandled program to the existing local erased representation.
+    ///
+    /// The erased local `.run()` requires async callables and accepts lending
+    /// closures directly. Call [`Program::with_state`] before `.run()` to use
+    /// mixed sync/async handlers or [`crate::local`] / [`crate::local_stateful`].
+    /// A unit state is sufficient if no handler needs shared state.
+    /// Synchronous handlers remain supported by `.run_sync()`.
     pub fn boxed(self) -> Effectful<'a, Effs, F::Output>
     where
         F: 'a,
@@ -148,7 +154,10 @@ impl<'a, Effs: Effects<'a>, F: Future> Program<'a, Effs, F> {
 impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, S, Mode>
     Program<'a, Effs, F, Remaining, Handlers, S, Mode>
 {
-    /// Attach a handler in any effect order. Sync and async handlers may be mixed.
+    /// Attach a handler in any effect order.
+    ///
+    /// Inferred execution can mix sync and async handlers. Local erased async
+    /// execution has the compatibility restrictions described by [`Program::boxed`].
     #[allow(clippy::type_complexity)]
     pub fn handle<H, HandleIdx, SubsetIdx>(
         self,
@@ -274,6 +283,9 @@ impl<'a, Effs: Effects<'a>, R, H>
     Program<'a, Effs, Pin<Box<dyn Future<Output = R> + 'a>>, CNil, H, (), Local>
 {
     /// Execute an erased local program, retaining lending async closure support.
+    ///
+    /// Every handler must be an async callable. To mix sync/async handlers or use
+    /// the explicit local adapters, call [`Program::with_state`] before `.run()`.
     pub async fn run<I>(self) -> Result<R, Cancelled>
     where
         Effs: AsyncHandleMut<'a, Effs, H, I>,
@@ -283,6 +295,10 @@ impl<'a, Effs: Effects<'a>, R, H>
     }
 
     /// Execute an erased local program with state borrowed at this call site.
+    ///
+    /// Every handler must be a stateful async callable compatible with `AsyncFn`.
+    /// Call [`Program::with_state`] followed by `.run()` to use mixed handlers
+    /// or the explicit local adapters.
     pub async fn run_stateful<S, I>(self, state: &mut S) -> Result<R, Cancelled>
     where
         Effs: AsyncHandleWith<'a, Effs, H, S, I>,

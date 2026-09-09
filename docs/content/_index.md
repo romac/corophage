@@ -414,6 +414,8 @@ loop {
 </div>
 </div>
 
+The [exact state-change assertion example](https://github.com/romac/corophage/blob/main/corophage/examples/debug_snapshot.rs) checks a model's final state against the changes you expect. It catches unaccounted-for changes made through the example's `Get` and `Set` effects. Run it with `cargo run --example debug_snapshot`; add `-- --demonstrate-failure` to see an omitted change fail the assertion.
+
 </div>
 </section>
 

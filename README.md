@@ -337,6 +337,8 @@ fn erased() -> Effectful<'static, Effects![FileRead], String> {
 
 Use `.boxed_send()` for `Effectful<'a, Effs, R, corophage::Sendable>`. `.boxed()` erases the body's `Send` capability. For macro functions, `#[effectful(..., boxed)]` selects local erasure and `#[effectful(..., boxed, send)]` selects sendable erasure. The boxed form permits recursive `invoke!` calls. This is a breaking change to default return types: existing manual functions returning `Effectful` need explicit boxing, and full `Program` signatures now take the body future as their third parameter.
 
+Effectful trait methods called through `dyn Trait` also need `boxed`: the default return type contains `impl Future`, which prevents dynamic dispatch. See the [trait-object example](https://corophage.rs/docs/advanced/#trait-objects).
+
 ## Advanced: `Co`, `CoSend`, and the direct API
 
 `Co` and `CoSend` retain their erased constructors and can be wrapped with `Program::from_co`. `Program::new_send` remains an erased sendable constructor for compatibility.
@@ -378,6 +380,8 @@ tokio::spawn(async move {
 ```
 
 Async handlers attached to a `CoSend` program must return `Send` futures. Handlers that capture state across an await should clone it into a non-lending future, for example `move |effect| { let state = Arc::clone(&state); async move { ... } }`. Local `Co` programs continue to accept lending `async |effect| { ... }` handlers.
+
+Local erased `.run()` accepts only async callables, and `.run_stateful()` requires stateful async callables compatible with `AsyncFn`. Neither method accepts sync handlers or the `local` / `local_stateful` adapters. This also applies after `.boxed()` or `#[effectful(..., boxed)]`. Call `.with_state(...)` before `.run()` to select the new dispatch path; a unit state (`let mut state = ();`) is sufficient when handlers do not need shared state. Local erased `.run_sync()` still accepts synchronous handlers.
 
 Erased sendable programs retain explicit `Send` terminal contracts, including the `Send + Sync` handler bound on `.run_stateful()`. `.with_state()` selects the new conditional protocol for an erased body. A compiler lifetime limitation can affect inferred stateful runners awaited inside a `Send` async block; `.boxed_send()` followed by the compatibility `.run_stateful()` provides an explicit boundary for these cases. See the [advanced documentation](https://corophage.rs/docs/advanced/#compatibility-api).
 
@@ -450,6 +454,14 @@ let result = Program::new({
 
 assert_eq!(result, Ok("localhost:5432".to_string()));
 ```
+
+## Examples
+
+- [Order processing saga](https://github.com/romac/corophage/blob/main/corophage/examples/saga.rs): run an async workflow and compensate completed steps after cancellation.
+- [Stepwise debugger](https://github.com/romac/corophage/blob/main/corophage/examples/debugger.rs): pause a computation and replay it to an earlier step.
+- [Exact state-change assertions](https://github.com/romac/corophage/blob/main/corophage/examples/debug_snapshot.rs): specify the expected changes to a model and reject unaccounted-for changes. This checks the final model state handled by the example's `Get` and `Set` effects.
+
+Run the state-change example with `cargo run --example debug_snapshot`. Add `-- --demonstrate-failure` to show the assertion failure caused by an omitted state change.
 
 ## Performance
 

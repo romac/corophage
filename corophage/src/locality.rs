@@ -14,9 +14,9 @@ pub struct Local;
 
 /// Marker for coroutines that are `Send`.
 ///
-/// Use this as the third type parameter of [`Co`](crate::coroutine::Co) to make the
-/// coroutine `Send`, allowing it to be used with `tokio::spawn` and other
-/// multi-threaded executors.
+/// Use [`CoSend`](crate::coroutine::CoSend) or
+/// `GenericCo<'a, Effs, Return, Sendable>` for a sendable erased coroutine.
+/// [`Co`](crate::coroutine::Co) always uses [`Local`] and has no locality parameter.
 pub struct Sendable;
 
 /// Sealed trait that controls whether a [`Co`](crate::coroutine::Co) coroutine is `Send`.

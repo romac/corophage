@@ -47,6 +47,8 @@ pub fn effect(
 /// - `send` (optional): checks an explicit `Send` guarantee on the body future
 /// - `boxed` (optional): returns the erased `Effectful` alias; combine with
 ///   `send` for sendable erasure. Use this at recursion or storage boundaries.
+///   Effectful trait methods called through `dyn Trait` also need `boxed`,
+///   because the default return type contains `impl Future`.
 /// - Explicit lifetime (optional): first argument can select a lifetime declared
 ///   on the function or enclosing `impl`/`trait`, or use `'static` or `'_`.
 ///

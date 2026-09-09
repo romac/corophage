@@ -152,9 +152,61 @@ fn recursive(depth: usize) -> String {
 
 Concrete nested futures grow with the invocation depth. Boxing bounds each body's stored type, but each active recursive call still consumes memory.
 
+### Trait objects
+
+Default `#[effectful]` trait methods return a type containing `impl Future`, which prevents the trait from being used as `dyn Trait`. Add `boxed` to effectful methods that need dynamic dispatch. Use the same erased return type in any overriding implementation. The trait must also satisfy Rust's other requirements for dynamic dispatch.
+
+```rust
+trait FileSource {
+    fn path(&self) -> &'static str;
+
+    #[effectful(FileRead, boxed)]
+    fn read(&self) -> String {
+        yield_!(FileRead(self.path()))
+    }
+}
+
+struct Config;
+
+impl FileSource for Config {
+    fn path(&self) -> &'static str {
+        "config.toml"
+    }
+}
+
+let config = Config;
+let source: &dyn FileSource = &config;
+let result = source.read()
+    .handle(|FileRead(path)| Control::resume(format!("contents of {path}")))
+    .run_sync();
+
+assert_eq!(result, Ok("contents of config.toml".to_string()));
+```
+
 ## Compatibility API
 
-`Co::new`, `CoSend::new`, `Program::new_send`, and `Program::from_co` remain available for erased signatures. Local erased programs retain direct lending async closure support. Their low-level async runners retain separate local dispatch implementations to support borrowed mutable or immutable handler lists.
+`Co::new`, `CoSend::new`, `Program::new_send`, and `Program::from_co` remain available for erased signatures. Local erased programs also include values returned by `.boxed()` and `#[effectful(..., boxed)]`.
+
+Local erased `.run()` requires every handler to be an async callable and accepts lending `AsyncFnMut` closures directly. Its `.run_stateful(&mut state)` counterpart requires stateful async callables compatible with `AsyncFn`, so their captures are borrowed immutably. These two methods do not accept synchronous handlers or the `local` / `local_stateful` adapters. Their low-level counterparts, `asynk::run` and `asynk::run_stateful`, retain the same restrictions. Local erased `.run_sync()` continues to accept synchronous handlers.
+
+To use mixed handlers or the explicit lending adapters with a local boxed body, call `.with_state(...)` before `.run()`. This selects the new dispatch path while retaining the boxed body. If no handler needs shared state, bind a unit value:
+
+```rust
+let mut state = ();
+let mut paths = Vec::new();
+let result = erased()
+    .with_state(&mut state)
+    .handle(corophage::local(async |FileRead(path)| {
+        paths.push(path);
+        tokio::task::yield_now().await;
+        Control::resume(format!("contents of {path}"))
+    }))
+    .run()
+    .await;
+
+assert_eq!(result, Ok("contents of config.toml".to_string()));
+assert_eq!(paths, ["config.toml"]);
+```
 
 Erased sendable programs retain explicit `Send` guarantees on `.run()` and `.run_stateful()`. The latter retains its `Send + Sync` handler bound. `.with_state()` instead selects the new mutable protocol and conditional `Send`, while keeping the already erased body.
 

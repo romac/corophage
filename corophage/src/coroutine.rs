@@ -126,8 +126,9 @@ pub type Co<'a, Effs, Return> = GenericCo<'a, Effs, Return, Local>;
 /// Use this instead of [`Co`] when the coroutine needs to be `Send`,
 /// e.g., for use with `tokio::spawn` or other multi-threaded executors.
 ///
-/// For most use cases, prefer [`Program::new_send`](crate::Program::new_send) over
-/// using `CoSend` directly.
+/// For most use cases, prefer [`Program::new`](crate::Program::new), which retains
+/// the body's concrete type and conditional `Send`. Use
+/// [`Program::new_send`](crate::Program::new_send) for an erased sendable body.
 pub type CoSend<'a, Effs, Return> = GenericCo<'a, Effs, Return, Sendable>;
 
 /// A coroutine parameterized by a [`Locality`] marker that controls `Send`-ness.

@@ -1,176 +1,105 @@
-# Performance Analysis
+# Performance
 
-## Stress test results
+Refreshed on 2026-09-09 from the recorded execution comparison and corrected stress nesting measurements. Both records use macOS arm64 and Rust 1.97.1. The [website performance guide](docs/content/docs/performance.md) presents the same measurements.
 
-Collected from `cargo bench --bench stress` across 3 runs (median values, LTO enabled).
+The concrete default removes the body allocation and improves construction and nested execution in these fixtures. Long synchronous effect loops are about 20–32% slower, and concrete futures occupy more inline storage. The measurements cover ready handlers and do not establish application throughput or I/O latency.
 
-### Yield throughput
+## Execution comparison
 
-| Benchmark | 100 | 1,000 | 10,000 | 100,000 |
-|---|---|---|---|---|
-| `sync_yields` | ~860 ns | ~8.3 µs | ~81 µs | ~825 µs |
-| `async_yields` | ~1.1 µs | ~10.3 µs | ~102 µs | ~1.02 ms |
-| `yield_with_value` (returns `u64`) | ~838 ns | ~7.9 µs | ~80 µs | ~804 µs |
-| `stateful_counting` (`&mut u64` handler) | ~848 ns | ~8.3 µs | ~84 µs | — |
+The [execution record](corophage/benches/results/execution.json) compares the concrete implementation with the boxed implementation at commit `fa68b5a268e66fc1e57e579f7fb3699cabb55745`. That baseline already includes changes after v0.5.0, including cooperative scheduling. This comparison measures the execution migration.
 
-Per-yield cost: **~8 ns sync**, **~10 ns async**. Perfectly linear with no degradation at 100k yields. Resume values and stateful handlers add no measurable overhead.
+Both revisions use the same dependency versions and machine, fresh release builds with LTO and one code generation unit, and no compiler cache. Each timing is the median of seven samples after warmup and calibration. Operations include construction, execution, and destruction. Async cases also include `block_on` on a warmed current-thread Tokio runtime and use immediately ready handlers. The cooperative dispatch budget remains enabled.
 
-### Nesting depth (invoke chains)
+| Complete operation | Boxed baseline | Concrete default |
+| --- | ---: | ---: |
+| Construct and drop | 18.0 ns | 0.7 ns |
+| One sync effect | 49.4 ns | 35.2 ns |
+| One async effect | 120.6 ns | 90.7 ns |
+| 1,000 sync effects | 10.5 µs | 12.5 µs |
+| 1,000 async effects | 17.1 µs | 16.2 µs |
+| 1,000 stateful sync effects | 10.2 µs | 13.4 µs |
+| 1,000 stateful async effects | 17.4 µs | 14.5 µs |
+| Five nested invocations | 428 ns | 241 ns |
+| Ten nested invocations | 822 ns | 453 ns |
+| Twenty nested invocations | 1,992 ns | 906 ns |
 
-| Depth | Median | Per-level cost |
-|---|---|---|
-| 1 | ~37 ns | — |
-| 2 | ~81 ns | ~44 ns |
-| 3 | ~127 ns | ~45 ns |
-| 5 | ~230 ns | ~48 ns |
-| 10 | ~468 ns | ~48 ns |
-| 15 | ~769 ns | ~47 ns |
-| 20 | ~1.02 µs | ~49 ns |
+Here, nesting depth counts invocation edges: depth 20 has 21 active programs and one effect at the leaf. The script generates each level as a single invocation of the preceding level.
 
-Linear at **~47 ns/level**, dominated by `Box::pin` allocation per invoke.
+The 1,000-effect rows include loop work, resume transport, and dispatch. Dividing a row by 1,000 gives an average for that workload; it does not isolate dispatch cost. Handlers that perform I/O or substantial computation need application measurements before these ratios can be used to predict a benefit.
 
-With a yield at every nesting level:
+## Allocations and future storage
 
-| Depth | Median | Per-level cost |
-|---|---|---|
-| 1 | ~37 ns | — |
-| 2 | ~93 ns | ~56 ns |
-| 3 | ~171 ns | ~67 ns |
-| 5 | ~382 ns | ~86 ns |
-| 10 | ~833 ns | ~89 ns |
+Allocations are counted separately from the timed samples, after runtime warmup.
 
-**~80–89 ns/level** when each level also yields — roughly the invoke overhead plus one yield round-trip.
+| Complete operation | Boxed baseline | Concrete default |
+| --- | ---: | ---: |
+| Construct and drop | 1 allocation | 0 allocations |
+| Flat run with 1 or 1,000 ordinary effects | 2 allocations | 1 allocation |
+| Twenty nested invocations | 42 allocations | 21 allocations |
 
-### Fan-out (binary tree of invocations)
+`Program::new` and default `#[effectful]` functions retain the concrete body future. Invocation stores each pinned child once. The measured flat run still needs one runtime allocation; ordinary dispatch adds no allocation per handler call.
 
-| Leaves | Total invocations | Median | Per-invoke |
-|---|---|---|---|
-| 2 | 3 | ~138 ns | ~46 ns |
-| 4 | 7 | ~382 ns | ~55 ns |
-| 8 | 15 | ~918 ns | ~61 ns |
-| 16 | 31 | ~2.13 µs | ~69 ns |
+Explicit body erasure with `.boxed()`, `.boxed_send()`, or the erased constructors adds a body allocation. The separate local lending measurements use 2 allocations for one `local` call and 1,001 for 1,000 calls: one runtime allocation plus one boxed future per call. `local_stateful` also boxes its handler future on each call.
 
-Slight increase in per-invoke cost at higher fan-out — likely allocator pressure or cache effects from many short-lived `Box::pin` allocations.
+| Stored value | Boxed baseline | Concrete default |
+| --- | ---: | ---: |
+| Unhandled flat program | 48 bytes | 184 bytes |
+| Flat execution future | 312 bytes | 528 bytes |
+| Depth-1 execution future | 312 bytes | 880 bytes |
+| Depth-5 execution future | 312 bytes | 2,608 bytes |
+| Depth-10 execution future | 312 bytes | 4,768 bytes |
+| Depth-20 execution future | 312 bytes | 9,088 bytes |
 
-### Wide effect sets (coproduct dispatch)
+These values exclude heap storage. The boxed baseline keeps its body futures on the heap, while concrete child futures are stored inside their parents. The concrete sizes grow linearly with depth in this fixture. Use explicit boxing for recursive programs or to bound each body's stored type; each active recursive call still consumes memory.
 
-| Benchmark | 8 effects | 16 effects |
-|---|---|---|
-| Yield first effect | ~36 ns | ~36 ns |
-| Yield last effect | ~35 ns | ~36 ns |
-| Yield all effects | ~101 ns | ~178 ns |
-| Invoke (subset forwarding, first) | — | ~75 ns |
-| Invoke (subset forwarding, last) | — | ~73 ns |
+## Corrected stress nesting benchmarks
 
-**Dispatch position doesn't matter** — yielding the first vs last effect in a 16-effect coproduct costs the same (~36 ns). The coproduct dispatch is O(1) after monomorphization.
+The [Divan record](corophage/benches/results/nesting.txt) measures the corrected [shared nesting fixtures](corophage/benches/support/nesting.rs) with the concrete default. Each case uses 1,000 samples of 1,000 iterations and the workspace's optimized bench profile with LTO. Timings include construction, synchronous execution with a no-op handler, and destruction.
 
-`use_all` scales linearly with the number of yields (16 × ~11 ns ≈ 178 ns).
+This suite counts active programs: the leaf has depth 1, and depth 20 has 19 invocation edges. It uses a different workload and depth convention from the execution comparison above. The leaf-only case yields once; the other case yields once in every active program.
 
-Subset forwarding through a 16-effect coproduct adds only ~37 ns over a direct yield.
+| Depth (active programs) | One leaf effect | One effect per level |
+| --- | ---: | ---: |
+| 1 | 34.33 ns | 31.46 ns |
+| 2 | 66.13 ns | 80.58 ns |
+| 3 | 103.2 ns | 136.7 ns |
+| 5 | 199.9 ns | 294.7 ns |
+| 10 | 443.2 ns | 936.1 ns |
+| 15 | 726.2 ns | — |
+| 20 | 969.9 ns | — |
 
-### Cancellation
+The [regression tests](corophage/tests/benchmark_nesting.rs) exercise the same fixtures with guards that check peak active depth and effect counts. Timing runs use a no-op observer.
 
-| Cancel after N yields | Median |
-|---|---|
-| 1 | ~42 ns |
-| 10 | ~112 ns |
-| 100 | ~840 ns |
-| 1,000 | ~8.0 µs |
+The old depth-15 and depth-20 fixtures both peaked at 11 active programs and yielded twice. The old depth-10 yielding fixture peaked at 6 programs and yielded 11 times. This table replaces those incorrectly labelled results.
 
-Cancellation overhead is **effectively zero** — the per-yield cost (~8 ns) is identical to normal execution. The handler check that decides resume vs cancel is the same cost path.
+Yielding at every level also increases forwarding work. At depth `d`, those effects cross `d × (d − 1) / 2` invocation edges in total, compared with `d − 1` for the single leaf effect. These workload timings do not isolate a fixed cost per invocation or prove that forwarding is free.
 
-### Combined stress
+## Build and binary size
 
-| Benchmark | Median |
-|---|---|
-| `deep_wide_yieldy` (3 levels × 8 effects × yields at each level) | ~459 ns |
-| `sequential_invoke_with_yields(10)` (10 invokes × 10 yields) | ~2.3 µs |
-| `sequential_invoke_with_yields(100)` (100 invokes × 10 yields) | ~22 µs |
+The execution comparison records one clean offline build per revision, including dependencies. Candidate-only boxing and lending cases are built in a separate binary and excluded from this comparison.
 
-**No superlinear interactions.** Combined stress matches sum-of-parts: `sequential_invoke_with_yields(100)` = 100 invokes × ~85 ns + 1000 yields × ~8 ns ≈ ~16.5 µs (actual ~22 µs, with the difference attributable to invoke setup and forwarding).
+| Measurement | Boxed baseline | Concrete default |
+| --- | ---: | ---: |
+| Common measurement binary | 541,728 bytes | 582,512 bytes |
+| Mach-O `__TEXT` segment | 384 KiB | 416 KiB |
+| Clean build time | 6.02 s | 7.32 s |
 
-## `invoke` overhead breakdown
+The common binary grew by 7.5%. Build times are single observations, so they do not establish a general compile-time or application-size penalty.
 
-From the baseline benchmarks (`cargo bench --bench effects`):
+## Reproduce
 
-| Benchmark | Median |
-|---|---|
-| `single_yield` (sync) | ~51 ns |
-| `invoke_single_sub` | ~135 ns |
-| `invoke_sequential_subs(10)` | ~895 ns (~90 ns/invoke) |
-| `invoke_nested_3_deep` | ~307 ns (~85 ns/level) |
-| `invoke_vs_inline` (10 inline yields) | ~198 ns |
-| `invoke_vs_invoke` (10 sequential invokes) | ~771 ns |
+From the repository root, run the execution comparison:
 
-Composition via `invoke` is **~4x slower** than inlining the same work. The per-invoke overhead is **~80–85 ns**.
-
-### 1. Heap allocation (~50–60 ns) — dominant cost
-
-Every sub-program creates a `Co`, which runs `make_co!` (`coroutine.rs:60-80`), which does `Box::pin(async move { ... })`. That's a heap allocation for the future + the fauxgen machinery (`token()`, `register_owned`, `gen_sync`).
-
-### 2. Effect forwarding via coproduct traversal (~0 ns in practice)
-
-`ForwardEffects::forward` (`coproduct.rs:402-424`) does a recursive `Inl`/`Inr` match to find which effect variant was yielded, then calls `yielder.yield_()` which does another `CoprodInjector::inject` to re-inject into the outer coproduct. When the sub-program's effect set is a subset, this involves index remapping.
-
-**However, benchmarking shows this cost is effectively zero.** LLVM fully optimizes the monomorphized coproduct walk into a direct path. A hand-written `invoke_same` that bypasses `ForwardEffects` entirely (yielding the raw coproduct directly) showed no measurable improvement over the standard `ForwardEffects` path, even at 1000 forwarded yields:
-
-| Benchmark (n=1000) | Median |
-|---|---|
-| `inline_yields` (no invoke) | ~8.8 µs |
-| `invoke_same_effects` (ForwardEffects walk) | ~19.8 µs |
-| `invoke_same_effects` (hand-written identity bypass) | ~20.3 µs |
-| `invoke_subset_effects` (1-of-3 effects forwarded) | ~18.3 µs |
-
-The ~11 µs gap between inline and invoke is entirely the `Box::pin` allocation + start signal, not the forwarding.
-
-### 3. Start signal overhead (~5 ns)
-
-Each invoke does `co.resume_with(Start)` to kick off the sub-program, which is an extra generator resume that the inline version doesn't need.
-
-## Summary
-
-The library scales predictably with no surprises:
-
-- **Yields**: O(1) at ~8 ns each, no degradation at scale
-- **Nesting**: O(n) at ~47 ns/level, dominated by `Box::pin`
-- **Effect width**: O(1) dispatch regardless of position in the coproduct
-- **Cancellation**: free (same cost as a yield)
-- **No superlinear interactions**: combined stress matches sum-of-parts
-
-The main optimization opportunity is eliminating the `Box::pin` allocation per invoke (~47–50 ns), which would roughly halve nesting/composition costs.
-
-## Possible improvements
-
-### A. Avoid the allocation — accept a closure instead of a `Program`
-
-Take a closure instead of a pre-built `Program`, reusing the parent's generator machinery:
-
-```rust
-pub async fn invoke_fn<F, R>(&self, f: F) -> R
-where
-    F: AsyncFnOnce(&Yielder<'a, SubEffs>) -> R,
+```sh
+python3 scripts/execution/measure.py
 ```
 
-But this is tricky because `Yielder` is tied to a specific `GeneratorToken` — you can't share a token across two futures. The sub-program needs its own coroutine to yield effects.
+The script archives the baseline into a temporary directory, builds both revisions with fresh target directories and compiler caching disabled, and writes `corophage/benches/results/execution.json`. The record includes compiler and platform details, source and fixture hashes, timing ranges, allocation counts, build times, and binary sizes.
 
-### B. Stack allocation via inline futures
+Run the corrected stress nesting cases with:
 
-Instead of `Box::pin(async { ... })`, use a stack-allocated future. Two approaches:
+```sh
+cargo bench -p corophage --bench stress -- nesting_depth --sample-count 1000 --sample-size 1000 --color never
+```
 
-1. **`stackfuture`-style**: Use a fixed-size buffer on the stack. Works if the future size can be bounded.
-
-2. **Monomorphized `Co`**: Add a non-type-erased `Co` variant where the future type is concrete (not `dyn Future`). The `#[effectful]` macro could generate a concrete future type instead of boxing. Would require a second `Locality`-like axis or a new `Co` constructor.
-
-### ~~C. Specialize `ForwardEffects` when effects match exactly~~ (not worth it)
-
-When `SubEffs == Effs` (same effect set), skip the coproduct remapping entirely — just pass the yielded value through directly.
-
-**Tested and rejected**: benchmarking shows LLVM already optimizes the monomorphized coproduct walk to zero cost. A hand-written identity forwarding path showed no improvement over the existing `ForwardEffects` impl, even at 1000 yields. Additionally, a blanket `impl ForwardEffects for Effs` would overlap with the existing recursive impl, causing ambiguity errors in stable Rust (no specialization). Would require a separate `invoke_same` method and macro support — all for zero measurable benefit.
-
-### D. Inline small sub-programs at the macro level
-
-The `#[effectful]` macro could detect `invoke!(simple_call())` and inline the sub-program's body directly into the parent's async block, avoiding the sub-`Co` entirely. Most impactful but also most complex.
-
-### Recommendation
-
-The most practical and impactful change is **B** — eliminating the `Box::pin` allocation. This could be done by adding a `Co::new_inline` (or similar) that keeps the future monomorphic, and having `#[effectful]` generate calls to it when the program is used via `invoke!` rather than returned as `Effectful`. The allocation is the majority of the overhead, and removing it would bring invoke cost much closer to a direct yield.
+The recorded output and fixture hashes are in `corophage/benches/results/nesting.txt`. The remaining Divan suites are available through `cargo bench`. Earlier tables for effect width, fan-out, and cancellation predate the concrete default and are omitted from this report.

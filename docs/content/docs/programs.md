@@ -99,21 +99,24 @@ impl Label {
 }
 ```
 
-If your effects borrow data, the macro infers the lifetime automatically when the function has exactly one lifetime parameter:
+For borrowed effects, declare a lifetime on the effect itself. Here, `BorrowedLog` carries a string reference. The macro infers the effect lifetime when the function has exactly one lifetime parameter:
 
 ```rust
-#[effectful(Log<'a>)]
+#[effect(())]
+struct BorrowedLog<'a>(&'a str);
+
+#[effectful(BorrowedLog<'a>)]
 fn log_msg<'a>(msg: &'a str) -> () {
-    yield_!(Log(msg));
+    yield_!(BorrowedLog(msg));
 }
 ```
 
 With multiple lifetime parameters, specify the effect lifetime explicitly as the first argument:
 
 ```rust
-#[effectful('a, Log<'a>)]
+#[effectful('a, BorrowedLog<'a>)]
 fn log_msg<'a, 'b>(msg: &'a str, _other: &'b str) -> () {
-    yield_!(Log(msg));
+    yield_!(BorrowedLog(msg));
 }
 ```
 
@@ -197,11 +200,11 @@ fn with_extra() -> String {
 The spread must be the last effect argument, before `send` or `boxed` flags if present. This combines naturally with lifetimes and `send`:
 
 ```rust
-type LogEffs<'a> = Effects![GetConfig, Log<'a>];
+type LogEffs<'a> = Effects![GetConfig, BorrowedLog<'a>];
 
 #[effectful('a, Counter, ...LogEffs<'a>, send)]
 fn complex<'a>(msg: &'a str) -> u64 {
-    yield_!(Log(msg));
+    yield_!(BorrowedLog(msg));
     yield_!(Counter)
 }
 ```
@@ -288,6 +291,8 @@ Once all effects are handled, you can run the program:
 
 - `.run_sync()` — execute inline with synchronous handlers and return `Result<R, Cancelled>`; a body that suspends on an ordinary future causes a panic.
 - `.run().await` — execute asynchronously, with synchronous and asynchronous handlers in the same list.
+
+These rules describe the default concrete programs. Local boxed `.run()` accepts only async callables; use `.with_state(...)` to select mixed dispatch or the explicit lending adapters. See the [compatibility API](@/docs/advanced.md#compatibility-api).
 
 Attach shared state with `.with_state(&mut state)` before running. Handlers that use state take `&mut S` as their first argument; other handlers can omit it. The compatibility methods `.run_sync_stateful(&mut state)` and `.run_stateful(&mut state)` still bind state at their terminal call site.
 

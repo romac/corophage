@@ -132,6 +132,8 @@ A handler cannot resume the computation with a reference borrowed from its tempo
 
 The compatibility methods `.run_stateful(&mut state)` and `.run_sync_stateful(&mut state)` retain their original borrow timing: the state borrow starts at that terminal call. Erased sendable programs retain their old `Send + Sync` handler checks on `.run_stateful()`. Calling `.with_state()` selects the new conditional execution path, including for erased bodies.
 
+Local erased `.run_stateful()` requires all handlers to be stateful async callables compatible with `AsyncFn`. Use `.with_state(...).run()` to mix handler kinds or use `local_stateful`. See the [compatibility API](@/docs/advanced.md#compatibility-api).
+
 ## Alternatives
 
 If your handlers do not need shared state, omit `.with_state()`. Captured `RefCell` or other interior mutability remains an alternative when it fits the application.

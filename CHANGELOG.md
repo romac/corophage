@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- **Exact state-change assertion example** — `cargo run --example debug_snapshot` runs model actions with `Get` / `Set` handlers and checks that the final state matches all expected changes. Add `-- --demonstrate-failure` to show how an omitted change fails the assertion. The check covers the model state handled by the example.
+
 ### Fixed
 
 - **Nesting benchmarks measure their stated depths** — the depth-15 and depth-20 fixtures now form single nested chains with one leaf effect. The depth-10 yielding fixture yields once at each of ten levels. Shared fixtures have regression checks for peak active depth and effect counts, and the website reports refreshed measurements.
@@ -18,11 +22,11 @@
 
 ### Changed
 
-- **Concrete program bodies are now the default (breaking)** — `Program::new` and `#[effectful]` retain the body future's type and infer `Send` from the execution components. Use `Program<'a, Effs, impl Future<Output = R> + 'a>` for a concrete return signature, or add `.boxed()` / `.boxed_send()` when returning the retained `Effectful` alias. Recursive macro functions can use `#[effectful(..., boxed)]` or `#[effectful(..., boxed, send)]`. The `send` flag still checks an explicit body guarantee.
+- **Concrete program bodies are now the default (breaking)** — `Program::new` and `#[effectful]` retain the body future's type and infer `Send` from the execution components. Use `Program<'a, Effs, impl Future<Output = R> + 'a>` for a concrete return signature, or add `.boxed()` / `.boxed_send()` when returning the retained `Effectful` alias. Recursive macro functions can use `#[effectful(..., boxed)]` or `#[effectful(..., boxed, send)]`. Effectful trait methods called through `dyn Trait` also need `boxed`, since the default opaque return type prevents dynamic dispatch. The `send` flag still checks an explicit body guarantee.
 
 - **State setup and execution share one protocol** — bind state with `.with_state(&mut state)`, then use `.run()` or `.run_sync()`. Stateful and state-free handlers can share a list, as can sync and async handlers when using `.run()`. Mutable dispatch removes the blanket handler `Sync` bound from the new path. State is borrowed from setup until completion, cancellation, or drop. Existing terminal stateful methods and erased constructors remain available with their compatibility contracts.
 
-- **Lending async closures use explicit local adapters on the new path (breaking)** — wrap a closure that borrows its captures across awaits with `corophage::local(...)` or `corophage::local_stateful(...)`. Each adapter boxes one non-`Send` future per call. Ordinary handlers have no per-dispatch allocation. Erased local programs retain their existing lending closure support.
+- **Lending async closures use explicit local adapters on the new path (breaking)** — wrap a closure that borrows its captures across awaits with `corophage::local(...)` or `corophage::local_stateful(...)`. Each adapter boxes one non-`Send` future per call. Ordinary handlers have no per-dispatch allocation. Erased local async runners retain direct lending closure support and require async callables. Use `.with_state(...).run()` to select mixed dispatch or the new adapters for an erased body.
 
 - **Execution internals consolidated** — sync and sendable dispatch now share the concrete mutable protocol and loop. Four old dispatch families and the unchecked `SendFuture` wrapper were removed; two local async compatibility families remain. Invocation stores each pinned child once to keep concrete nested future storage linear in the invocation depth. Rust 1.93 remains supported.
 
