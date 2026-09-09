@@ -1,27 +1,27 @@
 # Performance
 
-Refreshed on 2026-09-09 from the recorded execution comparison and corrected stress nesting measurements. Both records use macOS arm64 and Rust 1.97.1. The [website performance guide](docs/content/docs/performance.md) presents the same measurements.
+Refreshed on 2026-09-09 with a new execution comparison from committed sources and the recorded corrected stress nesting measurements. Both records use macOS arm64 and Rust 1.97.1. The [website performance guide](docs/content/docs/performance.md) presents the same measurements.
 
-The concrete default removes the body allocation and improves construction and nested execution in these fixtures. Long synchronous effect loops are about 20–32% slower, and concrete futures occupy more inline storage. The measurements cover ready handlers and do not establish application throughput or I/O latency.
+The concrete default removes the body allocation and improves construction and nested execution in these fixtures. The 1,000-effect synchronous loops take about 33% longer than the boxed baseline at `fa68b5a`, and concrete futures occupy more inline storage. The measurements cover ready handlers and do not establish application throughput or I/O latency.
 
 ## Execution comparison
 
-The [execution record](corophage/benches/results/execution.json) compares the concrete implementation with the boxed implementation at commit `fa68b5a268e66fc1e57e579f7fb3699cabb55745`. That baseline already includes changes after v0.5.0, including cooperative scheduling. This comparison measures the execution migration.
+The [execution record](corophage/benches/results/execution.json) compares the concrete implementation at commit `6d073a9` with the boxed implementation at commit `fa68b5a268e66fc1e57e579f7fb3699cabb55745`. The candidate was measured with no tracked changes, and its source and generated-fixture hashes match that commit. The baseline already includes changes after v0.5.0, including cooperative scheduling. This comparison measures the execution migration.
 
 Both revisions use the same dependency versions and machine, fresh release builds with LTO and one code generation unit, and no compiler cache. Each timing is the median of seven samples after warmup and calibration. Operations include construction, execution, and destruction. Async cases also include `block_on` on a warmed current-thread Tokio runtime and use immediately ready handlers. The cooperative dispatch budget remains enabled.
 
 | Complete operation | Boxed baseline | Concrete default |
 | --- | ---: | ---: |
-| Construct and drop | 18.0 ns | 0.7 ns |
-| One sync effect | 49.4 ns | 35.2 ns |
-| One async effect | 120.6 ns | 90.7 ns |
-| 1,000 sync effects | 10.5 µs | 12.5 µs |
-| 1,000 async effects | 17.1 µs | 16.2 µs |
-| 1,000 stateful sync effects | 10.2 µs | 13.4 µs |
-| 1,000 stateful async effects | 17.4 µs | 14.5 µs |
-| Five nested invocations | 428 ns | 241 ns |
-| Ten nested invocations | 822 ns | 453 ns |
-| Twenty nested invocations | 1,992 ns | 906 ns |
+| Construct and drop | 16.1 ns | 0.7 ns |
+| One sync effect | 50.4 ns | 35.3 ns |
+| One async effect | 125.0 ns | 92.2 ns |
+| 1,000 sync effects | 10.5 µs | 14.1 µs |
+| 1,000 async effects | 17.6 µs | 16.6 µs |
+| 1,000 stateful sync effects | 10.5 µs | 14.0 µs |
+| 1,000 stateful async effects | 17.7 µs | 14.6 µs |
+| Five nested invocations | 436 ns | 246 ns |
+| Ten nested invocations | 863 ns | 471 ns |
+| Twenty nested invocations | 2,076 ns | 932 ns |
 
 Here, nesting depth counts invocation edges: depth 20 has 21 active programs and one effect at the leaf. The script generates each level as a single invocation of the preceding level.
 
@@ -80,9 +80,9 @@ The execution comparison records one clean offline build per revision, including
 
 | Measurement | Boxed baseline | Concrete default |
 | --- | ---: | ---: |
-| Common measurement binary | 541,728 bytes | 582,512 bytes |
+| Common measurement binary | 541,696 bytes | 582,512 bytes |
 | Mach-O `__TEXT` segment | 384 KiB | 416 KiB |
-| Clean build time | 6.02 s | 7.32 s |
+| Clean build time | 6.70 s | 7.75 s |
 
 The common binary grew by 7.5%. Build times are single observations, so they do not establish a general compile-time or application-size penalty.
 
@@ -94,7 +94,7 @@ From the repository root, run the execution comparison:
 python3 scripts/execution/measure.py
 ```
 
-The script archives the baseline into a temporary directory, builds both revisions with fresh target directories and compiler caching disabled, and writes `corophage/benches/results/execution.json`. The record includes compiler and platform details, source and fixture hashes, timing ranges, allocation counts, build times, and binary sizes.
+The script archives the baseline into a temporary directory, builds both revisions with fresh target directories and compiler caching disabled, and writes `corophage/benches/results/execution.json`. Explicit target directories override `CARGO_TARGET_DIR` and Cargo target-directory configuration, including for the candidate-only cases. The record includes compiler and platform details, source and fixture hashes, timing ranges, allocation counts, build times, and binary sizes.
 
 Run the corrected stress nesting cases with:
 

@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- **Execution measurements match committed sources** — reran the comparison from a clean commit, verified its source and generated-fixture hashes, and refreshed the README and performance guides from the new record.
+
 - **Execution comparisons use isolated Cargo targets** — the measurement script now overrides `CARGO_TARGET_DIR` and Cargo target-directory configuration for both revisions and the candidate-only cases, keeping clean builds and executable lookup consistent.
 
 - **Nesting benchmarks measure their stated depths** — the depth-15 and depth-20 fixtures now form single nested chains with one leaf effect. The depth-10 yielding fixture yields once at each of ten levels. Shared fixtures have regression checks for peak active depth and effect counts, and the website reports refreshed measurements.
