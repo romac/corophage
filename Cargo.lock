@@ -60,6 +60,7 @@ dependencies = [
  "divan",
  "fauxgen",
  "frunk_core",
+ "pin-project-lite",
  "tokio",
  "trybuild",
 ]

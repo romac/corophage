@@ -28,9 +28,12 @@ fn my_program() -> u64 {
 ```
 
 The `#[effectful(Eff1, Eff2, ...)]` macro:
-- Transforms the return type to `Effectful<'_, Effects![Eff1, Eff2, ...], T>`
+
+- Transforms the return type to `Program<'_, Effects![Eff1, Eff2, ...], impl Future<Output = T> + '_>`
 - Wraps the body in `Program::new`
 - Enables `yield_!(effect)` syntax to perform effects
+
+The body future keeps its concrete type by default. Its auto traits, including `Send`, remain available to the caller. See [explicit boxing](@/docs/advanced.md#explicit-boxing-and-recursion) for stored, erased, or recursive programs.
 
 ### Lifetime handling
 
@@ -154,7 +157,7 @@ If existing code relied on the attribute to introduce a named lifetime, add a Ru
 
 ### `Send`-able programs
 
-Add `send` to the attribute to create a `Send`-able program (for use with `tokio::spawn`):
+The default program can be `Send` when its body and resume transport are `Send`. Add `send` to check the body guarantee at the function definition:
 
 ```rust
 #[effectful(Counter, send)]
@@ -191,7 +194,7 @@ fn with_extra() -> String {
 }
 ```
 
-The spread must be the last effect argument (before `send` if present). This combines naturally with lifetimes and `send`:
+The spread must be the last effect argument, before `send` or `boxed` flags if present. This combines naturally with lifetimes and `send`:
 
 ```rust
 type LogEffs<'a> = Effects![GetConfig, Log<'a>];
@@ -283,10 +286,10 @@ let result = my_program()
 
 Once all effects are handled, you can run the program:
 
-- `.run_sync()` — execute synchronously, returns `Result<R, Cancelled>`; the computation body must not suspend on non-effect futures
-- `.run().await` — execute asynchronously, including ordinary futures awaited by the computation body
-- `.run_sync_stateful(&mut state)` — synchronous with shared mutable state
-- `.run_stateful(&mut state).await` — async with shared mutable state
+- `.run_sync()` — execute inline with synchronous handlers and return `Result<R, Cancelled>`; a body that suspends on an ordinary future causes a panic.
+- `.run().await` — execute asynchronously, with synchronous and asynchronous handlers in the same list.
+
+Attach shared state with `.with_state(&mut state)` before running. Handlers that use state take `&mut S` as their first argument; other handlers can omit it. The compatibility methods `.run_sync_stateful(&mut state)` and `.run_stateful(&mut state)` still bind state at their terminal call site.
 
 Async runners yield to the executor after a bounded number of effect dispatches, even when handlers are immediately ready. Each runner has its own budget (currently 128 dispatches; this value may change). This applies to `.run().await`, `.run_stateful(&mut state).await`, and the low-level `asynk` runners. It gives the executor opportunities to schedule other tasks and process cancellation, but does not guarantee task ordering or preempt a computation body or handler that does not return from its poll.
 
@@ -303,7 +306,7 @@ fn add_logging<Effs>(program: Program</* ... */>) -> Program</* ... */> {
 }
 ```
 
-The compiler enforces at the type level that you can only call `.run_sync()` when all effects have been handled — attempting to run a partially-handled program is a compile error.
+Both execution methods require all effects to be handled. Missing or duplicate handlers cause a compile error.
 
 ## Program composition
 
@@ -361,10 +364,10 @@ Sub-programs can be nested — a sub-program can itself invoke other sub-program
 
 ## `Send`-able programs
 
-For use with multi-threaded runtimes like tokio, use `#[effectful(..., send)]` or `Program::new_send`:
+`Program::new` and default `#[effectful]` functions preserve conditional `Send`. The execution future can be passed to `tokio::spawn` when its body, handlers, handler futures, state, and resume transport permit it. Spawning also requires a `Send + 'static` result and a `'static` future:
 
 ```rust
-#[effectful(Counter, send)]
+#[effectful(Counter)]
 fn my_program() -> u64 {
     yield_!(Counter)
 }
@@ -381,7 +384,7 @@ tokio::spawn(async move {
 Or with the manual API:
 
 ```rust
-let program = Program::new_send(|mut y: Yielder<'_, Effs>| async move {
+let program = Program::new(|mut y: Yielder<'_, Effects![Counter]>| async move {
     y.yield_(Counter).await
 });
 
@@ -393,6 +396,8 @@ tokio::spawn(async move {
 });
 ```
 
-The result and every async handler future must be `Send`. Handlers that capture state across an await should clone it into a non-lending future, for example `move |effect| { let state = Arc::clone(&state); async move { ... } }`. Local programs continue to accept lending `async |effect| { ... }` handlers.
+For local execution, the same constructor accepts `Rc` captures, non-`Send` state, and non-`Send` handler futures. A sendable body can also use local handlers or state. There is no blanket handler `Sync` bound on this path; an actual shared borrow across an await can still require `Sync`.
 
-For shared state, `.run_stateful(&mut state)` also returns a `Send` future. The state must be `Send`, and the handlers must be `Send + Sync`. Each handler can borrow the shared state across awaits. See [Shared State](@/docs/state.md#send-able-async-execution) for a spawn example.
+Use `corophage::local(async |effect| { ... })` when an async closure borrows its captures across an await. This explicit adapter boxes one local future per call. Ordinary async handlers use `FnMut(...) -> Future` and need no dispatch allocation. See [Handlers](@/docs/handlers.md#lending-async-closures).
+
+Use `.with_state(&mut state)` with either execution method. Each stateful handler can borrow the state across awaits. See [Shared State](@/docs/state.md#send-able-async-execution) for a spawn example and [Advanced Usage](@/docs/advanced.md#compatibility-api) for the retained boxed contracts.

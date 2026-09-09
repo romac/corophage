@@ -8,3 +8,13 @@ error[E0499]: cannot borrow `remaining` as mutable more than once at a time
    |                          ^^^^^^^^^^^^^^ second mutable borrow occurs here
 14 |     first.run_sync().unwrap();
    |     ----- first borrow later used here
+   |
+note: this call may capture more lifetimes than intended, because Rust 2024 has adjusted the `impl Trait` lifetime capture rules
+  --> tests/compile_fail/effectful_overlapping_reference_borrows.rs:10:17
+   |
+10 |     let first = advance(&mut remaining);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^
+help: use the precise capturing `use<...>` syntax to make the captures explicit
+   |
+ 3 | #[effectful] + use<'__eff>
+   |              +++++++++++++

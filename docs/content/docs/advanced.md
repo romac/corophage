@@ -108,3 +108,58 @@ assert_eq!(result, Ok("contents of config.toml".to_string()));
 ```
 
 The low-level `sync::run` and `asynk::run` functions take all handlers in an `hlist!` at once. Handlers may appear in any order, and the list may include extra handlers, but every effect the computation can yield must have a compatible handler.
+
+## Explicit boxing and recursion
+
+`Program::new` and default `#[effectful]` functions keep the body future concrete. A manual function can express that return type with `impl Future`:
+
+```rust
+use std::future::Future;
+
+fn read() -> Program<'static, Effects![FileRead], impl Future<Output = String>> {
+    Program::new(|mut y: Yielder<'_, Effects![FileRead]>| async move {
+        y.yield_(FileRead("config.toml")).await
+    })
+}
+```
+
+For an existing erased signature, box the unhandled program explicitly:
+
+```rust
+fn erased() -> Effectful<'static, Effects![FileRead], String> {
+    read().boxed()
+}
+
+fn erased_send() -> Effectful<'static, Effects![FileRead], String, corophage::Sendable> {
+    read().boxed_send()
+}
+```
+
+`.boxed()` erases `Send` even when the original body was sendable. `.boxed_send()` retains that guarantee and checks the body and resume transport. Each conversion allocates once for the body. `Effectful<'a, Effs, R, L>` remains the erased alias, including for callers generic over `L: Locality`. The concrete `Program` type now takes its body future as its third parameter; update explicit full `Program` signatures accordingly.
+
+Use the `boxed` macro flag for recursive functions or to limit concrete type growth. Combine it with `send` when the erased body must be sendable:
+
+```rust
+#[effectful(FileRead, boxed, send)]
+fn recursive(depth: usize) -> String {
+    if depth == 0 {
+        yield_!(FileRead("config.toml"))
+    } else {
+        invoke!(recursive(depth - 1))
+    }
+}
+```
+
+Concrete nested futures grow with the invocation depth. Boxing bounds each body's stored type, but each active recursive call still consumes memory.
+
+## Compatibility API
+
+`Co::new`, `CoSend::new`, `Program::new_send`, and `Program::from_co` remain available for erased signatures. Local erased programs retain direct lending async closure support. Their low-level async runners retain separate local dispatch implementations to support borrowed mutable or immutable handler lists.
+
+Erased sendable programs retain explicit `Send` guarantees on `.run()` and `.run_stateful()`. The latter retains its `Send + Sync` handler bound. `.with_state()` instead selects the new mutable protocol and conditional `Send`, while keeping the already erased body.
+
+Rust can report `FnOnce is not general enough` when a stateful runner with lifetime-parameterized effects or GAT resumes is awaited inside another async block that must be `Send`. This can occur even if the runner itself passes a `Send` assertion. At that boundary, box the unhandled body with `.boxed_send()` and use the compatibility `.run_stateful(&mut state)` method. That combination has an explicit `Send` return guarantee and is covered by the execution tests.
+
+## Polling context restriction
+
+`fauxgen` transports effects through the polling context. Effect operations must be polled through that context; placing them inside a combinator that substitutes its own context can break this transport. Ordinary awaited futures remain supported, but boxing the body or using an async runner does not remove this restriction. Keep `yield_!` and `invoke!` in the directly awaited computation flow, and await each operation before starting another.

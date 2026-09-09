@@ -16,11 +16,11 @@ note: required because it appears within the type `HCons<{closure@$DIR/tests/com
    |
    | pub struct HCons<H, T> {
    |            ^^^^^
-note: required by a bound in `corophage::Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
+note: required by a bound in `corophage::Program::<'a, Effs, Pin<Box<(dyn Future<Output = R> + Send + 'a)>>, CNil, H, (), Sendable>::run_stateful`
   --> src/program.rs
    |
-   |     pub fn run_stateful<S, Indices>(
+   |     pub fn run_stateful<S, I>(
    |            ------------ required by a bound in this associated function
 ...
-   |         Handlers: Send + Sync,
-   |                          ^^^^ required by this bound in `Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
+   |         H: Send + Sync,
+   |                   ^^^^ required by this bound in `Program::<'a, Effs, Pin<Box<dyn Future<Output = R> + Send>>, CNil, H, (), Sendable>::run_stateful`

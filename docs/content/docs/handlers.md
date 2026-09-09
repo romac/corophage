@@ -37,6 +37,8 @@ async |FileRead(file)| {
 
 ## Named function handlers
 
+Sync and async handlers can be mixed in one `.run()` call. `.run_sync()` accepts only synchronous handlers, even if an async handler would complete immediately.
+
 Handlers can also be named functions. When using stateful handlers, the state is passed as the first argument:
 
 ```rust
@@ -54,6 +56,24 @@ fn file_read(_: &mut AppState, FileRead(file): FileRead) -> Control<String> {
     Control::resume("file content".to_string())
 }
 ```
+
+## Lending async closures
+
+Ordinary async handlers return a future through `FnMut(...) -> Future`. When an async closure borrows its captures across an await, wrap it with `corophage::local`:
+
+```rust
+let mut messages = Vec::new();
+let result = program
+    .handle(corophage::local(async |Log(message)| {
+        messages.push(message);
+        tokio::task::yield_now().await;
+        Control::resume(())
+    }))
+    .run()
+    .await;
+```
+
+Repeated calls borrow the same closure and retain its mutations. The adapter boxes one non-`Send` future per call. Use `corophage::local_stateful` for a lending closure that also takes a `&mut S` state argument. A runner using either adapter must be awaited locally. Ordinary handlers do not box dispatch futures.
 
 ## Cancellation
 

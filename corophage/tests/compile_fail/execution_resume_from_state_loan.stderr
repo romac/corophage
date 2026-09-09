@@ -1,0 +1,24 @@
+error[E0277]: the trait bound `HCons<for<'a> fn(&'a mut String, Ask) -> corophage::Control<&'a str> {borrow}, HNil>: corophage::coproduct::HandlersToEffects<'_, Coproduct<Ask, CNil>, _>` is not satisfied
+  --> tests/compile_fail/execution_resume_from_state_loan.rs:16:38
+   |
+16 |     }).with_state(&mut state).handle(borrow).run_sync();
+   |                               ------ ^^^^^^ unsatisfied trait bound
+   |                               |
+   |                               required by a bound introduced by this call
+   |
+   = help: the trait `corophage::coproduct::HandlersToEffects<'_, Coproduct<Ask, CNil>, _>` is not implemented for `HCons<for<'a> fn(&'a mut String, Ask) -> corophage::Control<&'a str> {borrow}, HNil>`
+   = help: the following other types implement trait `corophage::coproduct::HandlersToEffects<'a, Effs, Indices>`:
+             `HCons<F, FTail>` implements `corophage::coproduct::HandlersToEffects<'_, Effs, HCons<(CH, Index, corophage::coproduct::AsyncHandler), ITail>>`
+             `HCons<F, FTail>` implements `corophage::coproduct::HandlersToEffects<'_, Effs, HCons<(CH, Index, corophage::coproduct::AsyncStatefulHandler<S>), ITail>>`
+             `HCons<F, FTail>` implements `corophage::coproduct::HandlersToEffects<'_, Effs, HCons<(CH, Index, corophage::coproduct::SyncHandler), ITail>>`
+             `HCons<F, FTail>` implements `corophage::coproduct::HandlersToEffects<'_, Effs, HCons<(CH, Index, corophage::coproduct::SyncStatefulHandler<S>), ITail>>`
+             `HCons<LocalHandler<'_, E, F>, Tail>` implements `corophage::coproduct::HandlersToEffects<'_, Effs, HCons<(E, Index, corophage::coproduct::dispatch::Lending), ITail>>`
+             `HCons<LocalStatefulHandler<'_, S, E, F>, Tail>` implements `corophage::coproduct::HandlersToEffects<'_, Effs, HCons<(E, Index, corophage::coproduct::dispatch::Stateful<corophage::coproduct::dispatch::Lending>), ITail>>`
+note: required by a bound in `corophage::Program::<'a, Effs, F, Remaining, Handlers, S, Mode>::handle`
+  --> src/program.rs
+   |
+   |     pub fn handle<H, HandleIdx, SubsetIdx>(
+   |            ------ required by a bound in this associated function
+...
+   |         HCons<H, HNil>: HandlersToEffects<'a, Effs, HandleIdx>,
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Program::<'a, Effs, F, Remaining, Handlers, S, Mode>::handle`

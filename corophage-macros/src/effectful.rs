@@ -18,6 +18,7 @@ struct EffectfulArgs {
     effects: Vec<Type>,
     spread: Option<Type>,
     send: bool,
+    boxed: bool,
 }
 
 impl Parse for EffectfulArgs {
@@ -26,6 +27,7 @@ impl Parse for EffectfulArgs {
         let mut effects = Vec::new();
         let mut spread = None;
         let mut send = false;
+        let mut boxed = false;
 
         if input.is_empty() {
             return Ok(EffectfulArgs {
@@ -33,6 +35,7 @@ impl Parse for EffectfulArgs {
                 effects,
                 spread,
                 send,
+                boxed,
             });
         }
 
@@ -51,6 +54,7 @@ impl Parse for EffectfulArgs {
         for arg in remaining {
             match arg {
                 EffectArg::Send => send = true,
+                EffectArg::Boxed => boxed = true,
                 EffectArg::Effect(ty) => {
                     if spread.is_some() {
                         return Err(syn::Error::new_spanned(
@@ -78,12 +82,14 @@ impl Parse for EffectfulArgs {
             effects,
             spread,
             send,
+            boxed,
         })
     }
 }
 
 enum EffectArg {
     Send,
+    Boxed,
     Effect(Box<Type>),
     Spread(Box<Type>),
 }
@@ -148,6 +154,10 @@ impl Parse for EffectArg {
                 let _: Ident = input.parse()?;
                 return Ok(EffectArg::Send);
             }
+            if ident == "boxed" && (fork.is_empty() || fork.peek(Token![,])) {
+                let _: Ident = input.parse()?;
+                return Ok(EffectArg::Boxed);
+            }
         }
         Ok(EffectArg::Effect(Box::new(input.parse()?)))
     }
@@ -188,10 +198,13 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     };
 
     // Build the new return type
-    let new_return_type = if args.send {
+    let new_return_type = if args.boxed && args.send {
         quote! { #corophage::Effectful<#eff_lifetime, #effects_type, #return_type, #corophage::Sendable> }
-    } else {
+    } else if args.boxed {
         quote! { #corophage::Effectful<#eff_lifetime, #effects_type, #return_type> }
+    } else {
+        let send = args.send.then(|| quote! { + ::core::marker::Send });
+        quote! { #corophage::Program<#eff_lifetime, #effects_type, impl ::core::future::Future<Output = #return_type> + #eff_lifetime #send> }
     };
 
     // Ensure captured arguments can live for the lifetime of the program.
@@ -212,10 +225,13 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     let body = &func.block;
 
     // Build the new body with local macro_rules! for yield_!
-    let program_constructor = if args.send {
-        quote! { #corophage::Program::new_send }
+    let program_constructor = quote! { #corophage::Program::new };
+    let boxing = if args.boxed && args.send {
+        quote! { .boxed_send() }
+    } else if args.boxed {
+        quote! { .boxed() }
     } else {
-        quote! { #corophage::Program::new }
+        quote! {}
     };
     let yielder = Ident::new("__corophage_yielder", proc_macro2::Span::mixed_site());
 
@@ -237,7 +253,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                 }
 
                 #body
-            })
+            }) #boxing
         }
     })?;
 

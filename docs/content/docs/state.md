@@ -1,10 +1,10 @@
 +++
 title = "Shared State"
 weight = 5
-description = "Share mutable state across handlers with run_stateful."
+description = "Bind shared mutable state with with_state before execution."
 +++
 
-Handlers can share mutable state via `run_sync_stateful` / `run_stateful`. The state is passed as a `&mut S` first argument to every handler.
+Bind shared mutable state with `.with_state(&mut state)`, then execute with `.run_sync()` or `.run().await`. Stateful handlers receive `&mut S` as their first argument. Handlers that do not use state can omit that argument.
 
 ## Basic example
 
@@ -24,11 +24,12 @@ fn count_up() -> u64 {
 let mut count: u64 = 0;
 
 let result = count_up()
+    .with_state(&mut count)
     .handle(|s: &mut u64, _: Counter| {
         *s += 1;
         Control::resume(*s)
     })
-    .run_sync_stateful(&mut count);
+    .run_sync();
 
 assert_eq!(result, Ok(3));  // 1 + 2
 assert_eq!(count, 2);       // handler was called twice
@@ -36,7 +37,7 @@ assert_eq!(count, 2);       // handler was called twice
 
 ## Multiple effects with shared state
 
-All handlers in a stateful run share the same `&mut S`:
+The program holds one state reference and reborrows it for each handler call. State-free handlers can share the same list:
 
 ```rust
 use corophage::prelude::*;
@@ -68,7 +69,8 @@ struct AppState { x: u64 }
 let mut state = AppState { x: 42 };
 
 let result = my_program()
-    .handle(|_s: &mut AppState, Log(msg)| {
+    .with_state(&mut state)
+    .handle(|Log(msg)| {
         println!("{msg}");
         Control::resume(())
     })
@@ -77,7 +79,7 @@ let result = my_program()
         s.x = x;
         Control::resume(())
     })
-    .run_sync_stateful(&mut state);
+    .run_sync();
 
 assert_eq!(result, Ok(84));
 assert_eq!(state.x, 84);
@@ -85,7 +87,7 @@ assert_eq!(state.x, 84);
 
 ## Send-able async execution
 
-Programs created with `Program::new_send` or `#[effectful(..., send)]` can run with shared state inside `tokio::spawn`. The state and result must be `Send`, handlers must be `Send + Sync`, and each handler future must be `Send`. Handlers can retain their `&mut S` argument across awaits:
+`Program::new` and default `#[effectful]` functions retain their body's concrete type. The resulting runner is `Send` when all retained components permit it. Mutable handler access removes the blanket handler `Sync` bound. Handlers can retain their `&mut S` argument across awaits:
 
 ```rust
 use corophage::prelude::*;
@@ -99,7 +101,7 @@ async fn increment(state: &mut u64, _: Counter) -> Control<u64> {
     Control::resume(*state)
 }
 
-let program = Program::new_send::<Effects![Counter], _>(|mut y| async move {
+let program = Program::new::<Effects![Counter], _>(|mut y| async move {
     let first = y.yield_(Counter).await;
     let second = y.yield_(Counter).await;
     first + second
@@ -108,7 +110,7 @@ let program = Program::new_send::<Effects![Counter], _>(|mut y| async move {
 
 let (result, state) = tokio::spawn(async move {
     let mut state = 0;
-    let result = program.run_stateful(&mut state).await;
+    let result = program.with_state(&mut state).run().await;
     (result, state)
 })
 .await
@@ -120,8 +122,16 @@ assert_eq!(state, 2);
 
 The state is owned by the spawned task, so its mutable borrow stays valid until execution finishes. Outside `tokio::spawn`, a sendable runner can also borrow state and effect data from the surrounding scope; it does not require `'static` data.
 
-Sendable stateful handlers use the same restriction on captured data as sendable stateless handlers: a returned future can borrow the explicit state argument, but must not borrow from the closure's captures. Use an `async fn` as above, or clone captured data into an owned future. Use `Program::new` for local execution with lending captures, non-`Send` state, or non-`Send` handler futures.
+Ordinary async handlers can borrow the explicit state argument. For a closure that also borrows its captures across awaits, use `corophage::local_stateful(async |state: &mut S, effect| { ... })`. This adapter boxes one non-`Send` future per dispatch. The generic runner also accepts non-`Send` state and handler futures when awaited locally.
+
+## State borrow duration
+
+The mutable borrow starts at `.with_state(...)`. You cannot access the original state while the configured program remains live. Completion, cancellation, or dropping the configured program or its execution future releases that borrow. Handler calls are serial and receive fresh short reborrows; the state owner and handler captures need not have the same lifetime.
+
+A handler cannot resume the computation with a reference borrowed from its temporary mutable state loan. A borrowed resume must instead refer to data that lives for the computation lifetime, such as external data carried by the effect.
+
+The compatibility methods `.run_stateful(&mut state)` and `.run_sync_stateful(&mut state)` retain their original borrow timing: the state borrow starts at that terminal call. Erased sendable programs retain their old `Send + Sync` handler checks on `.run_stateful()`. Calling `.with_state()` selects the new conditional execution path, including for erased bodies.
 
 ## Alternatives
 
-If your handlers don't need shared state, use `.run_sync()` / `.run()` instead. You can also use `RefCell` or other interior mutability patterns to share state without `run_stateful`.
+If your handlers do not need shared state, omit `.with_state()`. Captured `RefCell` or other interior mutability remains an alternative when it fits the application.

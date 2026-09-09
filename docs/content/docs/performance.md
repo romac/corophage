@@ -1,56 +1,61 @@
 +++
 title = "Performance"
 weight = 7
-description = "Benchmarks and performance characteristics."
+description = "Measured execution costs and concrete future storage tradeoffs."
 +++
 
-Benchmarks were run using [Divan](https://github.com/nvzqz/divan). Run them with `cargo bench`.
+The default concrete implementation was compared with the boxed implementation at commit `fa68b5a` on 2026-09-09. Both builds used the same macOS arm64 machine, Rust 1.97.1, release optimization, LTO, and one code generation unit.
 
-## Coroutine overhead
+## Execution costs
 
-| Benchmark | Median | Notes |
-|-----------|--------|-------|
-| `coroutine_creation` | ~7 ns | Just struct initialization |
-| `empty_coroutine` | ~30 ns | Full lifecycle with no yields |
-| `single_yield` | ~38 ns | One yield/resume cycle |
+Each row measures a complete operation, including construction and execution. Async cases use a warmed Tokio runtime on the current thread with immediately ready handlers; the cooperative dispatch budget remains enabled.
 
-Coroutine creation is nearly free, and the baseline overhead for running a coroutine is ~30 ns.
+| Operation | Boxed baseline | Concrete default |
+| --- | ---: | ---: |
+| Construct and drop | 18.0 ns | 0.7 ns |
+| One sync effect | 49.4 ns | 35.2 ns |
+| One async effect | 120.6 ns | 90.7 ns |
+| 1,000 sync effects | 10.5 µs | 12.5 µs |
+| 1,000 async effects | 17.1 µs | 16.2 µs |
+| 1,000 stateful sync effects | 10.2 µs | 13.4 µs |
+| 1,000 stateful async effects | 17.4 µs | 14.5 µs |
+| Five nested invocations | 428 ns | 241 ns |
+| Ten nested invocations | 822 ns | 453 ns |
+| Twenty nested invocations | 1,992 ns | 906 ns |
 
-## Yield scaling (sync vs async)
+Nested cases perform one effect at the leaf. Depth counts invocation edges, so depth 20 has 21 active programs. Every generated level invokes the preceding level exactly once. The historical `stress` benchmark labels for depths 15 and 20 combine sequential calls and are not used for this comparison.
 
-| Yields | Sync | Async | Overhead |
-|--------|------|-------|----------|
-| 10 | 131 ns | 178 ns | +36% |
-| 100 | 1.0 µs | 1.27 µs | +27% |
-| 1000 | 9.5 µs | 11.1 µs | +17% |
+Construction and nesting improve, while long synchronous effect loops are about 20–32% slower in this fixture. Real handlers can have much larger costs than the dispatch itself. Do not apply these ratios to an application without measuring it.
 
-Async adds ~30% overhead at small scales, but the gap narrows as yield count increases. Per-yield cost is approximately **9–10 ns** for sync and **11 ns** for async.
+## Allocations and future size
 
-## Effect dispatch position
+Allocations were counted separately from timings, after runtime warmup.
 
-| Position | Median |
-|----------|--------|
-| First (index 0) | 49 ns |
-| Middle (index 2) | 42 ns |
-| Last (index 4) | 47 ns |
+| Case | Boxed baseline | Concrete default |
+| --- | ---: | ---: |
+| Construct and drop | 1 allocation | 0 allocations |
+| Flat run, 1 or 1,000 ordinary effects | 2 allocations | 1 allocation |
+| Twenty nested invocations | 42 allocations | 21 allocations |
+| Unhandled flat program | 48 bytes | 184 bytes |
+| Flat execution future | 312 bytes | 528 bytes |
+| Depth-20 execution future | 312 bytes | 9,088 bytes |
 
-Dispatch position has negligible impact. While the source-level dispatch uses recursive trait impls over nested `Coproduct::Inl`/`Inr` variants, the compiler monomorphizes and inlines the entire chain into a flat discriminant-based branch — the same code LLVM would emit for a plain `match` on a flat enum. The result is effectively O(1).
+Future sizes exclude heap allocations. The boxed baseline stores each body separately on the heap; concrete bodies are stored inside the surrounding future. Invocation stores each child once, so concrete storage grows linearly with the chain depth. Use explicit boxing for recursive programs or to limit stored type size.
 
-## State management
+Explicit body boxing adds one allocation per body. A flat run using `local` required 2 allocations for one call and 1,001 for 1,000 calls: one runtime allocation plus one boxed future per handler call. Ordinary handlers add no per-dispatch allocation. Both local lending adapters explicitly box their returned futures.
 
-| Pattern | Median |
-|---------|--------|
-| Stateless (`run`) | 38 ns |
-| Stateful (`run_stateful`) | 53 ns |
-| RefCell pattern | 55 ns |
+## Build and code size
 
-Stateful handlers add ~15 ns overhead. RefCell is nearly equivalent to `run_stateful`.
+The common measurement binary grew from 541,728 to 582,512 bytes (7.5%). Its Mach-O `__TEXT` segment grew from 384 to 416 KiB. One clean offline build, including dependencies, took 6.0 seconds for the baseline and 7.3 seconds for the candidate. These are single build observations, not stable estimates of application compile time or library footprint.
 
-## Handler complexity
+## Reproduce
 
-| Handler | Median |
-|---------|--------|
-| Noop (returns `()`) | 42 ns |
-| Allocating (returns `String`) | 83 ns |
+From the repository root, run:
 
-Allocation dominates handler cost. Consider returning references or zero-copy types for performance-critical effects.
+```sh
+python3 scripts/execution/measure.py
+```
+
+The script archives the baseline into a temporary directory, builds both revisions with fresh target directories and compiler caching disabled, and writes `corophage/benches/results/execution.json`. Timings report the median, minimum, and maximum of seven samples after calibration. The script measures explicit boxing and local lending in a separate candidate binary so those extra cases do not affect the common-workload code-size comparison. It records the compiler, platform, source hashes, build times, and allocation counts.
+
+The existing Divan suites remain available with `cargo bench`. The old published performance tables predate the default switch and have been replaced by this reproducible comparison.

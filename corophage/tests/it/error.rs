@@ -47,14 +47,13 @@ fn cancelled_copy_and_eq() {
 #[should_panic(expected = "handler resumed at the wrong effect index")]
 fn mismatched_public_indices_panic() {
     type DuplicateAskEffects = Effects![Ask, Ask];
-    type MismatchedDispatchIndices = HCons<(Here, Here), HCons<(Here, Here), HNil>>;
 
     let co: Co<'_, DuplicateAskEffects, &'static str> =
         Co::new(
             |mut yielder| async move { yielder.yield_::<Ask, There<Here>>(Ask("second")).await },
         );
 
-    let _ = sync::run::<_, _, _, _, MismatchedDispatchIndices>(
+    let _ = sync::run::<_, _, _, _, HCons<(Here, Here, _), HCons<(Here, Here, _), HNil>>>(
         co,
         &mut hlist![|_: Ask| Control::resume("answer")],
     );

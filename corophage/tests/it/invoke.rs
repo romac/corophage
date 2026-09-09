@@ -37,6 +37,7 @@ fn greet<'a>() -> Effectful<'a, Effects![Ask, Print], ()> {
         let name: &str = y.yield_(Ask("name?")).await;
         y.yield_(Print(format!("Hello, {name}!"))).await;
     })
+    .boxed()
 }
 
 #[test]
@@ -78,6 +79,7 @@ fn sync_invoke_subprogram_returns_value() {
 
     fn compute<'a>() -> Effectful<'a, Effects![Add], i32> {
         Program::new(|mut y: Yielder<'_, Effects![Add]>| async move { y.yield_(Add(1, 2)).await })
+            .boxed()
     }
 
     type Effs = Effects![Add, Log];
@@ -101,6 +103,7 @@ fn sync_invoke_subprogram_subset_effects() {
         Program::new(
             |mut y: Yielder<'_, Effects![Ask]>| async move { y.yield_(Ask("name?")).await },
         )
+        .boxed()
     }
 
     type Effs = Effects![Ask, Print, Log];
@@ -146,6 +149,7 @@ async fn async_invoke_subprogram_body_can_await() {
             tokio::task::yield_now().await;
             y.yield_(Ask("name?")).await
         })
+        .boxed()
     }
 
     let result =
@@ -162,7 +166,7 @@ async fn async_invoke_subprogram_body_can_await() {
 #[test]
 fn sync_invoke_no_effects_subprogram() {
     fn pure_computation<'a>() -> Effectful<'a, Effects![], i32> {
-        Program::new(|_: Yielder<'_, Effects![]>| async move { 42 })
+        Program::new(|_: Yielder<'_, Effects![]>| async move { 42 }).boxed()
     }
 
     type Effs = Effects![Log];
@@ -186,6 +190,7 @@ fn sync_invoke_nested() {
         Program::new(
             |mut y: Yielder<'_, Effects![Ask]>| async move { y.yield_(Ask("inner")).await },
         )
+        .boxed()
     }
 
     fn middle<'a>() -> Effectful<'a, Effects![Ask, Print], &'static str> {
@@ -194,6 +199,7 @@ fn sync_invoke_nested() {
             y.yield_(Print(format!("middle: {name}"))).await;
             name
         })
+        .boxed()
     }
 
     type Effs = Effects![Ask, Print, Log];

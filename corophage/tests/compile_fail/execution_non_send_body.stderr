@@ -1,0 +1,73 @@
+error[E0277]: `Rc<i32>` cannot be sent between threads safely
+  --> tests/compile_fail/execution_non_send_body.rs:11:17
+   |
+11 |     assert_send(future);
+   |     ----------- ^^^^^^ `Rc<i32>` cannot be sent between threads safely
+   |     |
+   |     required by a bound introduced by this call
+   |
+  ::: src/program.rs
+   |
+   |     ) -> Program<'a, Effs, impl Future<Output = R> + 'a>
+   |                            ---------------------------- within this `impl Future<Output = i32> + '_`
+   |
+   = help: within `impl Future<Output = i32> + '_`, the trait `Send` is not implemented for `Rc<i32>`
+note: required because it's used within this closure
+  --> tests/compile_fail/execution_non_send_body.rs:7:31
+   |
+ 7 |     let future = Program::new(move |_: Yielder<'_, Effects![]>| async move {
+   |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it's used within this `async` block
+  --> src/coroutine.rs
+   |
+   |         body: async move {
+   |               ^^^^^^^^^^
+note: required because it appears within the type `impl Future<Output = i32> + '_`
+  --> src/program.rs
+   |
+   |     ) -> Program<'a, Effs, impl Future<Output = R> + 'a>
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: required for `fauxgen::export::asynk::AsyncGenerator<impl Future<Output = i32> + '_, Coproduct<corophage::effect::Start, CNil>, Coproduct<corophage::effect::Start, CNil>>` to implement `Send`
+note: required because it appears within the type `coroutine::Transport<fauxgen::export::asynk::AsyncGenerator<impl Future<Output = i32> + '_, Coproduct<corophage::effect::Start, CNil>, Coproduct<corophage::effect::Start, CNil>>, Coproduct<corophage::effect::Start, CNil>>`
+  --> src/coroutine.rs
+   |
+   |     pub(crate) struct Transport<G, A> {
+   |                       ^^^^^^^^^
+note: required because it's used within this `async` fn body
+  --> src/execution.rs
+   |
+   | / {
+   | |     let mut generator = std::pin::pin!(generator);
+   | |     let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
+   | |     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
+...  |
+   | | }
+   | |_^
+note: required because it appears within the type `impl Future<Output = Result<<impl Future<Output = i32> + '_ as Future>::Output, Cancelled>>`
+  --> src/program.rs
+   |
+   |     pub fn run<I>(self) -> impl Future<Output = Result<F::Output, Cancelled>>
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `assert_send`
+  --> tests/compile_fail/execution_non_send_body.rs:3:24
+   |
+ 3 | fn assert_send(_: impl Send) {}
+   |                        ^^^^ required by this bound in `assert_send`
+
+error: future cannot be sent between threads safely
+  --> tests/compile_fail/execution_non_send_body.rs:11:5
+   |
+11 |     assert_send(future);
+   |     ^^^^^^^^^^^^^^^^^^^ future is not `Send`
+   |
+   = help: within `impl Future<Output = i32> + '_`, the trait `Send` is not implemented for `Rc<i32>`
+note: captured value is not `Send`
+  --> tests/compile_fail/execution_non_send_body.rs:9:10
+   |
+ 9 |         *local
+   |          ^^^^^ has type `Rc<i32>` which is not `Send`
+note: required by a bound in `assert_send`
+  --> tests/compile_fail/execution_non_send_body.rs:3:24
+   |
+ 3 | fn assert_send(_: impl Send) {}
+   |                        ^^^^ required by this bound in `assert_send`

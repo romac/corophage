@@ -59,8 +59,16 @@ fn ask() -> String {
 #[effectful]
 fn pure() {}
 
+#[effectful(...All, boxed, send)]
+fn recursive(depth: usize) -> String {
+    if depth == 0 { invoke!(ask()) } else { invoke!(recursive(depth - 1)) }
+}
+
+#[effectful(boxed)]
+fn erased_macro() {}
+
 fn manual() -> Effectful<'static, Empty, ()> {
-    Program::new(|_: Yielder<'_, Empty>| async move {})
+    Program::new(|_: Yielder<'_, Empty>| async move {}).boxed()
 }
 
 fn main() {
@@ -70,6 +78,13 @@ fn main() {
         .run_sync();
     let _ = pure().run_sync();
     let _ = manual().run_sync();
+    let _: Effectful<'static, Empty, ()> = erased_macro();
+    let future = recursive(2)
+        .handle(async |_: Log| Control::resume(()))
+        .handle(async |_: Ask| Control::resume("ok"))
+        .run();
+    fn assert_send(_: impl Send) {}
+    assert_send(future);
 }
 "#,
     )

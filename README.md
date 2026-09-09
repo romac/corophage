@@ -152,7 +152,7 @@ let result = fetch_data()
 assert_eq!(result, Ok("contents of data.txt".to_string()));
 ```
 
-The `#[effectful]` macro transforms your function to return a `Program` and lets you use `yield_!(effect)` to perform effects.
+The `#[effectful]` macro transforms your function to return a `Program` and lets you use `yield_!(effect)` to perform effects. Both the macro and `Program::new` keep the body future concrete by default. The resulting execution future is `Send` when its retained components permit it; no separate constructor is needed for ordinary sendable programs. Add the macro's `send` flag to check an explicit body guarantee.
 
 Borrowed and generic arguments are captured for the lifetime of the returned program automatically, so ordinary signatures such as `fn length(value: &str)` do not need artificial lifetime annotations. Borrowed wrapper arguments such as `Cow<'_, str>` are also supported, including nested wrappers with independent placeholder lifetimes.
 
@@ -211,7 +211,7 @@ A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` m
 
 Computation bodies may also await ordinary futures when executed with `.run().await` or the low-level `asynk` runners. Synchronous runners handle effect suspension but cannot wait for unrelated futures; if one returns `Pending`, use an async runner instead.
 
-Async runners, including `.run_stateful(&mut state).await`, yield to the executor after a bounded number of effect dispatches, even when handlers are immediately ready. Each runner has its own budget (currently 128 dispatches; this value may change). This gives the executor opportunities to schedule other tasks and process cancellation. It does not guarantee task ordering or preempt a computation body or handler that does not return from its poll.
+Use `.run_sync()` with synchronous handlers or `.run().await` with a mixture of sync and async handlers. Async runners yield to the executor after a bounded number of effect dispatches, even when handlers are immediately ready. Each runner has its own budget (currently 128 dispatches; this value may change). This gives the executor opportunities to schedule other tasks and process cancellation. It does not guarantee task ordering or preempt a computation body or handler that does not return from its poll.
 
 > [!NOTE]
 > Handlers can be attached in any order, both with `Program::handle()` and in the `hlist!` passed to the low-level `sync::run`/`asynk::run` functions. Low-level handler lists may also contain extra handlers for effects the computation never yields; every effect the computation can yield must still have a compatible handler.
@@ -237,9 +237,11 @@ async |FileRead(file)| {
 }
 ```
 
+Ordinary async handlers return futures through `FnMut(...) -> Future`. If an async closure borrows its captures across awaits, use `corophage::local(async |effect| { ... })`, or `corophage::local_stateful(async |state: &mut S, effect| { ... })` when it also uses shared state. These explicit adapters box one non-`Send` future per call. Ordinary dispatch does not box handler futures.
+
 ### 4. Shared state
 
-Handlers can share mutable state via `run_sync_stateful` / `run_stateful`. The state is passed as a `&mut S` first argument to every handler:
+Bind shared mutable state with `.with_state(&mut state)`, then execute with `.run_sync()` or `.run().await`. Stateful handlers take `&mut S` as their first argument. State-free handlers can share the same list:
 
 ```rust,ignore
 let mut count: u64 = 0;
@@ -249,20 +251,23 @@ let result = Program::new(|mut y: Yielder<'_, Effects![Counter]>| async move {
     let b = y.yield_(Counter).await;
     a + b
 })
+.with_state(&mut count)
 .handle(|s: &mut u64, _: Counter| {
     *s += 1;
     Control::resume(*s)
 })
-.run_sync_stateful(&mut count);
+.run_sync();
 
 assert_eq!(result, Ok(3));
 assert_eq!(count, 2);
 ```
 
-For async execution with `Program::new_send` or `#[effectful(..., send)]`, `.run_stateful(&mut state)` returns a `Send` future. The state and result must be `Send`, handlers must be `Send + Sync`, and each handler future must be `Send`. An `async fn` handler can borrow `&mut S` across awaits. Use `Program::new` for local execution with non-`Send` state or handlers.
+The state borrow begins at `.with_state()` and ends on completion, cancellation, or drop. Each call receives a fresh reborrow; a handler can keep it across awaits but cannot resume the computation with a reference borrowed from that temporary loan.
+
+The generic execution path accepts local state and handlers even when the body is sendable. It has no blanket handler `Sync` bound. `tokio::spawn` checks that the whole future and result are `Send + 'static`; an actual shared borrow across an await can still require `Sync`. The terminal `.run_stateful(&mut state)` and `.run_sync_stateful(&mut state)` methods remain as compatibility wrappers, binding state at the terminal call.
 
 > [!NOTE]
-> If your handlers don't need shared state, use `.run_sync()` / `.run()` instead. You can also use `RefCell` or other interior mutability patterns to share state without `run_stateful`.
+> If your handlers do not need shared state, omit `.with_state()`. Captured `RefCell` or other interior mutability remains available.
 
 ### 5. Program composition
 
@@ -316,11 +321,25 @@ let result = Program::new(|mut y: Yielder<'_, Effects![Ask, Print, Log]>| async 
 .run_sync();
 ```
 
-Sub-programs can be nested arbitrarily — a sub-program can itself invoke other sub-programs.
+Sub-programs can themselves invoke other sub-programs. Concrete future storage grows with nesting depth; use explicit boxing for recursive functions or to limit stored type size.
+
+### Explicit return types and boxing
+
+Manual functions can return `Program<'a, Effs, impl Future<Output = R> + 'a>`. To retain an erased `Effectful` signature, box the unhandled body explicitly:
+
+```rust,ignore
+fn erased() -> Effectful<'static, Effects![FileRead], String> {
+    Program::new(|mut y: Yielder<'_, Effects![FileRead]>| async move {
+        y.yield_(FileRead("data.txt".into())).await
+    }).boxed()
+}
+```
+
+Use `.boxed_send()` for `Effectful<'a, Effs, R, corophage::Sendable>`. `.boxed()` erases the body's `Send` capability. For macro functions, `#[effectful(..., boxed)]` selects local erasure and `#[effectful(..., boxed, send)]` selects sendable erasure. The boxed form permits recursive `invoke!` calls. This is a breaking change to default return types: existing manual functions returning `Effectful` need explicit boxing, and full `Program` signatures now take the body future as their third parameter.
 
 ## Advanced: `Co`, `CoSend`, and the direct API
 
-For cases where you need to pass a computation around before attaching handlers (e.g., returning it from a function, or storing it in a data structure), you can use `Co` and `CoSend` directly.
+`Co` and `CoSend` retain their erased constructors and can be wrapped with `Program::from_co`. `Program::new_send` remains an erased sendable constructor for compatibility.
 
 ```rust,ignore
 use corophage::{Co, CoSend, sync, Control};
@@ -360,7 +379,11 @@ tokio::spawn(async move {
 
 Async handlers attached to a `CoSend` program must return `Send` futures. Handlers that capture state across an await should clone it into a non-lending future, for example `move |effect| { let state = Arc::clone(&state); async move { ... } }`. Local `Co` programs continue to accept lending `async |effect| { ... }` handlers.
 
+Erased sendable programs retain explicit `Send` terminal contracts, including the `Send + Sync` handler bound on `.run_stateful()`. `.with_state()` selects the new conditional protocol for an erased body. A compiler lifetime limitation can affect inferred stateful runners awaited inside a `Send` async block; `.boxed_send()` followed by the compatibility `.run_stateful()` provides an explicit boundary for these cases. See the [advanced documentation](https://corophage.rs/docs/advanced/#compatibility-api).
+
 The direct API (`sync::run`, `sync::run_stateful`, `asynk::run`, `asynk::run_stateful`) accepts a `Co`/`CoSend` and an `hlist!` of all handlers at once. This is useful for concise one-shot execution but requires providing all handlers together.
+
+`fauxgen` transports effects through the polling context. Effect operations inside combinators that replace that context can break the transport. Keep `yield_!` and `invoke!` in the directly awaited computation flow; boxing does not remove this restriction.
 
 #### Borrowing non-`'static` data
 
@@ -430,57 +453,22 @@ assert_eq!(result, Ok("localhost:5432".to_string()));
 
 ## Performance
 
-Benchmarks were run using [Divan](https://github.com/nvzqz/divan). Run them with `cargo bench`.
+The execution migration was measured against commit `fa68b5a` on the same macOS arm64 machine with Rust 1.97.1, release optimization, and LTO. These are medians for complete operations, including construction and execution:
 
-### Coroutine Overhead
+| Operation | Boxed baseline | Concrete default |
+| --- | ---: | ---: |
+| Construct and drop | 18.0 ns | 0.7 ns |
+| 1,000 sync effects | 10.5 µs | 12.5 µs |
+| 1,000 async effects | 17.1 µs | 16.2 µs |
+| 1,000 stateful sync effects | 10.2 µs | 13.4 µs |
+| 1,000 stateful async effects | 17.4 µs | 14.5 µs |
+| 20 nested invocations, one leaf effect | 1.99 µs | 0.91 µs |
 
-| Benchmark | Median | Notes |
-|-----------|--------|-------|
-| `coroutine_creation` | ~7 ns | Just struct initialization |
-| `empty_coroutine` | ~30 ns | Full lifecycle with no yields |
-| `single_yield` | ~38 ns | One yield/resume cycle |
+Construction performs no allocation. A flat computation with 1 or 1,000 ordinary handler calls used one runtime allocation, down from two; ordinary dispatch adds no per-call allocation. Explicit body boxing adds one allocation, and each `local` or `local_stateful` handler call boxes its future.
 
-Coroutine creation is nearly free, and the baseline overhead for running a coroutine is ~30 ns.
+Concrete storage is larger: the measured flat execution future grew from 312 to 528 bytes, and the depth-20 future occupies 9,088 bytes. These sizes exclude heap storage used by boxed bodies. The common measurement binary grew by 7.5%, and one clean build took 7.3 seconds versus 6.0 seconds. These results describe this fixture and toolchain, not a general performance guarantee.
 
-### Yield Scaling (Sync vs Async)
-
-| Yields | Sync | Async | Overhead |
-|--------|------|-------|----------|
-| 10 | 131 ns | 178 ns | +36% |
-| 100 | 1.0 µs | 1.27 µs | +27% |
-| 1000 | 9.5 µs | 11.1 µs | +17% |
-
-Async adds ~30% overhead at small scales, but the gap narrows as yield count increases. Per-yield cost is approximately **9-10 ns** for sync and **11 ns** for async.
-
-### Effect Dispatch Position
-
-| Position | Median |
-|----------|--------|
-| First (index 0) | 49 ns |
-| Middle (index 2) | 42 ns |
-| Last (index 4) | 47 ns |
-
-Dispatch position has negligible impact. While the source-level dispatch uses recursive trait impls over nested `Coproduct::Inl`/`Inr` variants, the compiler monomorphizes and inlines the entire chain into a flat discriminant-based branch — the same code LLVM would emit for a plain `match` on a flat enum. The result is effectively O(1).
-
-### State Management
-
-| Pattern | Median |
-|---------|--------|
-| Stateless (`run`) | 38 ns |
-| Stateful (`run_stateful`) | 53 ns |
-| RefCell pattern | 55 ns |
-
-Stateful handlers add ~15 ns overhead. RefCell is nearly equivalent to `run_stateful`.
-
-### Handler Complexity
-
-| Handler | Median |
-|---------|--------|
-| Noop (returns `()`) | 42 ns |
-| Allocating (returns `String`) | 83 ns |
-
-Allocation dominates handler cost. Consider returning references or zero-copy types for performance-critical effects.
-
+Run `python3 scripts/execution/measure.py` from the repository root to reproduce the isolated comparison. The [performance documentation](https://corophage.rs/docs/performance/) gives the method and tradeoffs. Existing Divan benchmarks remain available with `cargo bench`; the comparison script generates verified invocation chains instead of using the historical nesting labels.
 
 ## Acknowledgments
 

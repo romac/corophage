@@ -7,7 +7,7 @@ struct Ping;
 fn subprogram() -> Effectful<'static, Effects![Ping], ()> {
     Program::new(|mut yielder| async move {
         yielder.yield_(Ping).await;
-    })
+    }).boxed()
 }
 
 fn main() {

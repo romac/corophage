@@ -1,0 +1,44 @@
+error[E0277]: `Rc<usize>` cannot be sent between threads safely
+  --> tests/compile_fail/execution_non_send_handler.rs:15:17
+   |
+15 |     assert_send(future);
+   |     ----------- ^^^^^^ `Rc<usize>` cannot be sent between threads safely
+   |     |
+   |     required by a bound introduced by this call
+   |
+  ::: src/program.rs
+   |
+   |     pub fn run<I>(self) -> impl Future<Output = Result<F::Output, Cancelled>>
+   |                            -------------------------------------------------- within this `impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>`
+   |
+   = help: within `impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>`, the trait `Send` is not implemented for `Rc<usize>`
+note: required because it's used within this closure
+  --> tests/compile_fail/execution_non_send_handler.rs:14:35
+   |
+14 |     let future = program().handle(move |_: Ask| Control::resume(*capture)).run();
+   |                                   ^^^^^^^^^^^^^
+note: required because it appears within the type `HCons<{closure@$DIR/tests/compile_fail/execution_non_send_handler.rs:14:35: 14:48}, HNil>`
+  --> $CARGO/frunk_core-$VERSION/src/hlist.rs
+   |
+   | pub struct HCons<H, T> {
+   |            ^^^^^
+note: required because it's used within this `async` fn body
+  --> src/execution.rs
+   |
+   | / {
+   | |     let mut generator = std::pin::pin!(generator);
+   | |     let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
+   | |     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
+...  |
+   | | }
+   | |_^
+note: required because it appears within the type `impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>`
+  --> src/program.rs
+   |
+   |     pub fn run<I>(self) -> impl Future<Output = Result<F::Output, Cancelled>>
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `assert_send`
+  --> tests/compile_fail/execution_non_send_handler.rs:10:24
+   |
+10 | fn assert_send(_: impl Send) {}
+   |                        ^^^^ required by this bound in `assert_send`

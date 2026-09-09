@@ -110,8 +110,9 @@ loop {
     };
 
     let result = example_program()
+        .with_state(&mut state)
         .handle(debugger_handler)
-        .run_sync_stateful(&mut state);
+        .run_sync();
 
     match result {
         Ok(value) => {

@@ -1,0 +1,41 @@
+error[E0277]: `Cell<usize>` cannot be shared between threads safely
+  --> tests/compile_fail/execution_non_sync_resume_transport.rs:14:17
+   |
+14 |     assert_send(&program);
+   |     ----------- ^^^^^^^^ `Cell<usize>` cannot be shared between threads safely
+   |     |
+   |     required by a bound introduced by this call
+   |
+   = help: within `Coproduct<corophage::effect::Start, Coproduct<Cell<usize>, CNil>>`, the trait `Sync` is not implemented for `Cell<usize>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` or `std::sync::atomic::AtomicUsize` instead
+note: required because it appears within the type `Coproduct<Cell<usize>, CNil>`
+  --> $CARGO/frunk_core-$VERSION/src/coproduct.rs
+   |
+   | pub enum Coproduct<H, T> {
+   |          ^^^^^^^^^
+note: required because it appears within the type `Coproduct<corophage::effect::Start, Coproduct<Cell<usize>, CNil>>`
+  --> $CARGO/frunk_core-$VERSION/src/coproduct.rs
+   |
+   | pub enum Coproduct<H, T> {
+   |          ^^^^^^^^^
+   = note: required for `Arc<Coproduct<corophage::effect::Start, Coproduct<Cell<usize>, CNil>>>` to implement `Send`
+note: required because it appears within the type `PhantomData<Arc<Coproduct<corophage::effect::Start, Coproduct<Cell<usize>, CNil>>>>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `corophage::coroutine::Coroutine<'_, Coproduct<Ask, CNil>, impl Future<Output = ()> + '_>`
+  --> src/coroutine.rs
+   |
+   | pub struct Coroutine<'a, Effs: Effects<'a>, F> {
+   |            ^^^^^^^^^
+note: required because it appears within the type `corophage::Program<'_, Coproduct<Ask, CNil>, impl Future<Output = ()> + '_>`
+  --> src/program.rs
+   |
+   | pub struct Program<
+   |            ^^^^^^^
+note: required by a bound in `assert_send`
+  --> tests/compile_fail/execution_non_sync_resume_transport.rs:8:25
+   |
+ 8 | fn assert_send(_: &impl Send) {}
+   |                         ^^^^ required by this bound in `assert_send`

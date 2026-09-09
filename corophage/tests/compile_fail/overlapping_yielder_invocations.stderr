@@ -7,3 +7,14 @@ error[E0499]: cannot borrow `yielder` as mutable more than once at a time
    |                      ^^^^^^^ second mutable borrow occurs here
 19 |         let _ = (first.await, second.await);
    |                  ----- first borrow later used here
+   |
+note: this call may capture more lifetimes than intended, because Rust 2024 has adjusted the `impl Trait` lifetime capture rules
+  --> tests/compile_fail/overlapping_yielder_invocations.rs:17:21
+   |
+17 |         let first = yielder.invoke(subprogram());
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: if you can modify this crate, add a precise capturing bound to avoid overcapturing: `+ use<SubEffs, R, F, Mode, Indices, Effs>`
+  --> src/coroutine.rs
+   |
+   |     ) -> impl Future<Output = R>
+   |          ^^^^^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,95 @@
+error[E0277]: `Rc<usize>` cannot be sent between threads safely
+  --> tests/compile_fail/execution_non_send_resume_transport.rs:16:17
+   |
+16 |     assert_send(&future);
+   |     ----------- ^^^^^^^ `Rc<usize>` cannot be sent between threads safely
+   |     |
+   |     required by a bound introduced by this call
+   |
+  ::: src/program.rs
+   |
+   |     pub fn run<I>(self) -> impl Future<Output = Result<F::Output, Cancelled>>
+   |                            -------------------------------------------------- within this `impl Future<Output = Result<<impl Future<Output = ()> + '_ as Future>::Output, Cancelled>>`
+   |
+   = help: within `impl Future<Output = Result<<impl Future<Output = ()> + '_ as Future>::Output, Cancelled>>`, the trait `Send` is not implemented for `Rc<usize>`
+note: required because it appears within the type `Coproduct<Rc<usize>, CNil>`
+  --> $CARGO/frunk_core-$VERSION/src/coproduct.rs
+   |
+   | pub enum Coproduct<H, T> {
+   |          ^^^^^^^^^
+note: required because it appears within the type `corophage::Control<Coproduct<Rc<usize>, CNil>>`
+  --> src/control.rs
+   |
+   | pub enum Control<R> {
+   |          ^^^^^^^
+note: required because it's used within this `async` fn body
+  --> src/execution.rs
+   |
+   | / {
+   | |     let mut generator = std::pin::pin!(generator);
+   | |     let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
+   | |     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
+...  |
+   | | }
+   | |_^
+note: required because it appears within the type `impl Future<Output = Result<<impl Future<Output = ()> + '_ as Future>::Output, Cancelled>>`
+  --> src/program.rs
+   |
+   |     pub fn run<I>(self) -> impl Future<Output = Result<F::Output, Cancelled>>
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `assert_send`
+  --> tests/compile_fail/execution_non_send_resume_transport.rs:8:25
+   |
+ 8 | fn assert_send(_: &impl Send) {}
+   |                         ^^^^ required by this bound in `assert_send`
+
+error[E0277]: `Rc<usize>` cannot be shared between threads safely
+  --> tests/compile_fail/execution_non_send_resume_transport.rs:16:17
+   |
+16 |     assert_send(&future);
+   |     ----------- ^^^^^^^ `Rc<usize>` cannot be shared between threads safely
+   |     |
+   |     required by a bound introduced by this call
+   |
+   = help: within `Coproduct<corophage::effect::Start, Coproduct<Rc<usize>, CNil>>`, the trait `Sync` is not implemented for `Rc<usize>`
+note: required because it appears within the type `Coproduct<Rc<usize>, CNil>`
+  --> $CARGO/frunk_core-$VERSION/src/coproduct.rs
+   |
+   | pub enum Coproduct<H, T> {
+   |          ^^^^^^^^^
+note: required because it appears within the type `Coproduct<corophage::effect::Start, Coproduct<Rc<usize>, CNil>>`
+  --> $CARGO/frunk_core-$VERSION/src/coproduct.rs
+   |
+   | pub enum Coproduct<H, T> {
+   |          ^^^^^^^^^
+   = note: required for `Arc<Coproduct<corophage::effect::Start, Coproduct<Rc<usize>, CNil>>>` to implement `Send`
+note: required because it appears within the type `PhantomData<Arc<Coproduct<corophage::effect::Start, Coproduct<Rc<usize>, CNil>>>>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `coroutine::Transport<fauxgen::export::asynk::AsyncGenerator<impl Future<Output = ()> + '_, Coproduct<corophage::effect::Start, Coproduct<Ask, CNil>>, Coproduct<corophage::effect::Start, Coproduct<Rc<usize>, CNil>>>, Coproduct<corophage::effect::Start, Coproduct<Rc<usize>, CNil>>>`
+  --> src/coroutine.rs
+   |
+   |     pub(crate) struct Transport<G, A> {
+   |                       ^^^^^^^^^
+note: required because it's used within this `async` fn body
+  --> src/execution.rs
+   |
+   | / {
+   | |     let mut generator = std::pin::pin!(generator);
+   | |     let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
+   | |     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
+...  |
+   | | }
+   | |_^
+note: required because it appears within the type `impl Future<Output = Result<<impl Future<Output = ()> + '_ as Future>::Output, Cancelled>>`
+  --> src/program.rs
+   |
+   |     pub fn run<I>(self) -> impl Future<Output = Result<F::Output, Cancelled>>
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `assert_send`
+  --> tests/compile_fail/execution_non_send_resume_transport.rs:8:25
+   |
+ 8 | fn assert_send(_: &impl Send) {}
+   |                         ^^^^ required by this bound in `assert_send`

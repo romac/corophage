@@ -20,13 +20,14 @@ macro_rules! debug_unreachable {
 }
 
 mod coproduct;
-use coproduct::{AsyncHandleMut, AsyncHandleWith, HandleMut, HandleWith};
+use coproduct::{AsyncHandleMut, AsyncHandleWith};
 
 #[doc(hidden)]
 pub use coproduct::{EmbedEffect, ProjectResume};
 
 mod control;
 mod effect;
+mod execution;
 mod locality;
 mod program;
 
@@ -42,6 +43,7 @@ pub mod coroutine;
 pub use frunk_core as __frunk_core;
 
 pub use control::{Cancelled, Control};
+pub use coproduct::dispatch::{LocalHandler, LocalStatefulHandler, local, local_stateful};
 pub use coroutine::{Co, CoSend, Yielder};
 pub use effect::Effect;
 pub use locality::{Local, Locality, Sendable};
@@ -52,18 +54,12 @@ pub use program::{Eff, Effectful, Program};
 pub use corophage_macros::{effect, effectful};
 
 macro_rules! resume_co {
-    (sync, $co:expr, $resume:expr) => {
-        $co.resume($resume)
-    };
     (asynk, $co:expr, $resume:expr) => {
         $co.resume_async($resume).await
     };
 }
 
 macro_rules! resume_co_with {
-    (sync, $co:expr, $resume:expr) => {
-        $co.resume_with($resume)
-    };
     (asynk, $co:expr, $resume:expr) => {
         $co.resume_with_async($resume).await
     };
@@ -103,11 +99,8 @@ macro_rules! run {
             $handle
         })
     }};
-    (sync, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {
-        run!(@loop sync, $lt, $effs, $co, $effect => $handle)
-    };
     (@loop $mode:ident, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
-        let mut co = ::std::pin::pin!($co);
+        let mut co = ::std::pin::pin!($co.generator());
 
         let mut yielded = resume_co_with!($mode, co.as_mut(), $crate::effect::Start);
 
@@ -160,9 +153,11 @@ pub enum Never {}
 /// This provides scheduling opportunities, but does not guarantee task ordering
 /// or preempt a computation body or handler that does not return from its poll.
 pub mod asynk {
-    use crate::coproduct::{SendAsyncHandleMut, SendAsyncHandleWith, SendFuture};
+    use crate::coproduct::dispatch::Dispatch;
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
+    use crate::effect::Resumes;
+    use crate::execution::{CoproductDispatch, drive_send};
     use crate::locality::{Locality, Sendable};
 
     use super::*;
@@ -186,24 +181,23 @@ pub mod asynk {
     /// Run a sendable coroutine with async handlers whose futures are `Send`.
     #[doc(hidden)]
     #[inline]
-    pub fn run_send<'a: 'h, 'h, ES, R, F, Indices>(
+    pub fn run_send<'a: 'h, 'h, ES, R, F, I>(
         co: GenericCo<'a, ES, R, Sendable>,
         handler: &'h mut F,
-    ) -> impl Future<Output = Result<R, Cancelled>> + Send + use<'a, 'h, ES, R, F, Indices>
+    ) -> impl Future<Output = Result<R, Cancelled>> + Send + use<'a, 'h, ES, R, F, I>
     where
         R: Send + 'h,
         F: Send + 'h,
-        ES: Effects<'a> + SendAsyncHandleMut<'a, ES, F, Indices>,
-        GenericCo<'a, ES, R, Sendable>: Send,
+        ES: Effects<'a> + for<'s, 'f> Dispatch<'a, ES, &'s mut (), &'f mut &'h mut F, I>,
+        for<'s, 'f> <ES as Dispatch<'a, ES, &'s mut (), &'f mut &'h mut F, I>>::Future: Send,
+        Resumes<'a, ES>: Send + Sync,
     {
-        let future =
-            async move { run!(asynk, 'a, ES, co, effect => effect.handle_mut_send(handler).await) };
-
-        // SAFETY: the future captures a `Send` coroutine and handler reference,
-        // its runner state (including fauxgen's resume future) is `Send`, and
-        // `SendAsyncHandleMut` guarantees every awaited dispatch future is `Send`.
-        // rustc cannot yet carry those proofs through #100013.
-        unsafe { SendFuture::new_unchecked(future) }
+        drive_send(
+            co.generator(),
+            (),
+            handler,
+            CoproductDispatch::<'a, ES, I>::new(),
+        )
     }
 
     /// Run a coroutine with an hlist of async handlers and shared mutable state.
@@ -224,28 +218,25 @@ pub mod asynk {
     /// Run a sendable coroutine with shared state and `Send` handler futures.
     #[doc(hidden)]
     #[inline]
-    pub fn run_stateful_send<'a: 'h, 'h, ES, R, S, F, Indices>(
+    pub fn run_stateful_send<'a: 'h, 'h, ES, R, S, F, I>(
         co: GenericCo<'a, ES, R, Sendable>,
         state: &'h mut S,
         handler: &'h F,
-    ) -> impl Future<Output = Result<R, Cancelled>> + Send + use<'a, 'h, ES, R, S, F, Indices>
+    ) -> impl Future<Output = Result<R, Cancelled>> + Send + use<'a, 'h, ES, R, S, F, I>
     where
         R: Send + 'h,
         S: Send + 'h,
         F: Sync + 'h,
-        ES: Effects<'a> + SendAsyncHandleWith<'a, ES, F, S, Indices>,
-        crate::effect::Resumes<'a, ES>: Send,
-        GenericCo<'a, ES, R, Sendable>: Send,
+        ES: Effects<'a> + for<'s, 'f> Dispatch<'a, ES, &'s mut S, &'f mut &'h F, I>,
+        for<'s, 'f> <ES as Dispatch<'a, ES, &'s mut S, &'f mut &'h F, I>>::Future: Send,
+        Resumes<'a, ES>: Send + Sync,
     {
-        let future = async move {
-            run!(asynk, 'a, ES, co, effect => effect.handle_with_send(state, handler).await)
-        };
-
-        // SAFETY: the coroutine, mutable state reference, shared handler
-        // reference, and resume values are `Send`. Every awaited dispatch future
-        // is `Send` by `SendAsyncHandleWith`. As in `run_send`, rustc cannot carry
-        // these proofs through the resume future because of #100013.
-        unsafe { SendFuture::new_unchecked(future) }
+        drive_send(
+            co.generator(),
+            state,
+            handler,
+            CoproductDispatch::<'a, ES, I>::new(),
+        )
     }
 }
 
@@ -254,8 +245,10 @@ pub mod asynk {
 /// Use these functions to run a coroutine with synchronous effect handlers.
 /// For most use cases, prefer [`Program::run_sync`] instead.
 pub mod sync {
+    use crate::coproduct::dispatch::{Dispatch, Synchronous};
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
+    use crate::execution::{CoproductDispatch, drive, inline};
     use crate::locality::Locality;
 
     use super::*;
@@ -268,15 +261,21 @@ pub mod sync {
     /// [`crate::asynk::run`] when the body needs to await ordinary futures.
     #[doc(hidden)]
     #[inline]
-    pub fn run<'a, ES, R, L, F, Indices>(
+    pub fn run<'a, 'h, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
-        handler: &mut F,
+        handler: &'h mut F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,
-        ES: Effects<'a> + HandleMut<'a, ES, F, Indices>,
+        ES: Effects<'a> + for<'c> Dispatch<'a, ES, &'c mut (), &'c mut &'h mut F, Indices>,
+        Indices: Synchronous,
     {
-        run!(sync, 'a, ES, co, effect => effect.handle_mut(handler))
+        inline(drive::<false, _, _, _, _, _, _>(
+            co.generator(),
+            (),
+            handler,
+            CoproductDispatch::<'a, ES, Indices>::new(),
+        ))
     }
 
     /// Run a coroutine with an hlist of synchronous handlers and shared mutable state.
@@ -287,15 +286,21 @@ pub mod sync {
     /// [`crate::asynk::run_stateful`] when the body needs to await ordinary futures.
     #[doc(hidden)]
     #[inline]
-    pub fn run_stateful<'a, ES, R, L, S, F, Indices>(
+    pub fn run_stateful<'a, 'h, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
-        handler: &F,
+        handler: &'h F,
     ) -> Result<R, Cancelled>
     where
         L: Locality,
-        ES: Effects<'a> + HandleWith<'a, ES, F, S, Indices>,
+        ES: Effects<'a> + for<'c> Dispatch<'a, ES, &'c mut S, &'c mut &'h F, Indices>,
+        Indices: Synchronous,
     {
-        run!(sync, 'a, ES, co, effect => effect.handle_with(state, handler))
+        inline(drive::<false, _, _, _, _, _, _>(
+            co.generator(),
+            state,
+            handler,
+            CoproductDispatch::<'a, ES, Indices>::new(),
+        ))
     }
 }

@@ -1,0 +1,17 @@
+error[E0271]: type mismatch resolving `<HCons<{closure@execution_duplicate_handler.rs:13:66}, HNil> as HandlersToEffects<'_, Coproduct<Ask, CNil>, HCons<(Ask, Here, SyncHandler), HNil>>>::Effects == CNil`
+  --> tests/compile_fail/execution_duplicate_handler.rs:13:59
+   |
+13 |     let _ = program().handle(|_: Ask| Control::resume(1)).handle(|_: Ask| Control::resume(2));
+   |                                                           ^^^^^^ expected `CNil`, found `Coproduct<Ask, CNil>`
+   |
+   = note: expected enum `CNil`
+              found enum `Coproduct<Ask, CNil>`
+
+error[E0271]: type mismatch resolving `<HCons<{closure@execution_duplicate_handler.rs:13:66}, HNil> as HandlersToEffects<'_, Coproduct<Ask, CNil>, HCons<(Ask, Here, SyncHandler), HNil>>>::Effects == CNil`
+  --> tests/compile_fail/execution_duplicate_handler.rs:13:13
+   |
+13 |     let _ = program().handle(|_: Ask| Control::resume(1)).handle(|_: Ask| Control::resume(2));
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `CNil`, found `Coproduct<Ask, CNil>`
+   |
+   = note: expected enum `CNil`
+              found enum `Coproduct<Ask, CNil>`

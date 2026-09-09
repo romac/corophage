@@ -1,0 +1,7 @@
+error[E0599]: no method named `run_sync` found for struct `corophage::Program<'static, Coproduct<Ask, CNil>, impl Future<Output = usize>>` in the current scope
+  --> tests/compile_fail/execution_missing_handler.rs:13:23
+   |
+13 |     let _ = program().run_sync();
+   |                       ^^^^^^^^ method not found in `corophage::Program<'static, Coproduct<Ask, CNil>, impl Future<Output = usize>>`
+   |
+   = note: the method was found for `corophage::Program<'a, Effs, F, CNil, H, S, Mode>`

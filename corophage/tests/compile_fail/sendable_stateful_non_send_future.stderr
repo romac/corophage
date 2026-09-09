@@ -1,75 +1,22 @@
-error[E0277]: the trait bound `HCons<for<'a> fn(&'a mut usize, Tick) -> impl Future<Output = corophage::Control<()>> {handle}, HNil>: corophage::coproduct::SendAsyncFindHandlerWith<'_, Coproduct<Tick, CNil>, Tick, _, _, _>` is not satisfied
+error: future cannot be sent between threads safely
   --> tests/compile_fail/sendable_stateful_non_send_future.rs:22:19
    |
 22 |     .run_stateful(&mut state);
-   |      ------------ ^^^^^^^^^^ unsatisfied trait bound
-   |      |
-   |      required by a bound introduced by this call
+   |                   ^^^^^^^^^^ future returned by `handle` is not `Send`
    |
-   = help: the trait `corophage::coproduct::SendAsyncFindHandlerWith<'_, Coproduct<Tick, CNil>, Tick, _, _, _>` is not implemented for `HCons<for<'a> fn(&'a mut usize, Tick) -> impl Future<Output = corophage::Control<()>> {handle}, HNil>`
-help: the following other types implement trait `corophage::coproduct::SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, FindIdx>`
-  --> src/coproduct.rs
+   = help: within `corophage::coproduct::dispatch::Branch<corophage::coproduct::dispatch::Inject<'_, Coproduct<Tick, CNil>, Tick, Here, impl for<'s> Future<Output = corophage::Control<()>>>, std::future::Ready<corophage::Control<Coproduct<(), CNil>>>>`, the trait `Send` is not implemented for `Rc<usize>`
+note: future is not `Send` as this value is used across an await
+  --> tests/compile_fail/sendable_stateful_non_send_future.rs:11:34
    |
-   | / impl<'a, Effs, CH, F, FTail, S, InjectIdx>
-   | |     SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, Here> for HCons<F, FTail>
-   | | where
-   | |     Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
-...  |
-   | |     F: for<'s> SendStatefulFn<&'s mut S, CH, CH::Resume<'a>> + Sync,
-   | |     FTail: Sync,
-   | |________________^ `HCons<F, FTail>` implements `corophage::coproduct::SendAsyncFindHandlerWith<'_, Effs, CH, S, InjectIdx, Here>`
-...
-   | / impl<'a, Effs, CH, FHead, FTail, S, InjectIdx, I>
-   | |     SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, There<I>> for HCons<FHead, FTail>
-   | | where
-   | |     Effs: Effects<'a>,
-...  |
-   | |     FHead: Sync,
-   | |     FTail: SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, I> + Sync,
-   | |__________________________________________________________________________^ `HCons<FHead, FTail>` implements `corophage::coproduct::SendAsyncFindHandlerWith<'_, Effs, CH, S, InjectIdx, There<I>>`
-   = note: required for `Coproduct<Tick, CNil>` to implement `corophage::coproduct::SendAsyncHandleWith<'_, Coproduct<Tick, CNil>, HCons<for<'a> fn(&'a mut usize, Tick) -> impl Future<Output = corophage::Control<()>> {handle}, HNil>, _, HCons<(_, _), HNil>>`
-note: required by a bound in `corophage::Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
+10 |     let value = Rc::new(1);
+   |         ----- has type `Rc<usize>` which is not `Send`
+11 |     std::future::pending::<()>().await;
+   |                                  ^^^^^ await occurs here, with `value` maybe used later
+note: required by a bound in `corophage::Program::<'a, Effs, Pin<Box<(dyn Future<Output = R> + Send + 'a)>>, CNil, H, (), Sendable>::run_stateful`
   --> src/program.rs
    |
-   |     pub fn run_stateful<S, Indices>(
+   |     pub fn run_stateful<S, I>(
    |            ------------ required by a bound in this associated function
 ...
-   |         Effs: SendAsyncHandleWith<'a, Effs, Handlers, S, Indices>,
-   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
-
-error[E0277]: the trait bound `HCons<for<'a> fn(&'a mut usize, Tick) -> impl Future<Output = corophage::Control<()>> {handle}, HNil>: corophage::coproduct::SendAsyncFindHandlerWith<'_, Coproduct<Tick, CNil>, Tick, _, _, _>` is not satisfied
-  --> tests/compile_fail/sendable_stateful_non_send_future.rs:22:6
-   |
-22 |     .run_stateful(&mut state);
-   |      ^^^^^^^^^^^^ unsatisfied trait bound
-   |
-   = help: the trait `corophage::coproduct::SendAsyncFindHandlerWith<'_, Coproduct<Tick, CNil>, Tick, _, _, _>` is not implemented for `HCons<for<'a> fn(&'a mut usize, Tick) -> impl Future<Output = corophage::Control<()>> {handle}, HNil>`
-help: the following other types implement trait `corophage::coproduct::SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, FindIdx>`
-  --> src/coproduct.rs
-   |
-   | / impl<'a, Effs, CH, F, FTail, S, InjectIdx>
-   | |     SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, Here> for HCons<F, FTail>
-   | | where
-   | |     Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
-...  |
-   | |     F: for<'s> SendStatefulFn<&'s mut S, CH, CH::Resume<'a>> + Sync,
-   | |     FTail: Sync,
-   | |________________^ `HCons<F, FTail>` implements `corophage::coproduct::SendAsyncFindHandlerWith<'_, Effs, CH, S, InjectIdx, Here>`
-...
-   | / impl<'a, Effs, CH, FHead, FTail, S, InjectIdx, I>
-   | |     SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, There<I>> for HCons<FHead, FTail>
-   | | where
-   | |     Effs: Effects<'a>,
-...  |
-   | |     FHead: Sync,
-   | |     FTail: SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, I> + Sync,
-   | |__________________________________________________________________________^ `HCons<FHead, FTail>` implements `corophage::coproduct::SendAsyncFindHandlerWith<'_, Effs, CH, S, InjectIdx, There<I>>`
-   = note: required for `Coproduct<Tick, CNil>` to implement `corophage::coproduct::SendAsyncHandleWith<'_, Coproduct<Tick, CNil>, HCons<for<'a> fn(&'a mut usize, Tick) -> impl Future<Output = corophage::Control<()>> {handle}, HNil>, _, HCons<(_, _), HNil>>`
-note: required by a bound in `corophage::Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
-  --> src/program.rs
-   |
-   |     pub fn run_stateful<S, Indices>(
-   |            ------------ required by a bound in this associated function
-...
-   |         Effs: SendAsyncHandleWith<'a, Effs, Handlers, S, Indices>,
-   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Program::<'a, Effs, R, Sendable, CNil, Handlers>::run_stateful`
+   |         for<'s, 'h> <Effs as Dispatch<'a, Effs, &'s mut S, &'h mut H, I>>::Future: Send,
+   |                                                                                    ^^^^ required by this bound in `Program::<'a, Effs, Pin<Box<dyn Future<Output = R> + Send>>, CNil, H, (), Sendable>::run_stateful`

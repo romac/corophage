@@ -345,49 +345,57 @@ fn cancellable_program(n: usize) -> u64 {
 mod deep_nesting {
     use super::*;
 
+    // Run each concrete body before joining the match arms; the programs have
+    // distinct future types and should not be boxed just to select a benchmark.
+    fn run_noop<R>(
+        program: Program<'_, Effects![Noop], impl std::future::Future<Output = R>>,
+    ) -> Result<R, Cancelled> {
+        program.handle(|_: Noop| Control::resume(())).run_sync()
+    }
+
     #[divan::bench(args = [1, 2, 3, 5, 10, 15, 20])]
     fn nesting_depth(bencher: divan::Bencher, depth: usize) {
         bencher.bench(|| {
-            let program = match depth {
-                1 => nest_leaf(),
-                2 => nest_2(),
-                3 => nest_3(),
-                5 => nest_5(),
-                10 => nest_10(),
-                15 => nest_15(),
-                20 => nest_20(),
+            let result = match depth {
+                1 => run_noop(nest_leaf()),
+                2 => run_noop(nest_2()),
+                3 => run_noop(nest_3()),
+                5 => run_noop(nest_5()),
+                10 => run_noop(nest_10()),
+                15 => run_noop(nest_15()),
+                20 => run_noop(nest_20()),
                 _ => unreachable!(),
             };
-            divan::black_box(program.handle(|_: Noop| Control::resume(())).run_sync())
+            divan::black_box(result)
         });
     }
 
     #[divan::bench(args = [1, 2, 3, 5, 10])]
     fn nesting_depth_with_yields(bencher: divan::Bencher, depth: usize) {
         bencher.bench(|| {
-            let program = match depth {
-                1 => nest_yield_leaf(),
-                2 => nest_yield_2(),
-                3 => nest_yield_3(),
-                5 => nest_yield_5(),
-                10 => nest_yield_10(),
+            let result = match depth {
+                1 => run_noop(nest_yield_leaf()),
+                2 => run_noop(nest_yield_2()),
+                3 => run_noop(nest_yield_3()),
+                5 => run_noop(nest_yield_5()),
+                10 => run_noop(nest_yield_10()),
                 _ => unreachable!(),
             };
-            divan::black_box(program.handle(|_: Noop| Control::resume(())).run_sync())
+            divan::black_box(result)
         });
     }
 
     #[divan::bench(args = [2, 4, 8, 16])]
     fn fan_out(bencher: divan::Bencher, leaves: usize) {
         bencher.bench(|| {
-            let program = match leaves {
-                2 => fan_out_2(),
-                4 => fan_out_4(),
-                8 => fan_out_8(),
-                16 => fan_out_16(),
+            let result = match leaves {
+                2 => run_noop(fan_out_2()),
+                4 => run_noop(fan_out_4()),
+                8 => run_noop(fan_out_8()),
+                16 => run_noop(fan_out_16()),
                 _ => unreachable!(),
             };
-            divan::black_box(program.handle(|_: Noop| Control::resume(())).run_sync())
+            divan::black_box(result)
         });
     }
 }
@@ -453,7 +461,13 @@ mod wide_effects {
     use super::*;
 
     #[allow(clippy::type_complexity)]
-    fn handle_8(program: Effectful<'_, Effects![E0, E1, E2, E3, E4, E5, E6, E7], ()>) {
+    fn handle_8(
+        program: Program<
+            '_,
+            Effects![E0, E1, E2, E3, E4, E5, E6, E7],
+            impl std::future::Future<Output = ()>,
+        >,
+    ) {
         program
             .handle(|_: E0| Control::resume(()))
             .handle(|_: E1| Control::resume(()))
@@ -469,12 +483,12 @@ mod wide_effects {
 
     #[allow(clippy::type_complexity)]
     fn handle_16(
-        program: Effectful<
+        program: Program<
             '_,
             Effects![
                 E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14, E15
             ],
-            (),
+            impl std::future::Future<Output = ()>,
         >,
     ) {
         program

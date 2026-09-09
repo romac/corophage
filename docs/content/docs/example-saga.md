@@ -127,11 +127,12 @@ After running, inspect the result. On cancellation, the accumulated state tells 
 let mut state = SagaState { fail_at: Some("payment".into()), ..Default::default() };
 
 let result = process_order(order)
+    .with_state(&mut state)
     .handle(handle_reserve)
     .handle(handle_payment)
     .handle(handle_confirmation)
     .handle(handle_shipping)
-    .run_stateful(&mut state)
+    .run()
     .await;
 
 match result {

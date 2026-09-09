@@ -1,0 +1,26 @@
+error[E0277]: the trait bound `corophage::coproduct::dispatch::Async: corophage::coproduct::dispatch::Synchronous` is not satisfied
+  --> tests/compile_fail/execution_async_handler_in_sync_runner.rs:13:65
+   |
+13 |     let _ = program().handle(async |_: Ask| Control::resume(1)).run_sync();
+   |                                                                 ^^^^^^^^ the trait `corophage::coproduct::dispatch::Synchronous` is not implemented for `corophage::coproduct::dispatch::Async`
+   |
+help: the following other types implement trait `corophage::coproduct::dispatch::Synchronous`
+  --> src/coproduct/dispatch.rs
+   |
+   | impl Synchronous for Sync {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ `corophage::coproduct::dispatch::Sync`
+   | impl Synchronous for Stateful<Sync> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `corophage::coproduct::dispatch::Stateful<corophage::coproduct::dispatch::Sync>`
+   | impl Synchronous for HNil {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ `HNil`
+   | impl<I, F, K: Synchronous, T: Synchronous> Synchronous for HCons<(I, F, K), T> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `HCons<(I, F, K), T>`
+   = note: required for `HCons<(Here, Here, corophage::coproduct::dispatch::Async), HNil>` to implement `corophage::coproduct::dispatch::Synchronous`
+note: required by a bound in `corophage::Program::<'a, Effs, F, CNil, H, S, Mode>::run_sync`
+  --> src/program.rs
+   |
+   |     pub fn run_sync<I>(self) -> Result<F::Output, Cancelled>
+   |            -------- required by a bound in this associated function
+...
+   |         I: Synchronous,
+   |            ^^^^^^^^^^^ required by this bound in `Program::<'a, Effs, F, CNil, H, S, Mode>::run_sync`

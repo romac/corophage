@@ -244,7 +244,7 @@ assert_eq!(result, Ok(()));
 
 <div class="tab-panel" id="panel-stateful">
 
-Handlers can share mutable state. The state is passed as an argument to every handler.
+Bind shared mutable state before execution. Each stateful handler receives a fresh mutable borrow.
 
 ```rust
 use corophage::prelude::*;
@@ -262,11 +262,12 @@ fn count_up() -> u64 {
 let mut count: u64 = 0;
 
 let result = count_up()
+    .with_state(&mut count)
     .handle(|s: &mut u64, _: Counter| {
         *s += 1;
         Control::resume(*s)
     })
-    .run_sync_stateful(&mut count);
+    .run_sync();
 
 assert_eq!(result, Ok(3));  // 1 + 2
 assert_eq!(count, 2);       // handler was called twice
@@ -365,11 +366,12 @@ A multi-step async workflow where each step is an effect. When a step fails, `Co
 
 ```rust
 let result = process_order(order)
+    .with_state(&mut state)
     .handle(handle_reserve)
     .handle(handle_payment)
     .handle(handle_confirmation)
     .handle(handle_shipping)
-    .run_stateful(&mut state).await;
+    .run().await;
 
 match result {
     Ok(summary)   => println!("done: {summary}"),
@@ -392,8 +394,9 @@ An interactive debugger — with rewind — built on a single `Pause` effect. Th
 ```rust
 loop {
     let result = example_program()
+        .with_state(&mut state)
         .handle(debugger_handler)
-        .run_sync_stateful(&mut state);
+        .run_sync();
 
     if state.went_back {
         replay = state.decisions; // re-run one step earlier

@@ -32,8 +32,9 @@ pub fn effect(
 
 /// Mark a function as an effectful computation.
 ///
-/// Transforms the function to return a `Program` and enables the `yield_!()`
-/// macro inside the function body.
+/// Transforms the function to return a `Program` with a concrete body future and
+/// enables `yield_!()` and `invoke!()` inside the function body. Auto traits such
+/// as `Send` remain available without a flag when the body permits them.
 /// Borrowed wrapper arguments such as `Cow<'_, str>` are supported, including
 /// nested wrappers whose placeholder lifetimes are inferred independently.
 /// Elided reference lifetimes are also independent, allowing sequential calls
@@ -41,9 +42,11 @@ pub fn effect(
 ///
 /// # Arguments
 ///
-/// - Effect types (required): comma-separated list of effect types
+/// - Effect types (optional): comma-separated list of effect types
 /// - `...Alias` (optional): spread an existing effects type alias (must be last effect argument)
-/// - `send` (optional): makes the program `Send`-able
+/// - `send` (optional): checks an explicit `Send` guarantee on the body future
+/// - `boxed` (optional): returns the erased `Effectful` alias; combine with
+///   `send` for sendable erasure. Use this at recursion or storage boundaries.
 /// - Explicit lifetime (optional): first argument can select a lifetime declared
 ///   on the function or enclosing `impl`/`trait`, or use `'static` or `'_`.
 ///
@@ -64,6 +67,11 @@ pub fn effect(
 /// #[effectful(Ask, send)]
 /// fn sendable(x: i32) -> bool {
 ///     yield_!(Ask(x))
+/// }
+///
+/// #[effectful(Ask, boxed, send)]
+/// fn recursive(depth: usize) -> bool {
+///     if depth == 0 { yield_!(Ask(0)) } else { invoke!(recursive(depth - 1)) }
 /// }
 /// ```
 ///

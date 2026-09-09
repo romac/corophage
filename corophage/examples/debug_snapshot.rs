@@ -97,7 +97,7 @@ fn fact_response_received(fact: String) {
 /// for in `changes`, the test fails. Exhaustive by default.
 fn expect_changes(
     state: &mut NumberFactModel,
-    action: Effectful<'_, Effects![Get, Set], ()>,
+    action: Program<'_, Effects![Get, Set], impl std::future::Future<Output = ()>>,
     changes: impl FnOnce(&mut NumberFactModel),
 ) {
     let mut expected = state.clone();

@@ -10,3 +10,13 @@ error[E0597]: `value` does not live long enough
 16 |     // The captured borrow must remain valid until the program runs or is dropped.
 17 |     program.run_sync().unwrap();
    |     ------- borrow later used here
+   |
+note: this call may capture more lifetimes than intended, because Rust 2024 has adjusted the `impl Trait` lifetime capture rules
+  --> tests/compile_fail/effectful_placeholder_borrow_escapes.rs:14:19
+   |
+14 |         program = length(Cow::Borrowed(&value));
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: use the precise capturing `use<...>` syntax to make the captures explicit
+   |
+ 5 | #[effectful] + use<'__eff>
+   |              +++++++++++++

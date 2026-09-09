@@ -1,0 +1,18 @@
+error[E0503]: cannot use `state` because it was mutably borrowed
+  --> tests/compile_fail/execution_state_borrow_while_configured.rs:15:5
+   |
+14 |     let configured = program().with_state(&mut state);
+   |                                           ---------- `state` is borrowed here
+15 |     state += 1;
+   |     ^^^^^^^^^^ use of borrowed `state`
+16 |     drop(configured);
+   |          ---------- borrow later used here
+
+warning: value assigned to `state` is never read
+  --> tests/compile_fail/execution_state_borrow_while_configured.rs:15:5
+   |
+15 |     state += 1;
+   |     ^^^^^^^^^^
+   |
+   = help: maybe it is overwritten before being read?
+   = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default

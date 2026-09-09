@@ -1,0 +1,19 @@
+error: future cannot be sent between threads safely
+  --> tests/compile_fail/execution_non_send_future.rs:18:5
+   |
+18 |     assert_send(future);
+   |     ^^^^^^^^^^^^^^^^^^^ future is not `Send`
+   |
+   = help: within `impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>`, the trait `Send` is not implemented for `Rc<usize>`
+note: future is not `Send` as this value is used across an await
+  --> tests/compile_fail/execution_non_send_future.rs:15:38
+   |
+14 |         let local = std::rc::Rc::new(1);
+   |             ----- has type `Rc<usize>` which is not `Send`
+15 |         std::future::pending::<()>().await;
+   |                                      ^^^^^ await occurs here, with `local` maybe used later
+note: required by a bound in `assert_send`
+  --> tests/compile_fail/execution_non_send_future.rs:10:24
+   |
+10 | fn assert_send(_: impl Send) {}
+   |                        ^^^^ required by this bound in `assert_send`

@@ -8,9 +8,9 @@
 //! coroutines directly.
 
 use std::future::Future;
-use std::marker::PhantomPinned;
+use std::marker::PhantomData;
 use std::pin::Pin;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Poll};
 
 use fauxgen::__private::AsyncGenerator as GeneratorStorage;
 use fauxgen::AsyncGenerator;
@@ -21,13 +21,97 @@ use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 use crate::coproduct::{EmbedEffect, ProjectResume};
 use crate::effect::{CanStart, Effect, Effects, MapResume, Resumes, Start};
 use crate::locality::{Local, Locality, Sendable};
-use crate::program::Effectful;
 
-type Gen<'a, Effs, Return, L> = GeneratorStorage<
-    <L as Locality>::PinBoxFuture<'a, Return>,
-    CanStart<Effs>,
-    Resumes<'a, CanStart<Effs>>,
->;
+/// A coroutine body whose future type has not been erased.
+///
+/// Construct this through [`Program::new`](crate::Program::new).
+/// Its `Send` capability follows its body and resume transport, without a
+/// locality marker. The body is pinned only when execution or invocation starts.
+pub struct Coroutine<'a, Effs: Effects<'a>, F> {
+    body: F,
+    // fauxgen's generator has an unchecked Send impl that only checks F.
+    // Retain the token's Send + Sync requirements for the actual resume lifetime,
+    // including before the first poll. Arc here is only a zero-sized marker.
+    transport: PhantomData<std::sync::Arc<Resumes<'a, CanStart<Effs>>>>,
+}
+
+impl<'a, Effs: Effects<'a>, F: Future> Coroutine<'a, Effs, F> {
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn generator(
+        self,
+    ) -> Transport<
+        GeneratorStorage<F, CanStart<Effs>, Resumes<'a, CanStart<Effs>>>,
+        Resumes<'a, CanStart<Effs>>,
+    > {
+        Transport {
+            generator: fauxgen::__private::gen_async(Default::default(), self.body),
+            transport: self.transport,
+        }
+    }
+
+    /// Erase the body for an existing local coroutine signature.
+    pub fn boxed(self) -> Co<'a, Effs, F::Output>
+    where
+        F: 'a,
+    {
+        GenericCo {
+            body: Box::pin(self.body) as Pin<Box<dyn Future<Output = F::Output> + 'a>>,
+            transport: PhantomData,
+            locality: PhantomData,
+        }
+    }
+
+    /// Erase the body while retaining the sendable coroutine guarantee.
+    pub fn boxed_send(self) -> CoSend<'a, Effs, F::Output>
+    where
+        F: Send + 'a,
+        for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
+    {
+        GenericCo {
+            body: Box::pin(self.body) as Pin<Box<dyn Future<Output = F::Output> + Send + 'a>>,
+            transport: PhantomData,
+            locality: PhantomData,
+        }
+    }
+}
+
+pub(crate) fn concrete<'a, Effs: Effects<'a>, F>(
+    build: impl FnOnce(Yielder<'a, Effs>) -> F + 'a,
+) -> Coroutine<'a, Effs, impl Future<Output = F::Output> + 'a>
+where
+    F: Future + 'a,
+{
+    let token = fauxgen::__private::token();
+    Coroutine {
+        body: async move {
+            let token = fauxgen::__private::register_owned(token).await;
+            let _ = token.argument().await;
+            build(Yielder::new(token)).await
+        },
+        transport: PhantomData,
+    }
+}
+
+pin_project_lite::pin_project! {
+    // Keep resume storage constraints visible after the body becomes a generator.
+    pub(crate) struct Transport<G, A> {
+        #[pin]
+        generator: G,
+        transport: PhantomData<std::sync::Arc<A>>,
+    }
+}
+
+impl<G: AsyncGenerator<A>, A> AsyncGenerator<A> for Transport<G, A> {
+    type Yield = G::Yield;
+    type Return = G::Return;
+    fn poll_resume(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        arg: Option<A>,
+    ) -> Poll<GeneratorState<Self::Yield, Self::Return>> {
+        self.project().generator.poll_resume(cx, arg)
+    }
+}
 
 /// A non-`Send` coroutine that can yield effects from `Effs` and return `Return`.
 ///
@@ -54,14 +138,14 @@ pub struct GenericCo<'a, Effs, Return, L: Locality = Local>
 where
     Effs: Effects<'a>,
 {
-    generator: Gen<'a, Effs, Return, L>,
-    _pin: PhantomPinned,
+    body: L::PinBoxFuture<'a, Return>,
+    transport: PhantomData<std::sync::Arc<Resumes<'a, CanStart<Effs>>>>,
+    locality: PhantomData<fn() -> L>,
 }
 
 macro_rules! make_co {
     ($f:expr, $cast:ty) => {{
         let token = fauxgen::__private::token();
-        let marker = token.marker();
 
         let fut = Box::pin(async move {
             let token = fauxgen::__private::register_owned(token).await;
@@ -73,10 +157,10 @@ macro_rules! make_co {
             $f(Yielder::new(token)).await
         }) as $cast;
 
-        let generator = fauxgen::__private::gen_async(marker, fut);
         Self {
-            generator,
-            _pin: PhantomPinned,
+            body: fut,
+            transport: PhantomData,
+            locality: PhantomData,
         }
     }};
 }
@@ -108,65 +192,91 @@ where
     }
 }
 
-impl<'a, Effs, Return, L: Locality> GenericCo<'a, Effs, Return, L>
-where
-    Effs: Effects<'a>,
-{
-    #[inline]
-    fn generator(self: Pin<&mut Self>) -> Pin<&mut Gen<'a, Effs, Return, L>> {
-        // SAFETY: This is a structural pin projection from `Pin<&mut GenericCo>` to
-        // `Pin<&mut Gen>`. This is sound because:
-        // 1. `GenericCo` is `!Unpin` (contains `PhantomPinned`), so it is never moved after pinning.
-        // 2. The `generator` field is structurally pinned (not behind an indirection).
-        // 3. `GenericCo` has no `Drop` impl that could move the field.
-        unsafe { self.map_unchecked_mut(|s| &mut s.generator) }
+impl<'a, Effs: Effects<'a>, R, L: Locality> GenericCo<'a, Effs, R, L> {
+    pub(crate) fn from_concrete(co: Coroutine<'a, Effs, L::PinBoxFuture<'a, R>>) -> Self {
+        Self {
+            body: co.body,
+            transport: co.transport,
+            locality: PhantomData,
+        }
     }
-
-    #[inline]
-    pub(crate) fn resume(
-        self: Pin<&mut Self>,
-        resume: Resumes<'a, CanStart<Effs>>,
-    ) -> GeneratorState<CanStart<Effs>, Return> {
-        let mut generator = self.generator();
-        let mut context = Context::from_waker(Waker::noop());
-
-        match AsyncGenerator::poll_resume(generator.as_mut(), &mut context, Some(resume)) {
-            Poll::Ready(state) => state,
-            Poll::Pending => {
-                panic!("computation suspended on a non-effect future; use an async runner instead")
-            }
+    pub(crate) fn into_concrete(self) -> Coroutine<'a, Effs, L::PinBoxFuture<'a, R>> {
+        Coroutine {
+            body: self.body,
+            transport: self.transport,
         }
     }
 
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn generator(
+        self,
+    ) -> Transport<
+        GeneratorStorage<L::PinBoxFuture<'a, R>, CanStart<Effs>, Resumes<'a, CanStart<Effs>>>,
+        Resumes<'a, CanStart<Effs>>,
+    > {
+        self.into_concrete().generator()
+    }
+}
+
+impl<G: AsyncGenerator<A>, A> Transport<G, A> {
     #[inline]
-    pub(crate) async fn resume_async(
+    pub(crate) fn resume_async(
         self: Pin<&mut Self>,
-        resume: Resumes<'a, CanStart<Effs>>,
-    ) -> GeneratorState<CanStart<Effs>, Return> {
-        AsyncGenerator::resume(self.generator(), resume).await
+        resume: A,
+    ) -> impl Future<Output = GeneratorState<G::Yield, G::Return>> {
+        AsyncGenerator::resume(self, resume)
     }
 
     #[inline]
-    pub(crate) fn resume_with<R, Index>(
+    pub(crate) fn resume_with_async<R, Index>(
         self: Pin<&mut Self>,
         resume: R,
-    ) -> GeneratorState<CanStart<Effs>, Return>
+    ) -> impl Future<Output = GeneratorState<G::Yield, G::Return>>
     where
-        Resumes<'a, CanStart<Effs>>: CoprodInjector<R, Index>,
+        A: CoprodInjector<R, Index>,
     {
-        self.resume(Resumes::<'a, CanStart<Effs>>::inject(resume))
+        self.resume_async(A::inject(resume))
     }
+}
 
-    #[inline]
-    pub(crate) async fn resume_with_async<R, Index>(
-        self: Pin<&mut Self>,
-        resume: R,
-    ) -> GeneratorState<CanStart<Effs>, Return>
-    where
-        Resumes<'a, CanStart<Effs>>: CoprodInjector<R, Index>,
-    {
-        self.resume_async(Resumes::<'a, CanStart<Effs>>::inject(resume))
-            .await
+pin_project_lite::pin_project! {
+    // Store each invoked generator once. Moving a concrete program into an
+    // async fn and then pinning it inside that function duplicates its storage
+    // in the future layout, which grows exponentially in deep invoke chains.
+    struct Invocation<G, Forward, Fut, A> {
+        #[pin]
+        generator: G,
+        forward: Forward,
+        #[pin]
+        forwarding: Option<Fut>,
+        resume: Option<A>,
+    }
+}
+
+impl<G, Forward, Fut, A> Future for Invocation<G, Forward, Fut, A>
+where
+    G: AsyncGenerator<A>,
+    Forward: FnMut(G::Yield) -> Fut,
+    Fut: Future<Output = A>,
+{
+    type Output = G::Return;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        loop {
+            if let Some(forwarding) = this.forwarding.as_mut().as_pin_mut() {
+                *this.resume = Some(std::task::ready!(forwarding.poll(cx)));
+                this.forwarding.set(None);
+            }
+            match std::task::ready!(this.generator.as_mut().poll_resume(cx, this.resume.take())) {
+                GeneratorState::Complete(value) => return Poll::Ready(value),
+                GeneratorState::Yielded(effect) => {
+                    // The forwarding future borrows the outer yielder, which
+                    // lives outside this object. It never borrows our fields.
+                    this.forwarding.set(Some((this.forward)(effect)));
+                }
+            }
+        }
     }
 }
 
@@ -242,56 +352,52 @@ where
     /// since each invocation only borrows for its own duration rather than for the
     /// entire outer computation lifetime.
     #[inline]
-    pub async fn invoke<'b, SubEffs, R, L, Indices>(
+    pub fn invoke<'b, SubEffs, R, F, Mode, Indices>(
         &mut self,
-        program: Effectful<'b, SubEffs, R, L>,
-    ) -> R
+        program: crate::Program<'b, SubEffs, F, SubEffs, frunk_core::hlist::HNil, (), Mode>,
+    ) -> impl Future<Output = R>
     where
         'a: 'b,
         SubEffs: Effects<'b> + EmbedEffect<Effs, Indices>,
         Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
-        L: Locality,
+        F: Future<Output = R>,
     {
-        let mut co = std::pin::pin!(program.co);
-        let mut yielded = co.as_mut().resume_with_async(Start).await;
+        let token = &self.token;
+        Invocation {
+            generator: program.co.generator(),
+            resume: Some(Coproduct::Inl(Start)),
+            forwarding: None,
+            forward: move |effect: CanStart<SubEffs>| async move {
+                // INVARIANT: Yielder::yield_ always wraps effects in Inr,
+                // so the Inl (Start) arm is never yielded after init.
+                let subeffect = match effect {
+                    Coproduct::Inl(_) => debug_unreachable!(
+                        "Start (Inl) arm should never be yielded after initialization"
+                    ),
+                    Coproduct::Inr(subeffect) => subeffect,
+                };
 
-        loop {
-            match yielded {
-                GeneratorState::Complete(value) => break value,
-                GeneratorState::Yielded(effect) => {
-                    // INVARIANT: Yielder::yield_ always wraps effects in Inr,
-                    // so the Inl (Start) arm is never yielded after init.
-                    let subeffect = match effect {
-                        Coproduct::Inl(_) => debug_unreachable!(
-                            "Start (Inl) arm should never be yielded after initialization"
-                        ),
-                        Coproduct::Inr(subeffect) => subeffect,
-                    };
+                // Embed sub-effect into the outer coproduct (synchronous).
+                let outer_effect: Effs = subeffect.embed();
 
-                    // Embed sub-effect into the outer coproduct (synchronous).
-                    let outer_effect: Effs = subeffect.embed();
+                // Yield through the raw generator token.
+                let resume = token.yield_(Coproduct::Inr(outer_effect)).await;
 
-                    // Yield through the raw generator token.
-                    let resume = self.token.yield_(Coproduct::Inr(outer_effect)).await;
+                // Project the outer resume back to sub-effect resume (synchronous).
+                // This produces Resumes<'a, SubEffs> (the outer handler's lifetime).
+                let resume_long: Resumes<'a, SubEffs> = match resume {
+                    Coproduct::Inr(value) => value.project(),
+                    Coproduct::Inl(_) => {
+                        debug_unreachable!("Start (Inl) arm should never be sent as a resume value")
+                    }
+                };
 
-                    // Project the outer resume back to sub-effect resume (synchronous).
-                    // This produces Resumes<'a, SubEffs> (the outer handler's lifetime).
-                    let resume_long: Resumes<'a, SubEffs> = match resume {
-                        Coproduct::Inr(value) => value.project(),
-                        Coproduct::Inl(_) => {
-                            debug_unreachable!(
-                                "Start (Inl) arm should never be sent as a resume value"
-                            )
-                        }
-                    };
+                // Convert from the outer lifetime 'a to the sub-program's lifetime 'b.
+                // Effect::shorten_resume witnesses covariance for every effect.
+                let resume_short: Resumes<'b, SubEffs> = SubEffs::shorten_resumes(resume_long);
 
-                    // Convert from the outer lifetime 'a to the sub-program's lifetime 'b.
-                    // This is safe because all effect resume types implement CovariantResume.
-                    let resume_short: Resumes<'b, SubEffs> = SubEffs::shorten_resumes(resume_long);
-
-                    yielded = co.as_mut().resume_async(Coproduct::Inr(resume_short)).await;
-                }
-            }
+                Coproduct::Inr(resume_short)
+            },
         }
     }
 }

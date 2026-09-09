@@ -1,6 +1,4 @@
 use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 pub use frunk_core::coproduct::{CNil, CoprodInjector, Coproduct};
 pub use frunk_core::hlist::{HCons, HNil};
@@ -9,121 +7,13 @@ use frunk_core::indices::{Here, There};
 use crate::control::{CoControl, Control};
 use crate::effect::{Effect, Effects, InjectResume, MapResume, Resumes};
 
-/// Preserves an existing `Send` proof for an opaque future across rustc's
-/// higher-ranked lifetime limitation (rust-lang/rust#100013).
-pub(crate) struct SendFuture<F> {
-    future: F,
-}
-
-impl<F> SendFuture<F>
-where
-    F: Future,
-{
-    /// Construct a wrapper when the future is known to be `Send`, but rustc
-    /// cannot prove it because of rust-lang/rust#100013.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that moving the future between threads is safe.
-    pub(crate) unsafe fn new_unchecked(future: F) -> Self {
-        Self { future }
-    }
-}
-
-// SAFETY: unchecked construction sites establish that the wrapped future is
-// `Send`, and the future is never removed from the wrapper.
-unsafe impl<F> Send for SendFuture<F> {}
-
-impl<F> Future for SendFuture<F>
-where
-    F: Future,
-{
-    type Output = F::Output;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // SAFETY: this is a structural pin projection to `future`, which is
-        // never moved while the wrapper is pinned.
-        unsafe { self.map_unchecked_mut(|this| &mut this.future) }.poll(cx)
-    }
-}
+pub(crate) mod dispatch;
 
 // ---------------------------------------------------------------------------
 // declare_find_handler!  –  generates a Find*Handler trait + Here/There impls
 // ---------------------------------------------------------------------------
 
 macro_rules! declare_find_handler {
-    ($trait_name:ident, sync, mut, $fn_bound:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_name<'a, Effs: Effects<'a>, CH: Effect, InjectIdx, FindIdx> {
-            fn call_handler(&mut self, effect: CH) -> CoControl<'a, Effs>;
-        }
-
-        impl<'a, Effs, CH, F, FTail, InjectIdx> $trait_name<'a, Effs, CH, InjectIdx, Here>
-            for HCons<F, FTail>
-        where
-            Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
-            CH: Effect,
-            F: $fn_bound(CH) -> Control<CH::Resume<'a>>,
-        {
-            #[inline]
-            fn call_handler(&mut self, effect: CH) -> CoControl<'a, Effs> {
-                match (self.head)(effect) {
-                    Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
-                    Control::Cancel => CoControl::Cancel,
-                }
-            }
-        }
-
-        impl<'a, Effs, CH, FHead, FTail, InjectIdx, I>
-            $trait_name<'a, Effs, CH, InjectIdx, There<I>> for HCons<FHead, FTail>
-        where
-            Effs: Effects<'a>,
-            CH: Effect,
-            FTail: $trait_name<'a, Effs, CH, InjectIdx, I>,
-        {
-            #[inline]
-            fn call_handler(&mut self, effect: CH) -> CoControl<'a, Effs> {
-                self.tail.call_handler(effect)
-            }
-        }
-    };
-
-    ($trait_name:ident, sync, with, $fn_bound:ident) => {
-        #[doc(hidden)]
-        pub trait $trait_name<'a, Effs: Effects<'a>, CH: Effect, S, InjectIdx, FindIdx> {
-            fn call_handler(&self, state: &mut S, effect: CH) -> CoControl<'a, Effs>;
-        }
-
-        impl<'a, Effs, CH, F, FTail, S, InjectIdx> $trait_name<'a, Effs, CH, S, InjectIdx, Here>
-            for HCons<F, FTail>
-        where
-            Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
-            CH: Effect,
-            F: $fn_bound(&mut S, CH) -> Control<CH::Resume<'a>>,
-        {
-            #[inline]
-            fn call_handler(&self, state: &mut S, effect: CH) -> CoControl<'a, Effs> {
-                match (self.head)(state, effect) {
-                    Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
-                    Control::Cancel => CoControl::Cancel,
-                }
-            }
-        }
-
-        impl<'a, Effs, CH, FHead, FTail, S, InjectIdx, I>
-            $trait_name<'a, Effs, CH, S, InjectIdx, There<I>> for HCons<FHead, FTail>
-        where
-            Effs: Effects<'a>,
-            CH: Effect,
-            FTail: $trait_name<'a, Effs, CH, S, InjectIdx, I>,
-        {
-            #[inline]
-            fn call_handler(&self, state: &mut S, effect: CH) -> CoControl<'a, Effs> {
-                self.tail.call_handler(state, effect)
-            }
-        }
-    };
-
     ($trait_name:ident, async, mut, $fn_bound:ident) => {
         #[doc(hidden)]
         pub trait $trait_name<'a, Effs: Effects<'a>, CH: Effect, InjectIdx, FindIdx> {
@@ -201,204 +91,14 @@ macro_rules! declare_find_handler {
     };
 }
 
-declare_find_handler!(FindHandler, sync, mut, FnMut);
-declare_find_handler!(FindHandlerWith, sync, with, Fn);
 declare_find_handler!(AsyncFindHandler, async, mut, AsyncFnMut);
 declare_find_handler!(AsyncFindHandlerWith, async, with, AsyncFn);
-
-/// Find an async handler whose returned future is `Send`.
-///
-/// This separate dispatch path preserves lending, non-`Send` async closures
-/// for local programs while allowing sendable programs to promise that their
-/// complete runner future is `Send`.
-#[doc(hidden)]
-pub trait SendAsyncFindHandler<'a, Effs: Effects<'a>, CH: Effect, InjectIdx, FindIdx> {
-    fn call_handler_send(&mut self, effect: CH)
-    -> impl Future<Output = CoControl<'a, Effs>> + Send;
-}
-
-impl<'a, Effs, CH, F, Fut, FTail, InjectIdx> SendAsyncFindHandler<'a, Effs, CH, InjectIdx, Here>
-    for HCons<F, FTail>
-where
-    Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
-    CH: Effect + Send,
-    F: FnMut(CH) -> Fut + Send,
-    Fut: Future<Output = Control<CH::Resume<'a>>> + Send,
-    FTail: Send,
-{
-    #[inline]
-    // Keep the `Send` promise explicit so callers can rely on it.
-    #[allow(clippy::manual_async_fn)]
-    fn call_handler_send(
-        &mut self,
-        effect: CH,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        async move {
-            match (self.head)(effect).await {
-                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
-                Control::Cancel => CoControl::Cancel,
-            }
-        }
-    }
-}
-
-impl<'a, Effs, CH, FHead, FTail, InjectIdx, I>
-    SendAsyncFindHandler<'a, Effs, CH, InjectIdx, There<I>> for HCons<FHead, FTail>
-where
-    Effs: Effects<'a>,
-    CH: Effect + Send,
-    FHead: Send,
-    FTail: SendAsyncFindHandler<'a, Effs, CH, InjectIdx, I> + Send,
-{
-    #[inline]
-    fn call_handler_send(
-        &mut self,
-        effect: CH,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        self.tail.call_handler_send(effect)
-    }
-}
-
-// Name the future separately for each state borrow. A single `Fut` parameter
-// cannot describe handlers that retain `&mut S` across an await.
-trait SendStatefulFn<State, CH, R>: Fn(State, CH) -> Self::Future {
-    type Future: Future<Output = Control<R>> + Send;
-}
-
-impl<State, CH, R, F, Fut> SendStatefulFn<State, CH, R> for F
-where
-    F: Fn(State, CH) -> Fut,
-    Fut: Future<Output = Control<R>> + Send,
-{
-    type Future = Fut;
-}
-
-/// Find a stateful async handler whose returned future is `Send`.
-#[doc(hidden)]
-pub trait SendAsyncFindHandlerWith<'a, Effs: Effects<'a>, CH: Effect, S, InjectIdx, FindIdx> {
-    fn call_handler_with_send(
-        &self,
-        state: &mut S,
-        effect: CH,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send;
-}
-
-impl<'a, Effs, CH, F, FTail, S, InjectIdx>
-    SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, Here> for HCons<F, FTail>
-where
-    Effs: Effects<'a> + InjectResume<'a, CH, InjectIdx>,
-    CH: Effect + Send,
-    S: Send,
-    F: for<'s> SendStatefulFn<&'s mut S, CH, CH::Resume<'a>> + Sync,
-    FTail: Sync,
-{
-    #[inline]
-    // Keep the `Send` promise explicit so callers can rely on it.
-    #[allow(clippy::manual_async_fn)]
-    fn call_handler_with_send(
-        &self,
-        state: &mut S,
-        effect: CH,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        async move {
-            match (self.head)(state, effect).await {
-                Control::Resume(r) => CoControl::Resume(Effs::inject_resume(r)),
-                Control::Cancel => CoControl::Cancel,
-            }
-        }
-    }
-}
-
-impl<'a, Effs, CH, FHead, FTail, S, InjectIdx, I>
-    SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, There<I>> for HCons<FHead, FTail>
-where
-    Effs: Effects<'a>,
-    CH: Effect + Send,
-    S: Send,
-    FHead: Sync,
-    FTail: SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, I> + Sync,
-{
-    #[inline]
-    fn call_handler_with_send(
-        &self,
-        state: &mut S,
-        effect: CH,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        self.tail.call_handler_with_send(state, effect)
-    }
-}
 
 // ---------------------------------------------------------------------------
 // declare_handle_dispatch!  –  generates a Handle* trait + CNil/Coproduct impls
 // ---------------------------------------------------------------------------
 
 macro_rules! declare_handle_dispatch {
-    ($trait_name:ident, sync, $find_trait:ident, mut) => {
-        #[doc(hidden)]
-        pub trait $trait_name<'a, Effs: Effects<'a>, Handlers, Indices> {
-            fn handle_mut(self, handlers: &mut Handlers) -> CoControl<'a, Effs>;
-        }
-
-        impl<'a, Effs: Effects<'a>, Handlers> $trait_name<'a, Effs, Handlers, HNil> for CNil {
-            #[cfg_attr(coverage_nightly, coverage(off))]
-            #[inline]
-            fn handle_mut(self, _: &mut Handlers) -> CoControl<'a, Effs> {
-                match self {}
-            }
-        }
-
-        impl<'a, Effs, CH, CTail, Handlers, InjectIdx, FindIdx, ITail>
-            $trait_name<'a, Effs, Handlers, HCons<(InjectIdx, FindIdx), ITail>>
-            for Coproduct<CH, CTail>
-        where
-            Effs: Effects<'a>,
-            CH: Effect,
-            Handlers: $find_trait<'a, Effs, CH, InjectIdx, FindIdx>,
-            CTail: $trait_name<'a, Effs, Handlers, ITail>,
-        {
-            #[inline]
-            fn handle_mut(self, handlers: &mut Handlers) -> CoControl<'a, Effs> {
-                match self {
-                    Coproduct::Inl(head) => handlers.call_handler(head),
-                    Coproduct::Inr(rest) => rest.handle_mut(handlers),
-                }
-            }
-        }
-    };
-
-    ($trait_name:ident, sync, $find_trait:ident, with) => {
-        #[doc(hidden)]
-        pub trait $trait_name<'a, Effs: Effects<'a>, Handlers, S, Indices> {
-            fn handle_with(self, state: &mut S, handlers: &Handlers) -> CoControl<'a, Effs>;
-        }
-
-        impl<'a, Effs: Effects<'a>, Handlers, S> $trait_name<'a, Effs, Handlers, S, HNil> for CNil {
-            #[cfg_attr(coverage_nightly, coverage(off))]
-            #[inline]
-            fn handle_with(self, _: &mut S, _: &Handlers) -> CoControl<'a, Effs> {
-                match self {}
-            }
-        }
-
-        impl<'a, Effs, CH, CTail, Handlers, S, InjectIdx, FindIdx, ITail>
-            $trait_name<'a, Effs, Handlers, S, HCons<(InjectIdx, FindIdx), ITail>>
-            for Coproduct<CH, CTail>
-        where
-            Effs: Effects<'a>,
-            CH: Effect,
-            Handlers: $find_trait<'a, Effs, CH, S, InjectIdx, FindIdx>,
-            CTail: $trait_name<'a, Effs, Handlers, S, ITail>,
-        {
-            #[inline]
-            fn handle_with(self, state: &mut S, handlers: &Handlers) -> CoControl<'a, Effs> {
-                match self {
-                    Coproduct::Inl(head) => handlers.call_handler(state, head),
-                    Coproduct::Inr(rest) => rest.handle_with(state, handlers),
-                }
-            }
-        }
-    };
-
     ($trait_name:ident, async, $find_trait:ident, mut) => {
         #[doc(hidden)]
         pub trait $trait_name<'a, Effs: Effects<'a>, Handlers, Indices> {
@@ -473,114 +173,8 @@ macro_rules! declare_handle_dispatch {
     };
 }
 
-declare_handle_dispatch!(HandleMut, sync, FindHandler, mut);
-declare_handle_dispatch!(HandleWith, sync, FindHandlerWith, with);
 declare_handle_dispatch!(AsyncHandleMut, async, AsyncFindHandler, mut);
 declare_handle_dispatch!(AsyncHandleWith, async, AsyncFindHandlerWith, with);
-
-/// Dispatch an effect to an async handler while preserving a `Send` future.
-#[doc(hidden)]
-pub trait SendAsyncHandleMut<'a, Effs: Effects<'a>, Handlers, Indices> {
-    fn handle_mut_send(
-        self,
-        handlers: &mut Handlers,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send;
-}
-
-impl<'a, Effs, Handlers> SendAsyncHandleMut<'a, Effs, Handlers, HNil> for CNil
-where
-    Effs: Effects<'a>,
-    Handlers: Send,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    #[inline]
-    // Keep the `Send` promise explicit so callers can rely on it.
-    #[allow(clippy::manual_async_fn)]
-    fn handle_mut_send(self, _: &mut Handlers) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        async move { match self {} }
-    }
-}
-
-impl<'a, Effs, CH, CTail, Handlers, InjectIdx, FindIdx, ITail>
-    SendAsyncHandleMut<'a, Effs, Handlers, HCons<(InjectIdx, FindIdx), ITail>>
-    for Coproduct<CH, CTail>
-where
-    Effs: Effects<'a>,
-    CH: Effect + Send,
-    CTail: SendAsyncHandleMut<'a, Effs, Handlers, ITail> + Send,
-    Handlers: SendAsyncFindHandler<'a, Effs, CH, InjectIdx, FindIdx> + Send,
-{
-    #[inline]
-    // Keep the `Send` promise explicit so callers can rely on it.
-    #[allow(clippy::manual_async_fn)]
-    fn handle_mut_send(
-        self,
-        handlers: &mut Handlers,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        async move {
-            match self {
-                Coproduct::Inl(head) => handlers.call_handler_send(head).await,
-                Coproduct::Inr(rest) => rest.handle_mut_send(handlers).await,
-            }
-        }
-    }
-}
-
-/// Dispatch an effect to a stateful async handler while preserving a `Send` future.
-#[doc(hidden)]
-pub trait SendAsyncHandleWith<'a, Effs: Effects<'a>, Handlers, S, Indices> {
-    fn handle_with_send(
-        self,
-        state: &mut S,
-        handlers: &Handlers,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send;
-}
-
-impl<'a, Effs, Handlers, S> SendAsyncHandleWith<'a, Effs, Handlers, S, HNil> for CNil
-where
-    Effs: Effects<'a>,
-    S: Send,
-    Handlers: Sync,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    #[inline]
-    // Keep the `Send` promise explicit so callers can rely on it.
-    #[allow(clippy::manual_async_fn)]
-    fn handle_with_send(
-        self,
-        _: &mut S,
-        _: &Handlers,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        async move { match self {} }
-    }
-}
-
-impl<'a, Effs, CH, CTail, Handlers, S, InjectIdx, FindIdx, ITail>
-    SendAsyncHandleWith<'a, Effs, Handlers, S, HCons<(InjectIdx, FindIdx), ITail>>
-    for Coproduct<CH, CTail>
-where
-    Effs: Effects<'a>,
-    CH: Effect + Send,
-    S: Send,
-    CTail: SendAsyncHandleWith<'a, Effs, Handlers, S, ITail> + Send,
-    Handlers: SendAsyncFindHandlerWith<'a, Effs, CH, S, InjectIdx, FindIdx> + Sync,
-{
-    #[inline]
-    // Keep the `Send` promise explicit so callers can rely on it.
-    #[allow(clippy::manual_async_fn)]
-    fn handle_with_send(
-        self,
-        state: &mut S,
-        handlers: &Handlers,
-    ) -> impl Future<Output = CoControl<'a, Effs>> + Send {
-        async move {
-            match self {
-                Coproduct::Inl(head) => handlers.call_handler_with_send(state, head).await,
-                Coproduct::Inr(rest) => rest.handle_with_send(state, handlers).await,
-            }
-        }
-    }
-}
 
 // --- HandlersToEffects: compute the effects coproduct from a handler HList ---
 
@@ -616,7 +210,7 @@ impl<'a, Effs, F, FTail, CH, S, Index, ITail>
 where
     Effs: Effects<'a> + InjectResume<'a, CH, Index>,
     CH: Effect,
-    F: Fn(&mut S, CH) -> Control<CH::Resume<'a>>,
+    F: FnMut(&mut S, CH) -> Control<CH::Resume<'a>>,
     FTail: HandlersToEffects<'a, Effs, ITail>,
 {
     type Effects = Coproduct<CH, <FTail as HandlersToEffects<'a, Effs, ITail>>::Effects>;
@@ -645,7 +239,7 @@ impl<'a, Effs, F, FTail, CH, S, Index, ITail>
 where
     Effs: Effects<'a> + InjectResume<'a, CH, Index>,
     CH: Effect,
-    F: AsyncFn(&mut S, CH) -> Control<CH::Resume<'a>>,
+    F: AsyncFnMut(&mut S, CH) -> Control<CH::Resume<'a>>,
     FTail: HandlersToEffects<'a, Effs, ITail>,
 {
     type Effects = Coproduct<CH, <FTail as HandlersToEffects<'a, Effs, ITail>>::Effects>;

@@ -29,6 +29,7 @@ fn process_direct<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], (
         y.yield_(DoWork).await;
         state.do_something();
     })
+    .boxed()
 }
 
 #[test]
@@ -82,6 +83,7 @@ fn sub_fn_manual<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], ()
         state.do_something();
         y.yield_(DoWork).await;
     })
+    .boxed()
 }
 
 fn process_manual<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], ()> {
@@ -90,6 +92,7 @@ fn process_manual<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], (
         state.do_something();
         y.invoke(sub_fn_manual(state)).await;
     })
+    .boxed()
 }
 
 #[test]
@@ -153,6 +156,7 @@ fn process_inline<'a>(state: &'a mut State) -> Effectful<'a, Effects![DoWork], (
         state.do_something();
         sub_fn_inline(&mut y, state).await;
     })
+    .boxed()
 }
 
 #[test]
