@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Explicit effect lifetimes work in enclosing `impl` and `trait` scopes** — `#[effectful('a)]` can reuse an enclosing lifetime in methods, associated functions, and default trait methods without redeclaring it. Generated input lifetime names also avoid the selected effect lifetime.
+
 - **Nested reference arguments keep independent lifetimes** — `#[effectful]` no longer equates elided reference lifetimes with the program lifetime. Sequential calls with arguments such as `&mut &str` and `&mut &mut T` can now reuse the outer mutable borrow after each program completes, while active programs retain their required borrows.
 
 - **Placeholder lifetimes in borrowed wrapper arguments compile** — `#[effectful]` now accepts arguments such as `Cow<'_, str>` and nested borrowed wrappers without generating invalid lifetime bounds. Each placeholder remains independent, including in invariant wrappers such as `RefMut`.
@@ -11,6 +13,8 @@
 - **Ready async handlers yield cooperatively** — async runners now yield to the executor after a bounded number of effect dispatches, so a long or infinite effect loop with immediately ready handlers gives other tasks and cancellation a chance to run. This applies to local, sendable, and stateful async execution.
 
 ### Changed
+
+- **Named `#[effectful]` lifetimes require a Rust declaration** — declare the lifetime on the function, enclosing `impl`, or enclosing `trait`. Code that relied on `#[effectful('a)]` to introduce `'a` must add a declaration such as `fn read<'a>(...)`. Omitted lifetimes and `'_` continue to use automatic inference.
 
 - **MSRV raised to Rust 1.93** — corophage now requires Rust 1.93 or later. The newer compiler can prove that recursive async handler dispatch futures are `Send`, removing an internal unchecked `Send` assertion and its associated wrapper plumbing.
 

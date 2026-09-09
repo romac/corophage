@@ -1,0 +1,23 @@
+error[E0261]: use of undeclared lifetime name `'a`
+ --> tests/compile_fail/effectful_undeclared_named_lifetime.rs:5:13
+  |
+5 | #[effectful('a)]
+  | ------------^^--
+  | |           |
+  | |           undeclared lifetime
+  | lifetime `'a` is missing in item created through this procedural macro
+
+error[E0261]: use of undeclared lifetime name `'a`
+ --> tests/compile_fail/effectful_undeclared_named_lifetime.rs:5:13
+  |
+5 | #[effectful('a)]
+  | ------------^^--
+  | |           |
+  | |           undeclared lifetime
+  | lifetime `'a` is missing in item created through this procedural macro
+  |
+  = note: for more information on higher-ranked polymorphism, visit https://doc.rust-lang.org/nomicon/hrtb.html
+help: consider making the bound lifetime-generic with a new `'a` lifetime
+  |
+6 | fn length(value: 'a, &str) -> usize {
+  |                  +++

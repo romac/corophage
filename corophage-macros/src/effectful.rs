@@ -195,7 +195,11 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     };
 
     // Ensure captured arguments can live for the lifetime of the program.
-    ensure_lifetime_in_generics(&mut func, &eff_lifetime);
+    // Explicit names refer to an existing declaration, possibly on an enclosing
+    // impl or trait that this attribute macro cannot see.
+    if args.lifetime.as_ref().is_none_or(|lt| lt.ident == "_") {
+        ensure_lifetime_in_generics(&mut func, &eff_lifetime);
+    }
     bind_inputs_to_effect_lifetime(&mut func, &eff_lifetime);
 
     // Update return type
@@ -367,7 +371,9 @@ impl<'a> InputLifetimeBinder<'a> {
             effect_lifetime,
             contains_impl_trait: false,
             reference_predicates: Vec::new(),
-            used_lifetimes: HashSet::new(),
+            // The selected lifetime may appear only in the attribute when it
+            // comes from an enclosing scope, so reserve it before visiting inputs.
+            used_lifetimes: HashSet::from([effect_lifetime.ident.to_string()]),
             inferred_lifetimes: Vec::new(),
         }
     }

@@ -358,6 +358,110 @@ impl EffectfulMethods {
     }
 }
 
+struct BorrowedEffectfulMethods<'a>(&'a str);
+
+impl<'a> BorrowedEffectfulMethods<'a> {
+    #[effectful('a, Log<'a>)]
+    fn borrowed_impl_lifetime(&self) -> usize {
+        yield_!(Log(self.0));
+        self.0.len()
+    }
+
+    #[effectful('a)]
+    fn associated_impl_lifetime(value: &'a str) -> &'a str {
+        value
+    }
+
+    #[effectful('a, send)]
+    fn sendable_impl_lifetime(self) -> &'a str {
+        self.0
+    }
+}
+
+#[test]
+fn test_effectful_method_uses_enclosing_impl_lifetime() {
+    let text = String::from("hello");
+    let reader = BorrowedEffectfulMethods(&text);
+    let mut logged = Vec::new();
+
+    let result = reader
+        .borrowed_impl_lifetime()
+        .handle(|Log(message)| {
+            logged.push(message);
+            Control::resume(())
+        })
+        .run_sync();
+
+    assert_eq!(result, Ok(5));
+    assert_eq!(logged, vec!["hello"]);
+}
+
+#[test]
+fn test_effectful_associated_function_uses_enclosing_impl_lifetime() {
+    let text = String::from("hello");
+    assert_eq!(
+        BorrowedEffectfulMethods::associated_impl_lifetime(&text).run_sync(),
+        Ok("hello")
+    );
+}
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_effectful_sendable_method_uses_enclosing_impl_lifetime() {
+    let text = String::from("hello");
+    let future = BorrowedEffectfulMethods(&text)
+        .sendable_impl_lifetime()
+        .run();
+
+    fn assert_send(_: &impl Send) {}
+    assert_send(&future);
+    assert_eq!(future.await, Ok("hello"));
+}
+
+trait EffectfulRead<'a> {
+    fn text(&self) -> &'a str;
+
+    #[effectful('a)]
+    fn default_program(&self) -> &'a str {
+        self.text()
+    }
+}
+
+impl<'a> EffectfulRead<'a> for BorrowedEffectfulMethods<'a> {
+    fn text(&self) -> &'a str {
+        self.0
+    }
+}
+
+#[test]
+fn test_effectful_default_method_uses_enclosing_trait_lifetime() {
+    let text = String::from("hello");
+    let reader = BorrowedEffectfulMethods(&text);
+    assert_eq!(reader.default_program().run_sync(), Ok("hello"));
+}
+
+struct EnclosingLifetimeNameCollision<'__corophage_input_0>(&'__corophage_input_0 str);
+
+impl<'__corophage_input_0> EnclosingLifetimeNameCollision<'__corophage_input_0> {
+    #[effectful('__corophage_input_0)]
+    fn with_suffix(&self, suffix: Cow<'_, str>) -> String {
+        format!("{}{suffix}", self.0)
+    }
+}
+
+#[test]
+fn test_effectful_enclosing_lifetime_is_reserved_for_input_generation() {
+    let text = String::from("hello");
+    let reader = EnclosingLifetimeNameCollision(&text);
+    let suffix = String::from("!");
+    // The selected lifetime is visible only in the attribute, so collecting
+    // lifetime names from the method signature alone would miss the collision.
+    assert_eq!(
+        reader.with_suffix(Cow::Borrowed(&suffix)).run_sync(),
+        Ok(String::from("hello!"))
+    );
+}
+
 #[test]
 fn test_effectful_captures_ordinary_arguments() {
     let value = String::from("hello");

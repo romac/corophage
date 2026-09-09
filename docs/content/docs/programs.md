@@ -114,7 +114,7 @@ fn log_msg<'a, 'b>(msg: &'a str, _other: &'b str) -> () {
 }
 ```
 
-An explicit lifetime can also be the only attribute argument. A named lifetime needs no trailing comma, `'static` remains a concrete lifetime, and `'_` requests the same inference used when the lifetime is omitted:
+An explicit lifetime can also be the only attribute argument. Declare a named lifetime on the function, enclosing `impl`, or enclosing `trait`; the attribute selects that declaration. A named lifetime needs no trailing comma, `'static` remains a concrete lifetime, and `'_` requests the same inference used when the lifetime is omitted:
 
 ```rust
 #[effectful('a)]
@@ -132,6 +132,25 @@ fn inferred(value: &str) -> usize {
     value.len()
 }
 ```
+
+Methods and associated functions can reuse a lifetime from their enclosing `impl`:
+
+```rust
+struct Reader<'a>(&'a str);
+
+impl<'a> Reader<'a> {
+    #[effectful('a)]
+    fn text(&self) -> &'a str {
+        self.0
+    }
+}
+
+let text = String::from("hello");
+let reader = Reader(&text);
+assert_eq!(reader.text().run_sync(), Ok("hello"));
+```
+
+If existing code relied on the attribute to introduce a named lifetime, add a Rust declaration such as `fn read<'a>(...)`, or omit the attribute lifetime to use inference.
 
 ### `Send`-able programs
 

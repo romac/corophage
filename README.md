@@ -158,6 +158,8 @@ Borrowed and generic arguments are captured for the lifetime of the returned pro
 
 Nested reference arguments such as `&mut &str` keep independent lifetimes for the outer borrow and inner data. The outer mutable borrow can be reused after the program completes or is dropped.
 
+An explicitly named effect lifetime, such as `#[effectful('a)]`, selects a lifetime declared on the function, enclosing `impl`, or enclosing `trait`. For example, a free function declares it with `fn read<'a>(...)`, while a method can reuse the `'a` from `impl<'a> Reader<'a>`. Omit the lifetime or use `'_` for automatic inference.
+
 If you have a pre-defined effects type alias, you can spread it into the attribute with `...Alias` (same syntax as frunk's `Coprod!(...Tail)`):
 
 ```rust,ignore

@@ -44,7 +44,8 @@ pub fn effect(
 /// - Effect types (required): comma-separated list of effect types
 /// - `...Alias` (optional): spread an existing effects type alias (must be last effect argument)
 /// - `send` (optional): makes the program `Send`-able
-/// - Explicit lifetime (optional): first argument can be a lifetime
+/// - Explicit lifetime (optional): first argument can select a lifetime declared
+///   on the function or enclosing `impl`/`trait`, or use `'static` or `'_`.
 ///
 /// # Examples
 ///
