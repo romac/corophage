@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Nesting benchmarks measure their stated depths** — the depth-15 and depth-20 fixtures now form single nested chains with one leaf effect. The depth-10 yielding fixture yields once at each of ten levels. Shared fixtures have regression checks for peak active depth and effect counts, and the website reports refreshed measurements.
+
 - **Stateful async execution preserves `Send`** — `Program::new_send(...).run_stateful(&mut state)` now returns a `Send` future when the state and result are `Send`, handlers are `Send + Sync`, and each handler future is `Send`. Handlers can borrow the shared state across awaits. Local programs retain support for non-`Send` state and handlers.
 
 - **Explicit effect lifetimes work in enclosing `impl` and `trait` scopes** — `#[effectful('a)]` can reuse an enclosing lifetime in methods, associated functions, and default trait methods without redeclaring it. Generated input lifetime names also avoid the selected effect lifetime.

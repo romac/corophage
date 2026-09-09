@@ -6,7 +6,14 @@
 //! - Wide effect sets (many effects registered)
 //! - Combinations of the above
 
+// Allow layout queries for the concrete future types in the depth-20 chain.
+#![recursion_limit = "256"]
+
 use corophage::prelude::*;
+
+#[path = "support/nesting.rs"]
+mod nesting;
+use nesting::*;
 
 // =============================================================================
 // Effects — we need many distinct ones for "wide effect set" benchmarks
@@ -47,118 +54,6 @@ struct E15;
 
 #[effect(u64)]
 struct Accumulate;
-
-#[effect(())]
-struct Noop;
-
-// =============================================================================
-// Deep nesting — chains of invoke N levels deep
-// =============================================================================
-
-#[effectful(Noop)]
-fn nest_leaf() -> () {
-    yield_!(Noop);
-}
-
-// Recursive nesting helper: each level invokes the next.
-// We build fixed-depth chains since #[effectful] can't be recursive.
-
-#[effectful(Noop)]
-fn nest_2() -> () {
-    invoke!(nest_leaf());
-}
-
-#[effectful(Noop)]
-fn nest_3() -> () {
-    invoke!(nest_2());
-}
-
-#[effectful(Noop)]
-fn nest_4() -> () {
-    invoke!(nest_3());
-}
-
-#[effectful(Noop)]
-fn nest_5() -> () {
-    invoke!(nest_4());
-}
-
-#[effectful(Noop)]
-fn nest_6() -> () {
-    invoke!(nest_5());
-}
-
-#[effectful(Noop)]
-fn nest_7() -> () {
-    invoke!(nest_6());
-}
-
-#[effectful(Noop)]
-fn nest_8() -> () {
-    invoke!(nest_7());
-}
-
-#[effectful(Noop)]
-fn nest_9() -> () {
-    invoke!(nest_8());
-}
-
-#[effectful(Noop)]
-fn nest_10() -> () {
-    invoke!(nest_9());
-}
-
-#[effectful(Noop)]
-fn nest_15() -> () {
-    invoke!(nest_10());
-    invoke!(nest_5()); // 10 + 5 more levels (sequential, not nested)
-}
-
-#[effectful(Noop)]
-fn nest_20() -> () {
-    invoke!(nest_10());
-    invoke!(nest_10());
-}
-
-// Deep nesting with yields at every level
-#[effectful(Noop)]
-fn nest_yield_leaf() -> u64 {
-    yield_!(Noop);
-    1
-}
-
-#[effectful(Noop)]
-fn nest_yield_2() -> u64 {
-    yield_!(Noop);
-    1 + invoke!(nest_yield_leaf())
-}
-
-#[effectful(Noop)]
-fn nest_yield_3() -> u64 {
-    yield_!(Noop);
-    1 + invoke!(nest_yield_2())
-}
-
-#[effectful(Noop)]
-fn nest_yield_4() -> u64 {
-    yield_!(Noop);
-    1 + invoke!(nest_yield_3())
-}
-
-#[effectful(Noop)]
-fn nest_yield_5() -> u64 {
-    yield_!(Noop);
-    1 + invoke!(nest_yield_4())
-}
-
-#[effectful(Noop)]
-fn nest_yield_10() -> u64 {
-    yield_!(Noop);
-    let a = invoke!(nest_yield_5());
-    yield_!(Noop);
-    let b = invoke!(nest_yield_4());
-    a + b + 2
-}
 
 // =============================================================================
 // High yield counts
@@ -357,13 +252,13 @@ mod deep_nesting {
     fn nesting_depth(bencher: divan::Bencher, depth: usize) {
         bencher.bench(|| {
             let result = match depth {
-                1 => run_noop(nest_leaf()),
-                2 => run_noop(nest_2()),
-                3 => run_noop(nest_3()),
-                5 => run_noop(nest_5()),
-                10 => run_noop(nest_10()),
-                15 => run_noop(nest_15()),
-                20 => run_noop(nest_20()),
+                1 => run_noop(nest_leaf(|| ())),
+                2 => run_noop(nest_2(|| ())),
+                3 => run_noop(nest_3(|| ())),
+                5 => run_noop(nest_5(|| ())),
+                10 => run_noop(nest_10(|| ())),
+                15 => run_noop(nest_15(|| ())),
+                20 => run_noop(nest_20(|| ())),
                 _ => unreachable!(),
             };
             divan::black_box(result)
@@ -374,11 +269,11 @@ mod deep_nesting {
     fn nesting_depth_with_yields(bencher: divan::Bencher, depth: usize) {
         bencher.bench(|| {
             let result = match depth {
-                1 => run_noop(nest_yield_leaf()),
-                2 => run_noop(nest_yield_2()),
-                3 => run_noop(nest_yield_3()),
-                5 => run_noop(nest_yield_5()),
-                10 => run_noop(nest_yield_10()),
+                1 => run_noop(nest_yield_leaf(|| ())),
+                2 => run_noop(nest_yield_2(|| ())),
+                3 => run_noop(nest_yield_3(|| ())),
+                5 => run_noop(nest_yield_5(|| ())),
+                10 => run_noop(nest_yield_10(|| ())),
                 _ => unreachable!(),
             };
             divan::black_box(result)

@@ -468,7 +468,7 @@ Construction performs no allocation. A flat computation with 1 or 1,000 ordinary
 
 Concrete storage is larger: the measured flat execution future grew from 312 to 528 bytes, and the depth-20 future occupies 9,088 bytes. These sizes exclude heap storage used by boxed bodies. The common measurement binary grew by 7.5%, and one clean build took 7.3 seconds versus 6.0 seconds. These results describe this fixture and toolchain, not a general performance guarantee.
 
-Run `python3 scripts/execution/measure.py` from the repository root to reproduce the isolated comparison. The [performance documentation](https://corophage.rs/docs/performance/) gives the method and tradeoffs. Existing Divan benchmarks remain available with `cargo bench`; the comparison script generates verified invocation chains instead of using the historical nesting labels.
+Run `python3 scripts/execution/measure.py` from the repository root to reproduce the isolated comparison. The [performance documentation](https://corophage.rs/docs/performance/) gives the method, tradeoffs, and refreshed Divan nesting results. Run the Divan suites with `cargo bench`; their nesting fixtures are shared with regression tests that check peak active depth and effect counts. The stress suite counts active programs (leaf depth 1), while the comparison above counts invocation edges (leaf depth 0).
 
 ## Acknowledgments
 
