@@ -15,6 +15,8 @@ corophage = "{{ get_env(name="COROPHAGE_RELEASE_VERSION", default="0.5.0") }}"
 
 corophage requires **Rust 1.93** or later (stable).
 
+The default `macros` feature provides `#[effect]` and `#[effectful]`. Set `default-features = false` on the dependency to use [manual `Effect` implementations](@/docs/effects.md#manual-effect-implementation) and `Program::new`. The `Effects!` macro remains available.
+
 If you rename the dependency in `Cargo.toml`, the `#[effect]` and `#[effectful]` macros automatically use that Cargo name:
 
 ```toml

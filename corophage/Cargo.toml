@@ -27,13 +27,44 @@ divan = "0.1"
 tokio = { version = "1", default-features = false, features = ["macros", "rt", "sync", "time"] }
 trybuild = "1"
 
+# The examples use the procedural macros to declare effects and programs.
+[[example]]
+name = "asynk"
+required-features = ["macros"]
+
+[[example]]
+name = "choreography"
+required-features = ["macros"]
+
+[[example]]
+name = "compose"
+required-features = ["macros"]
+
+[[example]]
+name = "debug_snapshot"
+required-features = ["macros"]
+
+[[example]]
+name = "debugger"
+required-features = ["macros"]
+
+[[example]]
+name = "saga"
+required-features = ["macros"]
+
+[[example]]
+name = "sync"
+required-features = ["macros"]
+
 [[bench]]
 name = "effects"
 harness = false
+required-features = ["macros"]
 
 [[bench]]
 name = "stress"
 harness = false
+required-features = ["macros"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }

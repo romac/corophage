@@ -118,12 +118,14 @@ async fn sendable_computation_body_can_await() {
     assert_eq!(result, Ok("file content for test".to_string()));
 }
 
+#[cfg(feature = "macros")]
 #[effectful(FileRead, send)]
 fn sendable_effectful_program() -> String {
     tokio::task::yield_now().await;
     yield_!(FileRead("macro".to_string()))
 }
 
+#[cfg(feature = "macros")]
 #[tokio::test]
 #[cfg_attr(miri, ignore)]
 async fn sendable_effectful_run_can_be_spawned() {

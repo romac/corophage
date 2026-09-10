@@ -25,6 +25,8 @@ Add `corophage` to your `Cargo.toml`:
 corophage = "0.6.0-pre"
 ```
 
+The default `macros` feature provides `#[effect]` and `#[effectful]`. Set `default-features = false` on the dependency to use manual `Effect` implementations and `Program::new`. The `Effects!` macro remains available.
+
 ## What are effect handlers?
 
 Imagine you are writing a piece of business logic:
