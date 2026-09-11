@@ -251,13 +251,15 @@ where
 
 /// Embed a sub-effect coproduct into a larger outer-effect coproduct.
 ///
-/// This is the synchronous "injection" half of effect forwarding, used by
-/// [`Yielder::invoke`] to work around [rust-lang/rust#100013].
+/// Use this bound together with [`ProjectResume`] in generic helpers that call
+/// [`Yielder::invoke`](crate::Yielder::invoke). `Indices` selects each sub-effect's
+/// position in the outer set; keep it generic so callers can infer the positions.
+/// Both bounds must use the same indices, even when the effect sets are identical.
 ///
-/// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
-/// [`Yielder::invoke`]: crate::coroutine::Yielder::invoke
-#[doc(hidden)]
+/// Implementations are provided for coproducts constructed with
+/// [`Effects!`](crate::Effects!). Ordinary invocation infers these bounds.
 pub trait EmbedEffect<OuterEffs, Indices> {
+    /// Convert an effect to the corresponding variant of the outer effect set.
     fn embed(self) -> OuterEffs;
 }
 
@@ -285,24 +287,21 @@ where
 
 /// Project an outer resume coproduct back to a sub-effect resume coproduct.
 ///
-/// This is the synchronous "uninject" half of effect forwarding, used by
-/// [`Yielder::invoke`] to work around [rust-lang/rust#100013].
+/// Pair this bound on [`Resumes<'a, OuterEffs>`](crate::Resumes) with
+/// `SubEffs: EmbedEffect<OuterEffs, Indices>` when calling
+/// [`Yielder::invoke`](crate::Yielder::invoke) from a generic helper.
+/// Use the same `Indices` for both bounds so each effect receives its own resume,
+/// including when several effects share the same resume type.
 ///
-/// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
-/// [`Yielder::invoke`]: crate::coroutine::Yielder::invoke
-/// Project an outer resume value at a known index back into a sub-effect
-/// resume coproduct.
-///
-/// Unlike [`EmbedEffect`] which walks the sub-effect coproduct at runtime,
-/// `ProjectResume` handles a single resume value whose position in the outer
-/// coproduct is known at compile time (determined by [`EmbedEffect`]'s index).
-/// It tries each sub-effect's index in turn: if the resume is at that index,
-/// it injects into the sub-resume coproduct; otherwise it tries the next.
-///
-/// [rust-lang/rust#100013]: https://github.com/rust-lang/rust/issues/100013
-/// [`Yielder::invoke`]: crate::coroutine::Yielder::invoke
-#[doc(hidden)]
+/// Implementations are provided for the resume coproducts of
+/// [`Effects!`](crate::Effects!) sets. The lifetime `'a` describes the incoming
+/// resumes; invocation subsequently shortens it for the child when necessary.
 pub trait ProjectResume<'a, SubEffs: MapResume, Indices> {
+    /// Convert a resume to the corresponding variant of the sub-effect set.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resume's variant does not match any of the selected indices.
     fn project(self) -> Resumes<'a, SubEffs>;
 }
 

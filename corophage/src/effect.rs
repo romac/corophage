@@ -78,8 +78,31 @@ impl<H: Effect, T: MapResume> MapResume for Coproduct<H, T> {
     }
 }
 
-/// A bound combining [`MapResume`], `Send`, `Sync`, and a lifetime,
-/// satisfied by any coproduct of [`Effect`] types.
+/// An effect set that can be used by a program with lifetime `'a`.
+///
+/// Use this bound when a helper accepts an arbitrary effect set. It is
+/// implemented automatically for sets built with [`Effects!`](crate::Effects!)
+/// whose effect payloads are `Send + Sync + 'a`, including the empty set.
+/// The lifetime allows effects to borrow non-`'static` data.
+///
+/// The bound also provides the effect-to-resume mapping used by [`Resumes`].
+/// It does not require resume values to be `Send` or `Sync`; sendable execution
+/// checks those constraints separately. Define individual [`Effect`] types
+/// and combine them with the macro instead of implementing this trait yourself.
+///
+/// ```
+/// use corophage::{Effects, Program};
+///
+/// fn identity<'a, Es: Effects<'a>, F>(
+///     program: Program<'a, Es, F>,
+/// ) -> Program<'a, Es, F> {
+///     program
+/// }
+/// ```
+///
+/// Helpers that call [`Yielder::invoke`](crate::Yielder::invoke) also need
+/// [`EmbedEffect`](crate::EmbedEffect) and [`ProjectResume`](crate::ProjectResume)
+/// bounds to forward effects and their resumes.
 pub trait Effects<'a>: MapResume + Send + Sync + 'a {}
 
 impl<'a, E> Effects<'a> for E where E: MapResume + Send + Sync + 'a {}
@@ -88,6 +111,13 @@ impl<'a, E> Effects<'a> for E where E: MapResume + Send + Sync + 'a {}
 ///
 /// Given `E = Effects![A, B, C]`, `Resumes<'r, E>` is
 /// `Coproduct<A::Resume<'r>, Coproduct<B::Resume<'r>, Coproduct<C::Resume<'r>, CNil>>>`.
+/// The effect order is preserved, even when several effects share a resume type.
+/// The empty effect set maps to `CNil`.
+///
+/// For generic code, an `E: Effects<'a>` bound makes this alias available.
+/// The resume lifetime `'r` is independent of the effect-set lifetime `'a`.
+/// Use this alias when expressing [`ProjectResume`](crate::ProjectResume)
+/// bounds or constraints on resume values.
 pub type Resumes<'r, E> = <E as MapResume>::Output<'r>;
 
 /// Inject a resume value into the resume coproduct at the position

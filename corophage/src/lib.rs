@@ -22,7 +22,6 @@ macro_rules! debug_unreachable {
 mod coproduct;
 use coproduct::{AsyncHandleMut, AsyncHandleWith};
 
-#[doc(hidden)]
 pub use coproduct::{EmbedEffect, ProjectResume};
 
 mod control;
@@ -45,7 +44,7 @@ pub use frunk_core as __frunk_core;
 pub use control::{Cancelled, Control};
 pub use coproduct::dispatch::{LocalHandler, LocalStatefulHandler, local, local_stateful};
 pub use coroutine::{Co, CoSend, Yielder};
-pub use effect::Effect;
+pub use effect::{Effect, Effects, Resumes};
 pub use locality::{Local, Locality, Sendable};
 #[allow(deprecated)]
 pub use program::{Eff, Effectful, Program};

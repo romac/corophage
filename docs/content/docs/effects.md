@@ -82,3 +82,44 @@ type AllEffects = Effects![Cancel, ...IoEffects];
 ```
 
 The spread must appear as the last argument. This follows the same convention as frunk's `Coprod!(...Tail)` syntax.
+
+## Generic effect sets
+
+Use the `Effects<'a>` trait when a helper should accept any effect set. The trait and the `Effects!` macro share a name and are both available from the prelude:
+
+```rust
+use corophage::prelude::*;
+
+fn identity<'a, Es: Effects<'a>, F>(
+    program: Program<'a, Es, F>,
+) -> Program<'a, Es, F> {
+    program
+}
+```
+
+`Effects<'a>` is implemented automatically for effect coproducts whose payloads satisfy `Send + Sync + 'a`, including `Effects![]`. The lifetime permits effects to borrow local data. It does not require their resume values to be `Send` or `Sync`; sendable execution checks those requirements separately.
+
+A generic helper that invokes a callback's program also needs bounds to forward its effects and return the corresponding resumes. `Resumes<'r, Es>` names the coproduct of the effects' `Resume<'r>` types, in the same order as `Es`. Its resume lifetime is independent of the effect-set lifetime.
+
+```rust
+use corophage::{EmbedEffect, ProjectResume, Resumes};
+use std::future::Future;
+
+fn invoke_callback<'a, Es, F, Make, Indices>(
+    make: Make,
+) -> Program<'a, Es, impl Future<Output = F::Output> + 'a>
+where
+    Es: Effects<'a> + EmbedEffect<Es, Indices>,
+    Resumes<'a, Es>: ProjectResume<'a, Es, Indices>,
+    F: Future + 'a,
+    Make: FnOnce() -> Program<'a, Es, F> + 'a,
+{
+    Program::new(|mut y: Yielder<'a, Es>| async move {
+        y.invoke(make()).await
+    })
+}
+```
+
+`EmbedEffect` forwards a child's effect into the parent set; `ProjectResume` returns the matching response to the child. Use the same generic `Indices` parameter in both bounds. These bounds are needed even when both sets are `Es`; concrete call sites infer the indices. When the child uses a subset of the parent's effects, use `SubEffs: EmbedEffect<OuterEffs, Indices>` and `Resumes<'a, OuterEffs>: ProjectResume<'a, SubEffs, Indices>` instead.
+
+These public bounds support generic program construction and invocation. Generic handler-list assembly and execution have additional dispatch bounds.

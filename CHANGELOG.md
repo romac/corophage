@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Public bounds for generic effect sets** — `Effects<'a>` and `Resumes<'r, Es>` are available from the crate root, and the existing `EmbedEffect` / `ProjectResume` traits are documented for generic invocation helpers. `Effects<'a>` is also available through the prelude alongside `Effects!`. Helpers can preserve unknown effect sets and forward borrowed resumes without private module paths.
+
 - **Exact state-change assertion example** — `cargo run --example debug_snapshot` runs model actions with `Get` / `Set` handlers and checks that the final state matches all expected changes. Add `-- --demonstrate-failure` to show how an omitted change fails the assertion. The check covers the model state handled by the example.
 
 ### Fixed
