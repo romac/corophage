@@ -1,0 +1,12 @@
+error[E0599]: no method named `run_sync` found for struct `corophage::Program<'_, Coproduct<Ask, CNil>, impl Future<Output = usize>>` in the current scope
+ --> tests/compile_fail/execution_map_missing_handler.rs:9:10
+  |
+7 |       let _ = Program::new(|mut y: Yielder<'_, Effects![Ask]>| async move { y.yield_(Ask).await })
+  |  _____________-
+8 | |         .map(|value| value + 1)
+9 | |         .run_sync();
+  | |         -^^^^^^^^ method not found in `corophage::Program<'_, Coproduct<Ask, CNil>, impl Future<Output = usize>>`
+  | |_________|
+  |
+  |
+  = note: the method was found for `corophage::Program<'a, Effs, F, CNil, H, S, Mode>`

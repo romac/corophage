@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`Program::map` transforms return values** — map a body before or after attaching handlers and state while preserving its effects, cancellation, and conditional `Send`. Mapping is lazy and adds no allocation of its own. Mapped boxed bodies use inferred execution with the existing `local` / `local_stateful` adapters for lending async handlers. The `higher_order` example builds a generic effectful `Option` map with borrowed resumes and skips its callback for `None`.
+
 - **Public bounds for generic effect sets** — `Effects<'a>` and `Resumes<'r, Es>` are available from the crate root, and the existing `EmbedEffect` / `ProjectResume` traits are documented for generic invocation helpers. `Effects<'a>` is also available through the prelude alongside `Effects!`. Helpers can preserve unknown effect sets and forward borrowed resumes without private module paths.
 
 - **Exact state-change assertion example** — `cargo run --example debug_snapshot` runs model actions with `Get` / `Set` handlers and checks that the final state matches all expected changes. Add `-- --demonstrate-failure` to show how an omitted change fails the assertion. The check covers the model state handled by the example.

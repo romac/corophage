@@ -285,6 +285,59 @@ let result = my_program()
     .run_sync();
 ```
 
+## Mapping return values
+
+Use `.map(...)` to transform a program's return value without changing its effects. You can map before, between, or after attaching handlers and state:
+
+```rust
+let result = Program::new(|mut y: Yielder<'_, Effects![Counter]>| async move {
+    y.yield_(Counter).await
+})
+.map(|count| format!("count: {count}"))
+.handle(|_: Counter| Control::resume(42u64))
+.run_sync();
+
+assert_eq!(result, Ok(String::from("count: 42")));
+```
+
+The synchronous `FnOnce` callback runs once, after the body completes. Construction remains lazy. Cancelling or dropping an incomplete program skips the callback and releases its captures. Mapping does not add a handler or handle cancellation: `.run()` and `.run_sync()` still return `Result<MappedValue, Cancelled>`. If the body returns a `Result` itself, `.map(...)` receives that whole value.
+
+Mapping retains attached handlers, the remaining effect set, and the existing state borrow. An unhandled mapped program can still be [invoked](#program-composition) by a parent. Mapping itself adds no allocation; the body, callback captures, handlers, state, and resume transport determine whether execution is `Send`.
+
+Mapped programs use inferred execution, including when their original body was boxed. Use `local` or `local_stateful` for lending async handlers. A local boxed body remains non-`Send`. To return an `Effectful` alias, apply `.boxed()` or `.boxed_send()` after mapping the unhandled program.
+
+## Effectful callbacks
+
+A higher-order helper can invoke a callback's program while forwarding an unknown effect set. This example maps the `Some` branch of an `Option` and skips constructing the child entirely for `None`:
+
+```rust
+use corophage::prelude::*;
+use corophage::{EmbedEffect, ProjectResume, Resumes};
+use std::future::Future;
+
+fn option_map_eff<'a, T: 'a, U: 'a, Es, F, Make, Indices>(
+    value: Option<T>,
+    make: Make,
+) -> Program<'a, Es, impl Future<Output = Option<U>> + 'a>
+where
+    Es: Effects<'a> + EmbedEffect<Es, Indices>,
+    Resumes<'a, Es>: ProjectResume<'a, Es, Indices>,
+    F: Future<Output = U> + 'a,
+    Make: FnOnce(T) -> Program<'a, Es, F> + 'a,
+{
+    Program::new(|mut y: Yielder<'a, Es>| async move {
+        match value {
+            Some(value) => Some(y.invoke(make(value)).await),
+            None => None,
+        }
+    })
+}
+```
+
+The callback and child run when the outer program executes. Attach the child's handlers to the returned program; its declared effects still require handlers even when the input happens to be `None`. See [generic effect sets](@/docs/effects.md#generic-effect-sets) for the forwarding bounds.
+
+`cargo run --example higher_order` runs a complete borrowed lookup example, combines `option_map_eff` with `Program::map`, and asserts that `None` calls neither the callback nor its handler. The helper is example code that can be adapted downstream. It also works with `--no-default-features`.
+
 ## Running programs
 
 Once all effects are handled, you can run the program:

@@ -27,7 +27,12 @@ divan = "0.1"
 tokio = { version = "1", default-features = false, features = ["macros", "rt", "sync", "time"] }
 trybuild = "1"
 
-# The examples use the procedural macros to declare effects and programs.
+# This manual API example also tests its generic callback without macros.
+[[example]]
+name = "higher_order"
+test = true
+
+# These examples use the procedural macros to declare effects and programs.
 [[example]]
 name = "asynk"
 required-features = ["macros"]

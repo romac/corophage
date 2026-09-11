@@ -36,6 +36,17 @@ pub struct Coroutine<'a, Effs: Effects<'a>, F> {
 }
 
 impl<'a, Effs: Effects<'a>, F: Future> Coroutine<'a, Effs, F> {
+    pub(crate) fn map<R>(
+        self,
+        map: impl FnOnce(F::Output) -> R,
+    ) -> Coroutine<'a, Effs, impl Future<Output = R>> {
+        Coroutine {
+            // Reuse the body and its token; mapping needs no new generator or box.
+            body: async move { map(self.body.await) },
+            transport: self.transport,
+        }
+    }
+
     #[allow(clippy::type_complexity)]
     pub(crate) fn generator(
         self,

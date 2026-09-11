@@ -108,6 +108,43 @@ pub struct Program<
     mode: PhantomData<fn() -> Mode>,
 }
 
+impl<'a, Effs: Effects<'a>, F: Future, Remaining, Handlers, S, Mode>
+    Program<'a, Effs, F, Remaining, Handlers, S, Mode>
+{
+    /// Transform the program's return value after normal completion.
+    ///
+    /// The callback runs once when execution reaches the end of the body. It is
+    /// not called if the program is cancelled or dropped before completion.
+    /// Effects, attached handlers, remaining effects, and bound state are retained.
+    /// Mapping adds no allocation and preserves conditional `Send`, including
+    /// the requirements of the callback's captures and the resume transport.
+    ///
+    /// The returned program uses inferred execution, including when mapping a
+    /// boxed body. Use [`crate::local`] or [`crate::local_stateful`] for lending
+    /// async handlers. An existing local box still prevents `Send`.
+    ///
+    /// ```
+    /// use corophage::prelude::*;
+    ///
+    /// let result = Program::new(|_: Yielder<'_, Effects![]>| async { 21 })
+    ///     .map(|value| value * 2)
+    ///     .run_sync();
+    /// assert_eq!(result, Ok(42));
+    /// ```
+    pub fn map<R>(
+        self,
+        map: impl FnOnce(F::Output) -> R,
+    ) -> Program<'a, Effs, impl Future<Output = R>, Remaining, Handlers, S> {
+        Program {
+            co: self.co.map(map),
+            state: self.state,
+            handlers: self.handlers,
+            remaining: self.remaining,
+            mode: PhantomData,
+        }
+    }
+}
+
 impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, Mode>
     Program<'a, Effs, F, Remaining, Handlers, (), Mode>
 {
