@@ -8,9 +8,9 @@ from pathlib import Path
 DOCS_DIR = Path("content/docs")
 PUBLIC_DIR = Path("public")
 BASE_URL = "https://corophage.rs"
-DEFAULT_RELEASE_VERSION = "0.5.0"
+DEFAULT_RELEASE_VERSION = "0.6.0"
 RELEASE_VERSION_EXPRESSION = (
-    '{{ get_env(name="COROPHAGE_RELEASE_VERSION", default="0.5.0") }}'
+    '{{ get_env(name="COROPHAGE_RELEASE_VERSION", default="0.6.0") }}'
 )
 
 HEADER = """\
