@@ -4,21 +4,6 @@
 // Gives proc-macro expansions a stable absolute path when invoked in this package.
 extern crate self as corophage;
 
-/// Unsafe unreachable hint that panics in debug builds instead of causing UB.
-///
-/// In release builds, this compiles to `core::hint::unreachable_unchecked()`.
-/// In debug builds, it panics with the provided message, making invariant
-/// violations easier to diagnose.
-macro_rules! debug_unreachable {
-    ($($msg:tt)*) => {
-        if cfg!(debug_assertions) {
-            unreachable!($($msg)*)
-        } else {
-            unsafe { ::core::hint::unreachable_unchecked() }
-        }
-    }
-}
-
 mod coproduct;
 use coproduct::{AsyncHandleMut, AsyncHandleWith};
 
@@ -111,7 +96,7 @@ macro_rules! run {
                     let $effect = match effect {
                         // INVARIANT: Yielder::yield_ always wraps effects in Inr,
                         // so the Inl (Start) arm is never yielded after init.
-                        $crate::__frunk_core::coproduct::Coproduct::Inl(_) => debug_unreachable!(
+                        $crate::__frunk_core::coproduct::Coproduct::Inl(_) => unreachable!(
                             "Start (Inl) arm should never be yielded after initialization"
                         ),
                         $crate::__frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
