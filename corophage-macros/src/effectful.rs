@@ -223,8 +223,10 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
         Box::new(syn::parse2(new_return_type)?),
     );
 
-    // Extract the original body
-    let body = &func.block;
+    // Splice the body's statements into the async block. Nesting the original
+    // block as its tail expression triggers rustc's `unused_braces` lint for
+    // single-line bodies.
+    let body = &func.block.stmts;
 
     // Build the new body with local macro_rules! for yield_!
     let program_constructor = quote! { #corophage::Program::new };
@@ -254,7 +256,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                     }
                 }
 
-                #body
+                #(#body)*
             }) #boxing
         }
     })?;

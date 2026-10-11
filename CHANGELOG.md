@@ -12,6 +12,7 @@
 - `#[effectful]` accepts type parameters that appear only in the effects or return type, such as `fn get<T>() -> T` with `#[effectful(Get<T>)]`.
 - `#[effectful]` accepts placeholder lifetimes in trait-object arguments, such as `Box<dyn Display + '_>`.
 - `#[effectful]` no longer triggers Clippy's `multiple_bound_locations` lint on functions with bounded type parameters.
+- `#[effectful]` no longer triggers rustc's `unused_braces` warning on single-line function bodies.
 
 ### Changed
 

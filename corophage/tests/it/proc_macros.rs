@@ -511,6 +511,18 @@ fn test_effectful_captures_ordinary_arguments() {
     );
 }
 
+// rustc reports unnecessary braces only for single-line blocks, so keep this
+// body unformatted.
+#[effectful]
+#[deny(unused_braces)]
+#[rustfmt::skip]
+fn single_line_body(value: u32) -> u32 { value + 1 }
+
+#[test]
+fn test_effectful_single_line_body() {
+    assert_eq!(single_line_body(1).run_sync(), Ok(2));
+}
+
 #[test]
 fn test_effectful_type_parameter_used_only_by_effects() {
     let result = effect_only_type_parameter::<u32>()
