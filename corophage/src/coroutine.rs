@@ -331,6 +331,14 @@ where
     /// Yield an effect to the handler and suspend until resumed.
     ///
     /// Returns the resume value provided by the handler for this effect.
+    ///
+    /// # Cancellation
+    ///
+    /// This future is not cancel-safe. Its first poll hands the effect to the
+    /// runner. If it is dropped before completing, for example by losing a
+    /// `select!` race, the abandoned effect may still be handled at the next
+    /// suspension, discarding its resume value, or it may be silently dropped.
+    /// Await each operation to completion.
     #[inline]
     pub async fn yield_<E, Index>(&mut self, effect: E) -> E::Resume<'a>
     where
@@ -378,6 +386,9 @@ where
     /// This allows sequential invocations that borrow from the same mutable reference,
     /// since each invocation only borrows for its own duration rather than for the
     /// entire outer computation lifetime.
+    ///
+    /// Like [`yield_`](Yielder::yield_), the returned future is not cancel-safe:
+    /// dropping it while it forwards an effect has the same consequences.
     #[inline]
     pub fn invoke<'b, SubEffs, R, F, Mode, Indices>(
         &mut self,

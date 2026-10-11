@@ -215,3 +215,5 @@ Rust can report `FnOnce is not general enough` when a stateful runner with lifet
 ## Polling context restriction
 
 `fauxgen` transports effects through the polling context. Effect operations must be polled through that context; placing them inside a combinator that substitutes its own context can break this transport. Ordinary awaited futures remain supported, but boxing the body or using an async runner does not remove this restriction. Keep `yield_!` and `invoke!` in the directly awaited computation flow, and await each operation before starting another.
+
+Effect operations are also not cancel-safe. The first poll of a `yield_!` or `invoke!` operation hands its effect to the runner. If the operation is then dropped before completing, for example by losing a `select!` race, the abandoned effect may still be handled at the computation's next suspension, with its resume value discarded, or it may be silently dropped. Do not race effect operations against other futures; await each one to completion.
