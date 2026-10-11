@@ -127,7 +127,11 @@ pub(crate) fn inline<F: Future>(future: F) -> F::Output {
     {
         Poll::Ready(value) => value,
         Poll::Pending => {
-            panic!("computation suspended on a non-effect future; use an async runner instead")
+            panic!(
+                "computation suspended on a non-effect future; use an async runner instead. \
+                 Nested `.run().await` calls also suspend after a bounded number of effects; \
+                 use `invoke` or `.run_sync()` for sub-programs of a synchronous program"
+            )
         }
     }
 }

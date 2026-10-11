@@ -439,6 +439,26 @@ fn sync_body_suspension_panics_without_spinning() {
     let _ = Program::new(|_: Yielder<'_, Effects![]>| std::future::pending::<()>()).run_sync();
 }
 
+// The async runner yields to the executor after its dispatch budget, which a
+// synchronous outer runner cannot wait for. Nested `.run_sync()` never yields.
+#[test]
+#[should_panic(expected = "use `invoke` or `.run_sync()` for sub-programs")]
+fn nested_async_runner_in_sync_body_panics_after_budget() {
+    let _ = Program::new(|_: Yielder<'_, Effects![]>| async {
+        ticks(129).handle(|Add(n)| Control::resume(n)).run().await
+    })
+    .run_sync();
+}
+
+#[test]
+fn nested_sync_runner_in_sync_body_completes() {
+    let result = Program::new(|_: Yielder<'_, Effects![]>| async {
+        ticks(129).handle(|Add(n)| Control::resume(n)).run_sync()
+    })
+    .run_sync();
+    assert_eq!(result, Ok(Ok(129)));
+}
+
 #[test]
 fn configured_program_drop_releases_state_before_execution() {
     let mut state = 1;

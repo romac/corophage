@@ -273,6 +273,8 @@ impl<'a, Effs: Effects<'a>, F: Future, H, S: State, Mode> Program<'a, Effs, F, C
     ///
     /// Panics if the computation suspends on an ordinary future. It never spins
     /// or blocks on `Pending`; async handlers are rejected at compile time.
+    /// A sub-program run with `.run().await` inside the body also suspends after
+    /// a bounded number of effects; use [`Yielder::invoke`] or `.run_sync()` instead.
     pub fn run_sync<I>(self) -> Result<F::Output, Cancelled>
     where
         Effs: for<'call> Dispatch<'a, Effs, &'call mut S::Value, &'call mut H, I>,

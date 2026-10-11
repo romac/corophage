@@ -252,6 +252,8 @@ let result = delayed_count()
 
 Synchronous runners handle effect suspension but cannot wait for unrelated futures. If an ordinary future returns `Pending`, use `.run().await` instead.
 
+This includes a sub-program executed with `.run().await` inside a synchronously run body. Async runners yield to the executor after a bounded number of effects, so such a body panics once the sub-program performs enough effects. Use `invoke!` (or `Yielder::invoke`) to forward the sub-program's effects to the outer handlers, or `.run_sync()` to handle them locally.
+
 ## Attaching handlers
 
 Handlers are attached one at a time with `.handle()`. Handlers can be attached in any order — the type system tracks which effects remain unhandled.

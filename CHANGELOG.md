@@ -11,6 +11,7 @@
 
 ### Changed
 
+- When a synchronously run program suspends on an ordinary future, the panic message now covers nested `.run().await` calls and suggests `invoke` or `.run_sync()` instead. The programs guide documents this case.
 - `fauxgen` is pinned to version 0.1.7, because corophage relies on its unstable internal API.
 
 ## v0.6.0 (2026-09-19)
