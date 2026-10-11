@@ -22,7 +22,7 @@ Add `corophage` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-corophage = "0.6.0"
+corophage = "0.6.1"
 ```
 
 The default `macros` feature provides `#[effect]` and `#[effectful]`. Set `default-features = false` on the dependency to use manual `Effect` implementations and `Program::new`. The `Effects!` macro remains available.

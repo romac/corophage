@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.6.1 (2026-10-11)
+
 ### Added
 
 - A bare `#[effect]` is shorthand for `#[effect(())]`.
@@ -18,6 +20,7 @@
 
 - When a synchronously run program suspends on an ordinary future, the panic message now covers nested `.run().await` calls and suggests `invoke` or `.run_sync()` instead. The programs guide documents this case.
 - `fauxgen` is pinned to version 0.1.7, because corophage relies on its unstable internal API.
+- The documentation notes that `yield_` and `invoke` are not cancel-safe, and that the `Send` generality limitation applies to any program with lifetime-parameterized effects, not only stateful runners.
 
 ## v0.6.0 (2026-09-19)
 
