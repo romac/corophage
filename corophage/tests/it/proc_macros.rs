@@ -349,6 +349,14 @@ fn impl_trait_argument(value: impl ToString) -> String {
     value.to_string()
 }
 
+// The type parameter appears only in the effect set and the result.
+#[effectful(GetState<S>)]
+fn effect_only_type_parameter<S: Send + Sync>() -> S {
+    yield_!(GetState {
+        _marker: std::marker::PhantomData,
+    })
+}
+
 struct EffectfulMethods(String);
 
 impl EffectfulMethods {
@@ -473,6 +481,14 @@ fn test_effectful_captures_ordinary_arguments() {
         EffectfulMethods(value).borrowed_receiver().run_sync(),
         Ok(5)
     );
+}
+
+#[test]
+fn test_effectful_type_parameter_used_only_by_effects() {
+    let result = effect_only_type_parameter::<u32>()
+        .handle(|_: GetState<u32>| Control::resume(7))
+        .run_sync();
+    assert_eq!(result, Ok(7));
 }
 
 #[test]

@@ -213,6 +213,8 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     if args.lifetime.as_ref().is_none_or(|lt| lt.ident == "_") {
         ensure_lifetime_in_generics(&mut func, &eff_lifetime);
     }
+    // Bind type parameters first so they see only the user's where clause.
+    bind_type_parameters_to_effect_lifetime(&mut func, &eff_lifetime);
     bind_inputs_to_effect_lifetime(&mut func, &eff_lifetime);
 
     // Update return type
@@ -351,7 +353,10 @@ fn bind_inputs_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime)
                 binder.visit_type_mut(&mut argument.ty);
                 predicates.append(&mut binder.reference_predicates);
 
-                if !binder.contains_impl_trait {
+                // A bare type parameter already received this bound.
+                if !binder.contains_impl_trait
+                    && !is_type_parameter(&func.sig.generics, &argument.ty)
+                {
                     let ty = &argument.ty;
                     predicates.push(parse_quote!(#ty: #effect_lifetime));
                 }
@@ -371,6 +376,48 @@ fn bind_inputs_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime)
         .make_where_clause()
         .predicates
         .extend(predicates);
+}
+
+// Type parameters may appear only in effects or the return type. The program
+// body captures every type parameter, so this bound adds no restriction.
+// Add it where the parameter is already bounded, so Clippy's
+// `multiple_bound_locations` lint does not fire on the expanded signature.
+fn bind_type_parameters_to_effect_lifetime(func: &mut ItemFn, effect_lifetime: &Lifetime) {
+    let generics = &mut func.sig.generics;
+    for parameter in generics.params.iter_mut() {
+        let GenericParam::Type(parameter) = parameter else {
+            continue;
+        };
+        let bound = TypeParamBound::Lifetime(effect_lifetime.clone());
+        let where_bounds = generics.where_clause.as_mut().and_then(|clause| {
+            clause
+                .predicates
+                .iter_mut()
+                .find_map(|predicate| match predicate {
+                    WherePredicate::Type(predicate)
+                        if predicate.lifetimes.is_none()
+                            && is_named(&predicate.bounded_ty, &parameter.ident) =>
+                    {
+                        Some(&mut predicate.bounds)
+                    }
+                    _ => None,
+                })
+        });
+        match where_bounds {
+            Some(bounds) if parameter.bounds.is_empty() => bounds.push(bound),
+            _ => parameter.bounds.push(bound),
+        }
+    }
+}
+
+fn is_type_parameter(generics: &syn::Generics, ty: &Type) -> bool {
+    generics
+        .type_params()
+        .any(|parameter| is_named(ty, &parameter.ident))
+}
+
+fn is_named(ty: &Type, ident: &Ident) -> bool {
+    matches!(ty, Type::Path(path) if path.qself.is_none() && path.path.is_ident(ident))
 }
 
 struct InputLifetimeBinder<'a> {

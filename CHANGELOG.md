@@ -5,6 +5,8 @@
 ### Fixed
 
 - Dropping a `Yielder` before the computation finishes no longer allows undefined behavior. Previously, a yielder from another program could then be accepted by the running computation, delivering an effect of the wrong type to its handlers. Such misuse now panics.
+- `#[effectful]` accepts type parameters that appear only in the effects or return type, such as `fn get<T>() -> T` with `#[effectful(Get<T>)]`.
+- `#[effectful]` no longer triggers Clippy's `multiple_bound_locations` lint on functions with bounded type parameters.
 
 ### Changed
 
