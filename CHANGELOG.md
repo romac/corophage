@@ -6,6 +6,10 @@
 
 - Dropping a `Yielder` before the computation finishes no longer allows undefined behavior. Previously, a yielder from another program could then be accepted by the running computation, delivering an effect of the wrong type to its handlers. Such misuse now panics.
 
+### Changed
+
+- `fauxgen` is pinned to version 0.1.7, because corophage relies on its unstable internal API.
+
 ## v0.6.0 (2026-09-19)
 
 ### Added

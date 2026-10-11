@@ -13,7 +13,8 @@ categories = ["rust-patterns"]
 readme = "README.md"
 
 [dependencies]
-fauxgen = { version = "0.1", default-features = false }
+# Pinned: corophage relies on fauxgen's unstable `__private` API and its invariants.
+fauxgen = { version = "=0.1.7", default-features = false }
 frunk_core = { version = "0.5", default-features = false }
 pin-project-lite = "0.2"
 corophage-macros = { version = "0.6.0", path = "../corophage-macros", optional = true }
