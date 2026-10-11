@@ -210,7 +210,7 @@ assert_eq!(paths, ["config.toml"]);
 
 Erased sendable programs retain explicit `Send` guarantees on `.run()` and `.run_stateful()`. The latter retains its `Send + Sync` handler bound. `.with_state()` instead selects the new mutable protocol and conditional `Send`, while keeping the already erased body.
 
-Rust can report `FnOnce is not general enough` when a stateful runner with lifetime-parameterized effects or GAT resumes is awaited inside another async block that must be `Send`. This can occur even if the runner itself passes a `Send` assertion. At that boundary, box the unhandled body with `.boxed_send()` and use the compatibility `.run_stateful(&mut state)` method. That combination has an explicit `Send` return guarantee and is covered by the execution tests.
+Rust can report that an implementation is not general enough (for example of `Effect` or `FnOnce`) when a program with lifetime-parameterized effects or GAT resumes is awaited inside another async block that must be `Send`, such as `tokio::spawn(async { ... })`. This affects both stateless and stateful runners, and can occur even if the run future itself passes a `Send` assertion. Passing the run future to `tokio::spawn` directly, without an enclosing async block, avoids the problem. Otherwise, box the unhandled body with `.boxed_send()` and use the compatibility `.run()` or `.run_stateful(&mut state)` method. Both have an explicit `Send` return guarantee.
 
 ## Polling context restriction
 
