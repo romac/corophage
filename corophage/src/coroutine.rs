@@ -10,12 +10,13 @@
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use fauxgen::__private::AsyncGenerator as GeneratorStorage;
+use fauxgen::__private::RawGeneratorToken;
 use fauxgen::AsyncGenerator;
 use fauxgen::GeneratorState;
-use fauxgen::GeneratorToken;
 use frunk_core::coproduct::{CoprodInjector, CoprodUninjector, Coproduct};
 
 use crate::coproduct::{EmbedEffect, ProjectResume};
@@ -92,12 +93,19 @@ pub(crate) fn concrete<'a, Effs: Effects<'a>, F>(
 where
     F: Future + 'a,
 {
-    let token = fauxgen::__private::token();
     Coroutine {
         body: async move {
-            let token = fauxgen::__private::register_owned(token).await;
-            let _ = token.argument().await;
-            build(Yielder::new(token)).await
+            // Allocate on first poll so constructing a program stays allocation-free.
+            let token: Token<'a, Effs> = Arc::pin(fauxgen::__private::token());
+            fauxgen::__private::register(token.as_ref()).await;
+            let _ = token.as_ref().argument().await;
+            // fauxgen identifies the generator by the token's address. Keep the
+            // token alive until the body completes so that address cannot be
+            // reused by another token, even if the yielder is dropped early.
+            let registered = token.clone();
+            let output = build(Yielder::new(token)).await;
+            drop(registered);
+            output
         },
         transport: PhantomData,
     }
@@ -157,16 +165,19 @@ where
 
 macro_rules! make_co {
     ($f:expr, $cast:ty) => {{
-        let token = fauxgen::__private::token();
-
         let fut = Box::pin(async move {
-            let token = fauxgen::__private::register_owned(token).await;
+            let token: Token<'a, Effs> = Arc::pin(fauxgen::__private::token());
+            fauxgen::__private::register(token.as_ref()).await;
 
             // Consume the initial Start argument. The value is always
             // CanStart::Inl(Start) — enforced by resume_with(Start) in run!/invoke.
-            let _ = token.argument().await;
+            let _ = token.as_ref().argument().await;
 
-            $f(Yielder::new(token)).await
+            // Keep the registered token address reserved; see `concrete`.
+            let registered = token.clone();
+            let output = $f(Yielder::new(token)).await;
+            drop(registered);
+            output
         }) as $cast;
 
         Self {
@@ -292,6 +303,9 @@ where
     }
 }
 
+/// A registered generator token. fauxgen identifies the generator by its address.
+type Token<'a, Effs> = Pin<Arc<RawGeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>>>;
+
 /// Handle passed to computation closures for yielding effects.
 ///
 /// Use [`yield_`](Yielder::yield_) to perform an effect and receive the handler's
@@ -302,7 +316,7 @@ pub struct Yielder<'a, Effs>
 where
     Effs: MapResume,
 {
-    token: GeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>,
+    token: Token<'a, Effs>,
 }
 
 impl<'a, Effs> Yielder<'a, Effs>
@@ -310,7 +324,7 @@ where
     Effs: MapResume,
 {
     #[inline]
-    fn new(token: GeneratorToken<CanStart<Effs>, Resumes<'a, CanStart<Effs>>>) -> Self {
+    fn new(token: Token<'a, Effs>) -> Self {
         Self { token }
     }
 
@@ -326,6 +340,7 @@ where
     {
         let resume = self
             .token
+            .as_ref()
             .yield_(Coproduct::Inr(Effs::inject(effect)))
             .await;
 
@@ -374,7 +389,7 @@ where
         Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
         F: Future<Output = R>,
     {
-        let token = &self.token;
+        let token = self.token.as_ref();
         Invocation {
             generator: program.co.generator(),
             resume: Some(Coproduct::Inl(Start)),

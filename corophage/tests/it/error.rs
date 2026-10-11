@@ -68,6 +68,40 @@ fn empty_resume_projection_panics() {
     assert!(std::panic::catch_unwind(project).is_err());
 }
 
+struct Outer;
+impl Effect for Outer {
+    type Resume<'r> = u64;
+    fn shorten_resume<'a: 'b, 'b>(resume: u64) -> u64 {
+        resume
+    }
+}
+
+struct Inner(#[allow(dead_code)] u64, #[allow(dead_code)] u64);
+impl Effect for Inner {
+    type Resume<'r> = ();
+    fn shorten_resume<'a: 'b, 'b>(resume: ()) {
+        resume
+    }
+}
+
+// fauxgen identifies a generator by its token's address. Dropping the yielder
+// must not free that address while the generator runs, or a token allocated
+// later could pass the check and write a foreign value into this generator.
+#[test]
+#[should_panic(expected = "waker id does not match generator id")]
+fn foreign_yielder_after_dropping_own_yielder_panics() {
+    let _ = Program::new(|outer: Yielder<'_, Effects![Outer]>| async move {
+        drop(outer);
+        let mut inner = Program::new(|inner: Yielder<'_, Effects![Inner]>| async move { inner })
+            .handle(|_: Inner| Control::resume(()))
+            .run_sync()
+            .unwrap();
+        inner.yield_(Inner(1, 2)).await;
+    })
+    .handle(|_: Outer| Control::resume(0))
+    .run_sync();
+}
+
 // Section B: Single-effect coroutines
 
 struct Ask(pub &'static str);
