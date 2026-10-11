@@ -1,4 +1,6 @@
-#[cfg(not(miri))]
+// Snapshots record stable diagnostics. Coverage builds use nightly, whose
+// wording differs, and trybuild compiles these cases outside the coverage run.
+#[cfg(not(any(miri, coverage_nightly)))]
 #[test]
 fn compile_fail_tests() {
     const TRYBUILD_CHILD: &str = "COROPHAGE_TRYBUILD_CHILD";
