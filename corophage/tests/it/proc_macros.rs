@@ -237,6 +237,14 @@ fn independent_placeholder_arguments(value: RefMut<'_, Cow<'_, str>>, suffix: &s
     value.len() + suffix.len()
 }
 
+#[effectful]
+fn placeholder_trait_object_arguments(
+    boxed: Box<dyn std::fmt::Display + '_>,
+    borrowed: &(dyn std::fmt::Display + '_),
+) -> String {
+    format!("{boxed}{borrowed}")
+}
+
 #[test]
 fn test_effectful_placeholder_lifetimes_in_borrowed_wrappers() {
     let value = String::from("hello");
@@ -252,6 +260,10 @@ fn test_effectful_placeholder_lifetimes_in_borrowed_wrappers() {
         nested_placeholder_arguments(Some((Cow::Borrowed(&value), [Cow::Borrowed(&value)])))
             .run_sync(),
         Ok(10)
+    );
+    assert_eq!(
+        placeholder_trait_object_arguments(Box::new(&value), &value.as_str()).run_sync(),
+        Ok(String::from("hellohello"))
     );
 }
 

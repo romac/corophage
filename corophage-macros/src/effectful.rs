@@ -475,6 +475,19 @@ impl VisitMut for InputLifetimeBinder<'_> {
         }
     }
 
+    fn visit_type_trait_object_mut(&mut self, object: &mut syn::TypeTraitObject) {
+        // `dyn Trait + '_` has the same problem as `'_` in generic arguments.
+        for bound in &mut object.bounds {
+            if let TypeParamBound::Lifetime(lifetime) = bound
+                && lifetime.ident == "_"
+            {
+                *lifetime = self.fresh_input_lifetime();
+            }
+        }
+
+        visit_mut::visit_type_trait_object_mut(self, object);
+    }
+
     fn visit_type_reference_mut(&mut self, reference: &mut syn::TypeReference) {
         let lifetime = match &reference.lifetime {
             Some(lifetime) if lifetime.ident != "_" => lifetime.clone(),
