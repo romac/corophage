@@ -8,7 +8,7 @@ An **Effect** is a struct that represents a request for a side effect. It's a me
 
 ## Defining effects with `#[effect]`
 
-To define an effect, annotate a struct with `#[effect(ResumeType)]`. The resume type defines what value the computation receives back after the effect is handled.
+To define an effect, annotate a struct with `#[effect(ResumeType)]`. The resume type defines what value the computation receives back after the effect is handled. A bare `#[effect]` is shorthand for `#[effect(())]`.
 
 ```rust
 use corophage::prelude::*;

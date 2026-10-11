@@ -65,6 +65,22 @@ struct Identity<T: std::fmt::Debug>(T);
 #[allow(dead_code)]
 struct Unit;
 
+#[effect]
+struct DefaultUnitResume;
+
+#[test]
+fn test_effect_without_argument_resumes_with_unit() {
+    let result = Program::new(
+        |mut y: Yielder<'_, Effects![DefaultUnitResume]>| async move {
+            let () = y.yield_(DefaultUnitResume).await;
+            1
+        },
+    )
+    .handle(|_: DefaultUnitResume| Control::resume(()))
+    .run_sync();
+    assert_eq!(result, Ok(1));
+}
+
 // Generic effects where the resume type references a type parameter.
 // The macro automatically adds Send + Sync bounds on the impl
 // for type parameters that appear in the resume type.

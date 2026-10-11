@@ -5,7 +5,8 @@ mod effectful;
 /// Derive an `Effect` implementation for a struct.
 ///
 /// The attribute argument specifies the resume type. Use `'r` for the GAT
-/// lifetime if the resume type needs to borrow from the handler.
+/// lifetime if the resume type needs to borrow from the handler. Without an
+/// argument, the resume type is `()`.
 ///
 /// # Examples
 ///
@@ -18,6 +19,10 @@ mod effectful;
 ///
 /// #[effect(())]
 /// pub struct Log<'a>(pub &'a str);
+///
+/// // Equivalent to #[effect(())]
+/// #[effect]
+/// pub struct Flush;
 /// ```
 #[proc_macro_attribute]
 pub fn effect(

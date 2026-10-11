@@ -3,12 +3,17 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::visit_mut::{self, VisitMut};
-use syn::{GenericParam, ItemStruct, Lifetime, Result, Type, parse2};
+use syn::{GenericParam, ItemStruct, Lifetime, Result, Type, parse_quote, parse2};
 
 use crate::crate_path;
 
 pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
-    let mut resume_type: Type = parse2(attr)?;
+    // `#[effect]` without an argument resumes with `()`.
+    let mut resume_type: Type = if attr.is_empty() {
+        parse_quote!(())
+    } else {
+        parse2(attr)?
+    };
     let item_struct: ItemStruct = parse2(item)?;
 
     let name = &item_struct.ident;

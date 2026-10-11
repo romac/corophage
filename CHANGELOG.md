@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- A bare `#[effect]` is shorthand for `#[effect(())]`.
+
 ### Fixed
 
 - Dropping a `Yielder` before the computation finishes no longer allows undefined behavior. Previously, a yielder from another program could then be accepted by the running computation, delivering an effect of the wrong type to its handlers. Such misuse now panics.
