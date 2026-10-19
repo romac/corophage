@@ -187,15 +187,11 @@ assert_eq!(result, Ok("contents of config.toml".to_string()));
 
 `Co::new`, `CoSend::new`, `Program::new_send`, and `Program::from_co` remain available for erased signatures. Local erased programs also include values returned by `.boxed()` and `#[effectful(..., boxed)]`.
 
-Local erased `.run()` requires every handler to be an async callable and accepts lending `AsyncFnMut` closures directly. Its `.run_stateful(&mut state)` counterpart requires stateful async callables compatible with `AsyncFn`, so their captures are borrowed immutably. These two methods do not accept synchronous handlers or the `local` / `local_stateful` adapters. Their low-level counterparts, `asynk::run` and `asynk::run_stateful`, retain the same restrictions. Local erased `.run_sync()` continues to accept synchronous handlers.
-
-To use mixed handlers or the explicit lending adapters with a local boxed body, call `.with_state(...)` before `.run()`. This selects the new dispatch path while retaining the boxed body. If no handler needs shared state, bind a unit value:
+Local erased programs accept the same handlers as concrete programs. Sync and async handlers can be mixed, and async closures that borrow their captures across an await use `corophage::local` or `corophage::local_stateful`. The low-level `asynk::run` and `asynk::run_stateful` functions follow the same rules:
 
 ```rust
-let mut state = ();
 let mut paths = Vec::new();
 let result = erased()
-    .with_state(&mut state)
     .handle(corophage::local(async |FileRead(path)| {
         paths.push(path);
         tokio::task::yield_now().await;
@@ -207,6 +203,8 @@ let result = erased()
 assert_eq!(result, Ok("contents of config.toml".to_string()));
 assert_eq!(paths, ["config.toml"]);
 ```
+
+Before 0.7, local erased `.run()` and `.run_stateful()` accepted only async closures, including closures that borrow their captures, and rejected synchronous handlers and the adapters. To migrate, wrap closures that borrow their captures across an await with `corophage::local` or `corophage::local_stateful`.
 
 Erased sendable programs retain explicit `Send` guarantees on `.run()` and `.run_stateful()`. The latter retains its `Send + Sync` handler bound. `.with_state()` instead selects the new mutable protocol and conditional `Send`, while keeping the already erased body.
 

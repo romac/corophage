@@ -6,13 +6,13 @@ Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_co
 
 - `corophage/src/effect.rs` — `Effect` trait (with GAT `Resume<'r>`), `MapResume` (with GAT `Output<'r>`), `Resumes<'r, E>`, `Effects`, `Start`, `CanStart`
 - `corophage/src/coroutine.rs` — concrete `Coroutine<'a, Effs, F>`, erased `GenericCo<'a, Effs, Return, L>` with `Co`/`CoSend` aliases, pin-projected transport and invocation futures, and `Yielder<'a, Effs>`
-- `corophage/src/control.rs` — `Control<R>` (user-facing resume/cancel), `CoControl<'a, Effs>` (internal resume/cancel), and `Cancelled`
+- `corophage/src/control.rs` — `Control<R>` (handler resume/cancel) and `Cancelled`
 - `corophage/src/coproduct/dispatch.rs` — one mutable dispatch protocol with named branch/injection futures, synchronous metadata, and explicit `local`/`local_stateful` lending adapters
-- `corophage/src/coproduct.rs` — handler-kind inference, effect/resume conversion, and two retained local async compatibility dispatch families (`AsyncHandleMut`/`AsyncHandleWith`)
+- `corophage/src/coproduct.rs` — handler-kind inference and effect/resume conversion
 - `corophage/src/execution.rs` — cooperative async loop and inline synchronous loop sharing one dispatch protocol, one state owner, short handler/state loans, and checked `Send` compatibility wrapper
-- `corophage/src/locality.rs` — `Locality` sealed trait, `Local` and `Sendable` marker types for controlling `Send`-ness of `Co`
+- `corophage/src/locality.rs` — `Locality` sealed trait, `Local` and `Sendable` marker types for controlling `Send`-ness of `Co`, and the execution mode of erased programs (`Local` uses inferred execution, `Sendable` keeps explicit `Send` methods)
 - `corophage/src/macros.rs` — the `Effects!` public macro and the `yield_!`/`invoke!` fallback macros
-- `corophage/src/lib.rs` — low-level sync/async compatibility runners, the remaining local `run!` macro, and primary exports including `Locality`/`Local`/`Sendable` and the local lending adapters
+- `corophage/src/lib.rs` — low-level sync/async runners and primary exports including `Locality`/`Local`/`Sendable` and the local lending adapters
 - `corophage/src/program.rs` — `Program<'a, Effs, F>` retains a concrete body by default; `.with_state()` binds state and `.run()`/`.run_sync()` execute. `Effectful<'a, Effs, R, L>` is the explicit erased alias; `.boxed()`/`.boxed_send()`, `new_send`, and `from_co` preserve erased signatures and terminal contracts.
 - `corophage/src/prelude.rs` — re-exports core types (`Effect`, `Effectful`, `Effects!`, `Control`, `Cancelled`, `Never`, `Program`, `Yielder`, `frunk`, `hlist`); `Co`/`CoSend`/`sync`/`asynk` are public but not in prelude
 - `corophage-macros/` — `corophage-macros` proc-macro crate providing `#[effect]` and `#[effectful]` attribute macros
@@ -24,12 +24,11 @@ Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_co
 - **`Co` vs `CoSend`**: `Co<'a, Effs, Return>` is not `Send` (uses `Pin<Box<dyn Future + 'a>>`). Use `CoSend<'a, Effs, Return>` (backed by `Sendable` locality) for `Send`-able coroutines compatible with `tokio::spawn`. Both are type aliases for `GenericCo<'a, Effs, Return, L>` parameterized by a `Locality` marker.
 - **`Program` is the primary API**: `Program::new` creates a computation from a closure, `.handle()` attaches handlers one at a time, `.run_sync()`/`.run()` execute once all effects are handled. `Co`/`CoSend` and the direct `run`/`sync::run` functions are advanced/internal.
 - **Handler order is flexible**: `.handle()` and `.handle_all()` remove handled effects from `Remaining`. Low-level handler lists also support lookup in any order and can contain extra handlers. Missing and duplicate program handlers remain compile errors.
-- **Ordinary async dispatch uses `FnMut(...) -> Future`**: Lending async captures use `local`/`local_stateful`, with one boxed non-`Send` future per call. The erased local compatibility paths retain `AsyncFnMut`/`AsyncFn`. Rust 1.93 remains the MSRV.
+- **Ordinary async dispatch uses `FnMut(...) -> Future`**: Lending async captures use `local`/`local_stateful`, with one boxed non-`Send` future per call, for every program kind and the low-level runners. Rust 1.93 remains the MSRV.
 
 ## Internal Invariants
 
-- The compatibility `run!` macro takes an explicit lifetime and effect type — `run!(asynk, 'a, Effs, co, effect => handle)`.
-- `Yielder::yield_` always wraps the effect in `Coproduct::Inr(...)`, so the `Inl` (Start) arm in the `run!` macro is always `unreachable!()`.
+- `Yielder::yield_` always wraps the effect in `Coproduct::Inr(...)`, so the `Inl` (Start) arm in the execution loops and `invoke` is always `unreachable!()`.
 - Dispatch injects resumes through `InjectResume`; `Yielder::yield_` keeps a checked panic for deliberately mismatched public index parameters.
 - Pin projection uses `pin-project-lite`. `Coroutine` and `Transport` retain an `Arc<Resumes<...>>` phantom marker: fauxgen's unchecked generator `Send` impl does not itself check resume storage. Do not remove that marker based only on the body's auto traits.
 - `Invocation` stores each pinned child once. Its forwarding future borrows the external yielder, never its own movable fields. An async function that stores both the child argument and its pinned generator causes exponential future-size growth.

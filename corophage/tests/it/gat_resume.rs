@@ -121,10 +121,10 @@ async fn async_gat_resume_borrows_local_data() {
         co,
         &mut hlist![
             async |_: GetConfig| Control::resume(config_ref),
-            async |Log(msg)| {
+            corophage::local(async |Log(msg)| {
                 logged.push(msg.to_string());
                 Control::resume(())
-            },
+            }),
         ],
     )
     .await;

@@ -249,6 +249,61 @@ fn explicit_erasure() {
     );
 }
 
+// Boxed local programs accept the same handlers as concrete programs.
+#[tokio::test]
+async fn erased_local_programs_accept_every_handler_kind() {
+    fn erased(n: usize) -> Effectful<'static, Effects![Add], usize> {
+        ticks(n).boxed()
+    }
+
+    assert_eq!(
+        erased(2).handle(|Add(n)| Control::resume(n)).run().await,
+        Ok(2)
+    );
+    assert_eq!(
+        erased(2)
+            .handle(async |Add(n)| Control::resume(n))
+            .run()
+            .await,
+        Ok(2)
+    );
+
+    let mut seen = Vec::new();
+    let result = erased(2)
+        .handle(corophage::local(async |Add(n)| {
+            seen.push(n);
+            ready(()).await;
+            Control::resume(n)
+        }))
+        .run()
+        .await;
+    assert_eq!(result, Ok(2));
+    assert_eq!(seen, [1, 1]);
+
+    let mut calls = 0;
+    let result = erased(3)
+        .handle(|calls: &mut usize, Add(n)| {
+            *calls += 1;
+            Control::resume(n)
+        })
+        .run_stateful(&mut calls)
+        .await;
+    assert_eq!(result, Ok(3));
+    assert_eq!(calls, 3);
+
+    let co =
+        corophage::Co::new(
+            |mut y: Yielder<'_, Effects![Add]>| async move { y.yield_(Add(4)).await },
+        );
+    assert_eq!(
+        Program::from_co(co)
+            .handle(|Add(n)| Control::resume(n))
+            .run()
+            .await,
+        Ok(4)
+    );
+}
+
 #[derive(Default)]
 struct WakeCount(AtomicUsize);
 impl Wake for WakeCount {

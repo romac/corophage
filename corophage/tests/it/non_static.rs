@@ -83,10 +83,10 @@ async fn async_non_static_log() {
     let mut logged: Vec<String> = vec![];
     let result = asynk::run(
         co,
-        &mut hlist![async |Log(m)| {
+        &mut hlist![corophage::local(async |Log(m)| {
             logged.push(m.to_string());
             Control::resume(())
-        }],
+        })],
     )
     .await;
 

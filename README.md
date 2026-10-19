@@ -381,11 +381,11 @@ tokio::spawn(async move {
 });
 ```
 
-Async handlers attached to a `CoSend` program must return `Send` futures. Handlers that capture state across an await should clone it into a non-lending future, for example `move |effect| { let state = Arc::clone(&state); async move { ... } }`. Local `Co` programs continue to accept lending `async |effect| { ... }` handlers.
+Async handlers attached to a `CoSend` program must return `Send` futures. Handlers that capture state across an await should clone it into a non-lending future, for example `move |effect| { let state = Arc::clone(&state); async move { ... } }`. Local programs accept such handlers through `corophage::local(async |effect| { ... })`.
 
-Local erased `.run()` accepts only async callables, and `.run_stateful()` requires stateful async callables compatible with `AsyncFn`. Neither method accepts sync handlers or the `local` / `local_stateful` adapters. This also applies after `.boxed()` or `#[effectful(..., boxed)]`. Call `.with_state(...)` before `.run()` to select the new dispatch path; a unit state (`let mut state = ();`) is sufficient when handlers do not need shared state. Local erased `.run_sync()` still accepts synchronous handlers.
+Local erased programs, including those from `.boxed()` and `#[effectful(..., boxed)]`, accept the same handlers as concrete programs. Before 0.7, their `.run()` and `.run_stateful()` accepted only async closures; wrap closures that borrow their captures across an await with `corophage::local` or `corophage::local_stateful`.
 
-Erased sendable programs retain explicit `Send` terminal contracts, including the `Send + Sync` handler bound on `.run_stateful()`. `.with_state()` selects the new conditional protocol for an erased body. A compiler lifetime limitation can affect inferred stateful runners awaited inside a `Send` async block; `.boxed_send()` followed by the compatibility `.run_stateful()` provides an explicit boundary for these cases. See the [advanced documentation](https://corophage.rs/docs/advanced/#compatibility-api).
+Erased sendable programs retain explicit `Send` terminal contracts, including the `Send + Sync` handler bound on `.run_stateful()`. `.with_state()` selects the new conditional protocol for an erased body. A compiler lifetime limitation can affect programs with lifetime-parameterized effects awaited inside a `Send` async block; `.boxed_send()` followed by the compatibility `.run()` or `.run_stateful()` provides an explicit boundary for these cases. See the [advanced documentation](https://corophage.rs/docs/advanced/#compatibility-api).
 
 The direct API (`sync::run`, `sync::run_stateful`, `asynk::run`, `asynk::run_stateful`) accepts a `Co`/`CoSend` and an `hlist!` of all handlers at once. This is useful for concise one-shot execution but requires providing all handlers together.
 

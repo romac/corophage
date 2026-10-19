@@ -37,7 +37,7 @@ async |FileRead(file)| {
 
 ## Named function handlers
 
-Programs from `Program::new` and default `#[effectful]` functions can mix sync and async handlers in one `.run()` call. Local boxed programs have separate [compatibility requirements](@/docs/advanced.md#compatibility-api). `.run_sync()` accepts only synchronous handlers, even if an async handler would complete immediately.
+Programs can mix sync and async handlers in one `.run()` call, whether their body is concrete or boxed. `.run_sync()` accepts only synchronous handlers, even if an async handler would complete immediately.
 
 Handlers can also be named functions. When using stateful handlers, the state is passed as the first argument:
 
@@ -74,8 +74,6 @@ let result = program
 ```
 
 Repeated calls borrow the same closure and retain its mutations. The adapter boxes one non-`Send` future per call. Use `corophage::local_stateful` for a lending closure that also takes a `&mut S` state argument. A runner using either adapter must be awaited locally. Ordinary handlers do not box dispatch futures.
-
-For a local boxed program, call `.with_state(...)` before `.run()` to use these adapters. Without that step, its compatibility runner accepts lending async closures directly.
 
 ## Cancellation
 

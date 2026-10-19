@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- **Breaking:** Local boxed programs, from `.boxed()`, `#[effectful(..., boxed)]`, or `Program::from_co` with a `Co`, accept the same handlers as concrete programs. Their `.run()` and `.run_stateful()` now accept synchronous handlers, async handlers, and the `local`/`local_stateful` adapters in any mix, without first calling `.with_state(&mut ())`. Async closures that borrow their captures across an await must be wrapped with `corophage::local` or `corophage::local_stateful`, as they already were for concrete programs. The low-level `asynk::run` and `asynk::run_stateful` follow the same rules.
+
 ## v0.6.2 (2026-10-19)
 
 ### Changed

@@ -7,9 +7,9 @@ use frunk_core::coproduct::{CNil, CoproductSubsetter};
 use frunk_core::hlist::{HCons, HNil};
 
 use crate::control::Cancelled;
+use crate::coproduct::HandlersToEffects;
 use crate::coproduct::dispatch::{Dispatch, Synchronous};
-use crate::coproduct::{AsyncHandleMut, AsyncHandleWith, HandlersToEffects};
-use crate::coroutine::{Co, CoSend, Coroutine, GenericCo, Yielder};
+use crate::coroutine::{CoSend, Coroutine, GenericCo, Yielder};
 use crate::effect::{CanStart, Effects, Resumes};
 use crate::execution::State;
 use crate::locality::{Local, Locality, Sendable};
@@ -19,7 +19,7 @@ use crate::locality::{Local, Locality, Sendable};
 /// Use `.boxed()` or `.boxed_send()` when returning this erased alias. Inferred
 /// programs and `#[effectful]` functions retain their concrete body by default.
 pub type Effectful<'a, Effs, R, L = Local> =
-    Program<'a, Effs, <L as Locality>::PinBoxFuture<'a, R>, Effs, HNil, (), L>;
+    Program<'a, Effs, <L as Locality>::PinBoxFuture<'a, R>, Effs, HNil, (), <L as Locality>::Mode>;
 
 /// Deprecated alias for [`Effectful`].
 #[deprecated(since = "0.3.0", note = "renamed to `Effectful`")]
@@ -120,8 +120,7 @@ impl<'a, Effs: Effects<'a>, F: Future, Remaining, Handlers, S, Mode>
     /// the requirements of the callback's captures and the resume transport.
     ///
     /// The returned program uses inferred execution, including when mapping a
-    /// boxed body. Use [`crate::local`] or [`crate::local_stateful`] for lending
-    /// async handlers. An existing local box still prevents `Send`.
+    /// sendable boxed body. An existing local box still prevents `Send`.
     ///
     /// ```
     /// use corophage::prelude::*;
@@ -164,13 +163,10 @@ impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, Mode>
 }
 
 impl<'a, Effs: Effects<'a>, F: Future> Program<'a, Effs, F> {
-    /// Convert an unhandled program to the existing local erased representation.
+    /// Convert an unhandled program to the local erased representation.
     ///
-    /// The erased local `.run()` requires async callables and accepts lending
-    /// closures directly. Call [`Program::with_state`] before `.run()` to use
-    /// mixed sync/async handlers or [`crate::local`] / [`crate::local_stateful`].
-    /// A unit state is sufficient if no handler needs shared state.
-    /// Synchronous handlers remain supported by `.run_sync()`.
+    /// The erased program accepts the same handlers and terminal methods as a
+    /// concrete one; only the body's type and `Send` capability are erased.
     pub fn boxed(self) -> Effectful<'a, Effs, F::Output>
     where
         F: 'a,
@@ -193,8 +189,8 @@ impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, S, Mode>
 {
     /// Attach a handler in any effect order.
     ///
-    /// Inferred execution can mix sync and async handlers. Local erased async
-    /// execution has the compatibility restrictions described by [`Program::boxed`].
+    /// Sync and async handlers can be mixed. Wrap async closures that borrow
+    /// their captures across awaits with [`crate::local`] or [`crate::local_stateful`].
     #[allow(clippy::type_complexity)]
     pub fn handle<H, HandleIdx, SubsetIdx>(
         self,
@@ -316,36 +312,8 @@ impl<'a, Effs: Effects<'a>, F: Future, H, Mode> Program<'a, Effs, F, CNil, H, ()
     }
 }
 
-// Erased aliases keep their established execution contracts. These wrappers
-// reuse the core or the two local lending paths; they introduce no dispatch loop.
-impl<'a, Effs: Effects<'a>, R, H>
-    Program<'a, Effs, Pin<Box<dyn Future<Output = R> + 'a>>, CNil, H, (), Local>
-{
-    /// Execute an erased local program, retaining lending async closure support.
-    ///
-    /// Every handler must be an async callable. To mix sync/async handlers or use
-    /// the explicit local adapters, call [`Program::with_state`] before `.run()`.
-    pub async fn run<I>(self) -> Result<R, Cancelled>
-    where
-        Effs: AsyncHandleMut<'a, Effs, H, I>,
-    {
-        let mut handlers = self.handlers;
-        crate::asynk::run(Co::from_concrete(self.co), &mut handlers).await
-    }
-
-    /// Execute an erased local program with state borrowed at this call site.
-    ///
-    /// Every handler must be a stateful async callable compatible with `AsyncFn`.
-    /// Call [`Program::with_state`] followed by `.run()` to use mixed handlers
-    /// or the explicit local adapters.
-    pub async fn run_stateful<S, I>(self, state: &mut S) -> Result<R, Cancelled>
-    where
-        Effs: AsyncHandleWith<'a, Effs, H, S, I>,
-    {
-        crate::asynk::run_stateful(Co::from_concrete(self.co), state, &self.handlers).await
-    }
-}
-
+// Erased sendable programs keep their explicit `Send` guarantees. Local erased
+// programs use the inferred terminal methods above.
 impl<'a, Effs: Effects<'a>, R, H>
     Program<'a, Effs, Pin<Box<dyn Future<Output = R> + Send + 'a>>, CNil, H, (), Sendable>
 {

@@ -5,7 +5,6 @@
 extern crate self as corophage;
 
 mod coproduct;
-use coproduct::{AsyncHandleMut, AsyncHandleWith};
 
 pub use coproduct::{EmbedEffect, ProjectResume};
 
@@ -37,18 +36,6 @@ pub use program::{Eff, Effectful, Program};
 #[cfg(feature = "macros")]
 pub use corophage_macros::{effect, effectful};
 
-macro_rules! resume_co {
-    (asynk, $co:expr, $resume:expr) => {
-        $co.resume_async($resume).await
-    };
-}
-
-macro_rules! resume_co_with {
-    (asynk, $co:expr, $resume:expr) => {
-        $co.resume_with_async($resume).await
-    };
-}
-
 // Keep short computations in one poll while bounding runs of ready handlers.
 const ASYNC_DISPATCH_BUDGET: usize = 128;
 
@@ -67,60 +54,6 @@ async fn yield_to_executor() {
     .await;
 }
 
-/// Internal macro for running a coroutine with effect handlers.
-macro_rules! run {
-    (asynk, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
-        let mut budget = $crate::ASYNC_DISPATCH_BUDGET;
-        run!(@loop asynk, $lt, $effs, $co, $effect => {
-            // Check before dispatch so completion does not require an extra poll.
-            // Other suspension points may yield sooner; this counter bounds each
-            // run of ready handlers without depending on a particular executor.
-            if budget == 0 {
-                $crate::yield_to_executor().await;
-                budget = $crate::ASYNC_DISPATCH_BUDGET;
-            }
-            budget -= 1;
-            $handle
-        })
-    }};
-    (@loop $mode:ident, $lt:lifetime, $effs:ty, $co:expr, $effect:pat => $handle:expr) => {{
-        let mut co = ::std::pin::pin!($co.generator());
-
-        let mut yielded = resume_co_with!($mode, co.as_mut(), $crate::effect::Start);
-
-        loop {
-            match yielded {
-                ::fauxgen::GeneratorState::Complete(value) => break Ok(value),
-
-                ::fauxgen::GeneratorState::Yielded(effect) => {
-                    let $effect = match effect {
-                        // INVARIANT: Yielder::yield_ always wraps effects in Inr,
-                        // so the Inl (Start) arm is never yielded after init.
-                        $crate::__frunk_core::coproduct::Coproduct::Inl(_) => unreachable!(
-                            "Start (Inl) arm should never be yielded after initialization"
-                        ),
-                        $crate::__frunk_core::coproduct::Coproduct::Inr(subeffect) => subeffect,
-                    };
-
-                    let resume: $crate::control::CoControl<$lt, $effs> = $handle;
-                    match resume {
-                        $crate::control::CoControl::Cancel => {
-                            break Err($crate::control::Cancelled);
-                        }
-                        $crate::control::CoControl::Resume(r) => {
-                            yielded = resume_co!(
-                                $mode,
-                                co.as_mut(),
-                                $crate::__frunk_core::coproduct::Coproduct::Inr(r)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }};
-}
-
 /// An uninhabited type for effects that never resume.
 ///
 /// Use this as `Effect::Resume` for effects that always cancel the computation
@@ -129,7 +62,7 @@ pub enum Never {}
 
 /// Async effect runners.
 ///
-/// Use these functions to run a coroutine with async effect handlers.
+/// Use these functions to run a coroutine with sync or async effect handlers.
 /// For most use cases, prefer [`Program::run`] instead.
 ///
 /// Runners yield to the executor after a bounded number of effect dispatches,
@@ -141,25 +74,32 @@ pub mod asynk {
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
     use crate::effect::Resumes;
-    use crate::execution::{CoproductDispatch, drive_send};
+    use crate::execution::{CoproductDispatch, drive, drive_send};
     use crate::locality::{Locality, Sendable};
 
     use super::*;
 
-    /// Run a coroutine with an hlist of async handlers.
+    /// Run a coroutine with an hlist of sync or async handlers.
     ///
     /// Both the computation body and its handlers may await ordinary futures.
+    /// Wrap async closures that borrow their captures across awaits with
+    /// [`crate::local`].
     #[doc(hidden)]
     #[inline]
-    pub async fn run<'a, ES, R, L, F, Indices>(
+    pub fn run<'a, 'h, ES, R, L, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
-        handler: &mut F,
-    ) -> Result<R, Cancelled>
+        handler: &'h mut F,
+    ) -> impl Future<Output = Result<R, Cancelled>>
     where
         L: Locality,
-        ES: Effects<'a> + AsyncHandleMut<'a, ES, F, Indices>,
+        ES: Effects<'a> + for<'c> Dispatch<'a, ES, &'c mut (), &'c mut &'h mut F, Indices>,
     {
-        run!(asynk, 'a, ES, co, effect => effect.handle_mut(handler).await)
+        drive(
+            co.generator(),
+            (),
+            handler,
+            CoproductDispatch::<'a, ES, Indices>::new(),
+        )
     }
 
     /// Run a sendable coroutine with async handlers whose futures are `Send`.
@@ -184,19 +124,28 @@ pub mod asynk {
         )
     }
 
-    /// Run a coroutine with an hlist of async handlers and shared mutable state.
+    /// Run a coroutine with an hlist of sync or async handlers and shared
+    /// mutable state.
+    ///
+    /// Wrap async closures that borrow their captures across awaits with
+    /// [`crate::local_stateful`].
     #[doc(hidden)]
     #[inline]
-    pub async fn run_stateful<'a, ES, R, L, S, F, Indices>(
+    pub fn run_stateful<'a, 'h, ES, R, L, S, F, Indices>(
         co: GenericCo<'a, ES, R, L>,
         state: &mut S,
-        handler: &F,
-    ) -> Result<R, Cancelled>
+        handler: &'h F,
+    ) -> impl Future<Output = Result<R, Cancelled>>
     where
         L: Locality,
-        ES: Effects<'a> + AsyncHandleWith<'a, ES, F, S, Indices>,
+        ES: Effects<'a> + for<'c> Dispatch<'a, ES, &'c mut S, &'c mut &'h F, Indices>,
     {
-        run!(asynk, 'a, ES, co, effect => effect.handle_with(state, handler).await)
+        drive(
+            co.generator(),
+            state,
+            handler,
+            CoproductDispatch::<'a, ES, Indices>::new(),
+        )
     }
 
     /// Run a sendable coroutine with shared state and `Send` handler futures.

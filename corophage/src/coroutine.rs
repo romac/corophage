@@ -170,7 +170,7 @@ macro_rules! make_co {
             fauxgen::__private::register(token.as_ref()).await;
 
             // Consume the initial Start argument. The value is always
-            // CanStart::Inl(Start) — enforced by resume_with(Start) in run!/invoke.
+            // CanStart::Inl(Start), sent first by the execution loops and invoke.
             let _ = token.as_ref().argument().await;
 
             // Keep the registered token address reserved; see `concrete`.
@@ -216,13 +216,6 @@ where
 }
 
 impl<'a, Effs: Effects<'a>, R, L: Locality> GenericCo<'a, Effs, R, L> {
-    pub(crate) fn from_concrete(co: Coroutine<'a, Effs, L::PinBoxFuture<'a, R>>) -> Self {
-        Self {
-            body: co.body,
-            transport: co.transport,
-            locality: PhantomData,
-        }
-    }
     pub(crate) fn into_concrete(self) -> Coroutine<'a, Effs, L::PinBoxFuture<'a, R>> {
         Coroutine {
             body: self.body,
@@ -238,27 +231,6 @@ impl<'a, Effs: Effects<'a>, R, L: Locality> GenericCo<'a, Effs, R, L> {
         Resumes<'a, CanStart<Effs>>,
     > {
         self.into_concrete().generator()
-    }
-}
-
-impl<G: AsyncGenerator<A>, A> Transport<G, A> {
-    #[inline]
-    pub(crate) fn resume_async(
-        self: Pin<&mut Self>,
-        resume: A,
-    ) -> impl Future<Output = GeneratorState<G::Yield, G::Return>> {
-        AsyncGenerator::resume(self, resume)
-    }
-
-    #[inline]
-    pub(crate) fn resume_with_async<R, Index>(
-        self: Pin<&mut Self>,
-        resume: R,
-    ) -> impl Future<Output = GeneratorState<G::Yield, G::Return>>
-    where
-        A: CoprodInjector<R, Index>,
-    {
-        self.resume_async(A::inject(resume))
     }
 }
 

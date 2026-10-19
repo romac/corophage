@@ -306,7 +306,7 @@ The synchronous `FnOnce` callback runs once, after the body completes. Construct
 
 Mapping retains attached handlers, the remaining effect set, and the existing state borrow. An unhandled mapped program can still be [invoked](#program-composition) by a parent. Mapping itself adds no allocation; the body, callback captures, handlers, state, and resume transport determine whether execution is `Send`.
 
-Mapped programs use inferred execution, including when their original body was boxed. Use `local` or `local_stateful` for lending async handlers. A local boxed body remains non-`Send`. To return an `Effectful` alias, apply `.boxed()` or `.boxed_send()` after mapping the unhandled program.
+Mapped programs use inferred execution, including when their original body was boxed. A local boxed body remains non-`Send`. To return an `Effectful` alias, apply `.boxed()` or `.boxed_send()` after mapping the unhandled program.
 
 ## Effectful callbacks
 
@@ -347,7 +347,7 @@ Once all effects are handled, you can run the program:
 - `.run_sync()` — execute inline with synchronous handlers and return `Result<R, Cancelled>`; a body that suspends on an ordinary future causes a panic.
 - `.run().await` — execute asynchronously, with synchronous and asynchronous handlers in the same list.
 
-These rules describe the default concrete programs. Local boxed `.run()` accepts only async callables; use `.with_state(...)` to select mixed dispatch or the explicit lending adapters. See the [compatibility API](@/docs/advanced.md#compatibility-api).
+These rules apply to concrete and local boxed programs alike. Sendable boxed programs keep their explicit `Send` guarantees; see the [compatibility API](@/docs/advanced.md#compatibility-api).
 
 Attach shared state with `.with_state(&mut state)` before running. Handlers that use state take `&mut S` as their first argument; other handlers can omit it. The compatibility methods `.run_sync_stateful(&mut state)` and `.run_stateful(&mut state)` still bind state at their terminal call site.
 

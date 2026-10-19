@@ -26,12 +26,20 @@ pub struct Sendable;
 pub trait Locality: sealed::Sealed + 'static {
     #[doc(hidden)]
     type PinBoxFuture<'a, A>: Future<Output = A>;
+
+    /// Execution mode of erased programs with this locality. Local programs
+    /// share the inferred terminal methods; sendable programs keep their
+    /// explicit `Send` guarantees.
+    #[doc(hidden)]
+    type Mode;
 }
 
 impl Locality for Local {
     type PinBoxFuture<'a, A> = Pin<Box<dyn Future<Output = A> + 'a>>;
+    type Mode = crate::program::Inferred;
 }
 
 impl Locality for Sendable {
     type PinBoxFuture<'a, A> = Pin<Box<dyn Future<Output = A> + Send + 'a>>;
+    type Mode = Sendable;
 }
