@@ -1,26 +1,26 @@
 {
   "baseline": "fa68b5a268e66fc1e57e579f7fb3699cabb55745",
-  "candidate_head": "6d073a9c3519fbed15a168d74ce3745a54659451",
+  "candidate_head": "6cc6ff2597f68379bb0a17b400bac02ab6b80376",
   "candidate_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "candidate_sources_sha256": "521219047d8e28a1ceedb21f418b5260eccb4daab8d5ee59cb2b56469fd43037",
+  "candidate_sources_sha256": "91384015cff7a6ea3dd2169bdb6dd8bf9ea368ba67516b82c0d1115d47081d85",
   "fixture_sha256": "dfb57faefff9a890ad55af730fa9c86580c9c0062c5c5adfdedb02ec56c5d63d",
-  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
-  "machine": "macOS-26.6.1-arm64-arm-64bit",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-apple-darwin\nrelease: 1.99.1\nLLVM version: 23.1.1",
+  "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
   "cpu_architecture": "arm",
   "profile": "release, opt-level=3, lto=true, codegen-units=1, fresh targets, no rustc wrapper",
   "method": "One clean offline build per revision including dependencies; seven timing samples after warmup, median nanoseconds per whole operation; allocations counted separately. Nesting depth counts invoke edges, plus one leaf program. Runtimes run sequentially.",
   "revisions": {
     "baseline": {
-      "clean_build_seconds": 6.699295332999999,
-      "binary_bytes": 541696,
+      "clean_build_seconds": 5.682921625004383,
+      "binary_bytes": 545808,
       "size_output": "__TEXT\t__DATA\t__OBJC\tothers\tdec\thex\n393216\t16384\t0\t4295114752\t4295524352\t100088000",
       "measurements": [
         {
           "name": "creation",
           "allocations": 1,
-          "median_ns": 16.098102569580078,
-          "min_ns": 15.98048210144043,
-          "max_ns": 19.760528564453125
+          "median_ns": 12.919425964355469,
+          "min_ns": 12.676994323730469,
+          "max_ns": 15.507499694824219
         },
         {
           "name": "program_bytes",
@@ -28,229 +28,229 @@
         },
         {
           "name": "run_future_bytes",
-          "bytes": 312
+          "bytes": 280
         },
         {
           "name": "sync_1",
           "allocations": 2,
-          "median_ns": 50.43014144897461,
-          "min_ns": 49.8809814453125,
-          "max_ns": 50.692718505859375
+          "median_ns": 44.942378997802734,
+          "min_ns": 43.813228607177734,
+          "max_ns": 45.84455490112305
         },
         {
           "name": "async_1",
           "allocations": 2,
-          "median_ns": 125.01335144042969,
-          "min_ns": 123.67788696289062,
-          "max_ns": 129.9632339477539
+          "median_ns": 114.53024291992188,
+          "min_ns": 112.69855499267578,
+          "max_ns": 115.7080307006836
         },
         {
           "name": "state_sync_1",
           "allocations": 2,
-          "median_ns": 48.22349548339844,
-          "min_ns": 47.616798400878906,
-          "max_ns": 48.5614128112793
+          "median_ns": 43.59245300292969,
+          "min_ns": 43.037254333496094,
+          "max_ns": 43.91606903076172
         },
         {
           "name": "state_async_1",
           "allocations": 2,
-          "median_ns": 124.33464813232422,
-          "min_ns": 122.57035064697266,
-          "max_ns": 126.04109191894531
+          "median_ns": 134.18102264404297,
+          "min_ns": 133.38565826416016,
+          "max_ns": 135.18301391601562
         },
         {
           "name": "sync_1000",
           "allocations": 2,
-          "median_ns": 10539.7138671875,
-          "min_ns": 10408.6103515625,
-          "max_ns": 10548.298828125
+          "median_ns": 10425.3740234375,
+          "min_ns": 10366.8623046875,
+          "max_ns": 10779.7041015625
         },
         {
           "name": "async_1000",
           "allocations": 2,
-          "median_ns": 17648.193359375,
-          "min_ns": 17405.029296875,
-          "max_ns": 17811.685546875
+          "median_ns": 16243.5712890625,
+          "min_ns": 15898.3564453125,
+          "max_ns": 16632.8935546875
         },
         {
           "name": "state_sync_1000",
           "allocations": 2,
-          "median_ns": 10549.8046875,
-          "min_ns": 10380.2900390625,
-          "max_ns": 10685.220703125
+          "median_ns": 10402.2216796875,
+          "min_ns": 10261.02734375,
+          "max_ns": 10581.0146484375
         },
         {
           "name": "state_async_1000",
           "allocations": 2,
-          "median_ns": 17717,
-          "min_ns": 17591.958984375,
-          "max_ns": 17967.4892578125
+          "median_ns": 17213.9892578125,
+          "min_ns": 17096.1103515625,
+          "max_ns": 17356.6484375
         },
         {
           "name": "nested_1_future_bytes",
-          "bytes": 312
+          "bytes": 280
         },
         {
           "name": "nested_1",
           "allocations": 4,
-          "median_ns": 120.9910659790039,
-          "min_ns": 120.15724182128906,
-          "max_ns": 122.68956756591797
+          "median_ns": 109.0097427368164,
+          "min_ns": 107.67078399658203,
+          "max_ns": 110.1814956665039
         },
         {
           "name": "nested_5_future_bytes",
-          "bytes": 312
+          "bytes": 280
         },
         {
           "name": "nested_5",
           "allocations": 12,
-          "median_ns": 436.13690185546875,
-          "min_ns": 433.90399169921875,
-          "max_ns": 439.959228515625
+          "median_ns": 406.0249328613281,
+          "min_ns": 395.5841064453125,
+          "max_ns": 408.8388977050781
         },
         {
           "name": "nested_10_future_bytes",
-          "bytes": 312
+          "bytes": 280
         },
         {
           "name": "nested_10",
           "allocations": 22,
-          "median_ns": 862.6556396484375,
-          "min_ns": 858.9070434570312,
-          "max_ns": 871.9863891601562
+          "median_ns": 734.1409912109375,
+          "min_ns": 724.5585327148438,
+          "max_ns": 744.0643310546875
         },
         {
           "name": "nested_20_future_bytes",
-          "bytes": 312
+          "bytes": 280
         },
         {
           "name": "nested_20",
           "allocations": 42,
-          "median_ns": 2076.1005859375,
-          "min_ns": 2057.978271484375,
-          "max_ns": 2081.4005126953125
+          "median_ns": 1838.2415771484375,
+          "min_ns": 1819.951416015625,
+          "max_ns": 1851.7913818359375
         }
       ]
     },
     "candidate": {
-      "clean_build_seconds": 7.754692083999998,
-      "binary_bytes": 582512,
-      "size_output": "__TEXT\t__DATA\t__OBJC\tothers\tdec\thex\n425984\t16384\t0\t4295114752\t4295557120\t100090000",
+      "clean_build_seconds": 6.68827916700684,
+      "binary_bytes": 568800,
+      "size_output": "__TEXT\t__DATA\t__OBJC\tothers\tdec\thex\n409600\t16384\t0\t4295114752\t4295540736\t10008c000",
       "measurements": [
         {
           "name": "creation",
           "allocations": 0,
-          "median_ns": 0.6707956790924072,
-          "min_ns": 0.6649419665336609,
-          "max_ns": 0.6931424140930176
+          "median_ns": 0.6639708876609802,
+          "min_ns": 0.4481698274612427,
+          "max_ns": 0.7913410663604736
         },
         {
           "name": "program_bytes",
-          "bytes": 184
+          "bytes": 160
         },
         {
           "name": "run_future_bytes",
-          "bytes": 528
+          "bytes": 448
         },
         {
           "name": "sync_1",
           "allocations": 1,
-          "median_ns": 35.28038787841797,
-          "min_ns": 35.15736198425293,
-          "max_ns": 35.75809860229492
+          "median_ns": 28.105497360229492,
+          "min_ns": 27.937013626098633,
+          "max_ns": 28.584718704223633
         },
         {
           "name": "async_1",
           "allocations": 1,
-          "median_ns": 92.17548370361328,
-          "min_ns": 91.60359191894531,
-          "max_ns": 93.33133697509766
+          "median_ns": 92.21649169921875,
+          "min_ns": 90.83429718017578,
+          "max_ns": 96.3551254272461
         },
         {
           "name": "state_sync_1",
           "allocations": 1,
-          "median_ns": 35.522539138793945,
-          "min_ns": 35.38282775878906,
-          "max_ns": 35.79322624206543
+          "median_ns": 29.123544692993164,
+          "min_ns": 28.85802459716797,
+          "max_ns": 30.250391006469727
         },
         {
           "name": "state_async_1",
           "allocations": 1,
-          "median_ns": 96.99504089355469,
-          "min_ns": 95.7784652709961,
-          "max_ns": 97.60093688964844
+          "median_ns": 94.31489562988281,
+          "min_ns": 92.16436004638672,
+          "max_ns": 94.94527435302734
         },
         {
           "name": "sync_1000",
           "allocations": 1,
-          "median_ns": 14068.9697265625,
-          "min_ns": 13747.55859375,
-          "max_ns": 14358.2763671875
+          "median_ns": 9583.740234375,
+          "min_ns": 9441.6904296875,
+          "max_ns": 9782.5107421875
         },
         {
           "name": "async_1000",
           "allocations": 1,
-          "median_ns": 16645.263671875,
-          "min_ns": 16533.203125,
-          "max_ns": 17091.4306640625
+          "median_ns": 11577.63671875,
+          "min_ns": 11442.3427734375,
+          "max_ns": 11707.6826171875
         },
         {
           "name": "state_sync_1000",
           "allocations": 1,
-          "median_ns": 14011.6787109375,
-          "min_ns": 13339.7216796875,
-          "max_ns": 14368.0419921875
+          "median_ns": 9485.06640625,
+          "min_ns": 9436.1572265625,
+          "max_ns": 9541.46337890625
         },
         {
           "name": "state_async_1000",
           "allocations": 1,
-          "median_ns": 14575.3583984375,
-          "min_ns": 14481.8935546875,
-          "max_ns": 14807.861328125
+          "median_ns": 12133.4228515625,
+          "min_ns": 12008.056640625,
+          "max_ns": 12288.7783203125
         },
         {
           "name": "nested_1_future_bytes",
-          "bytes": 880
+          "bytes": 752
         },
         {
           "name": "nested_1",
           "allocations": 2,
-          "median_ns": 72.52438735961914,
-          "min_ns": 71.72378158569336,
-          "max_ns": 73.12583923339844
+          "median_ns": 64.293701171875,
+          "min_ns": 63.62310791015625,
+          "max_ns": 64.52608108520508
         },
         {
           "name": "nested_5_future_bytes",
-          "bytes": 2608
+          "bytes": 2288
         },
         {
           "name": "nested_5",
           "allocations": 6,
-          "median_ns": 245.89793395996094,
-          "min_ns": 244.35870361328125,
-          "max_ns": 248.64578247070312
+          "median_ns": 208.78855895996094,
+          "min_ns": 207.1654052734375,
+          "max_ns": 213.10678100585938
         },
         {
           "name": "nested_10_future_bytes",
-          "bytes": 4768
+          "bytes": 4208
         },
         {
           "name": "nested_10",
           "allocations": 11,
-          "median_ns": 471.3719787597656,
-          "min_ns": 468.0887756347656,
-          "max_ns": 486.04327392578125
+          "median_ns": 375.57855224609375,
+          "min_ns": 369.60858154296875,
+          "max_ns": 381.08062744140625
         },
         {
           "name": "nested_20_future_bytes",
-          "bytes": 9088
+          "bytes": 8048
         },
         {
           "name": "nested_20",
           "allocations": 21,
-          "median_ns": 932.4239501953125,
-          "min_ns": 920.4483032226562,
-          "max_ns": 940.6814575195312
+          "median_ns": 744.903564453125,
+          "min_ns": 734.3215942382812,
+          "max_ns": 753.7791137695312
         }
       ]
     }
@@ -259,44 +259,44 @@
     {
       "name": "boxed_sync_1",
       "allocations": 2,
-      "median_ns": 50.373714447021484,
-      "min_ns": 50.1708984375,
-      "max_ns": 50.907928466796875
+      "median_ns": 43.79765319824219,
+      "min_ns": 43.417293548583984,
+      "max_ns": 44.49971389770508
     },
     {
       "name": "boxed_send_async_1",
       "allocations": 2,
-      "median_ns": 105.76184844970703,
-      "min_ns": 105.32538604736328,
-      "max_ns": 107.44349670410156
+      "median_ns": 99.99783325195312,
+      "min_ns": 99.15733337402344,
+      "max_ns": 101.43089294433594
     },
     {
       "name": "local_lending_1",
       "allocations": 2,
-      "median_ns": 114.44600677490234,
-      "min_ns": 114.00699615478516,
-      "max_ns": 116.3034439086914
+      "median_ns": 99.4272232055664,
+      "min_ns": 98.64393615722656,
+      "max_ns": 100.67939758300781
     },
     {
       "name": "boxed_sync_1000",
       "allocations": 2,
-      "median_ns": 11202.4326171875,
-      "min_ns": 11166.462890625,
-      "max_ns": 11522.8671875
+      "median_ns": 9856.7705078125,
+      "min_ns": 9788.248046875,
+      "max_ns": 9982.462890625
     },
     {
       "name": "boxed_send_async_1000",
       "allocations": 2,
-      "median_ns": 12304.037109375,
-      "min_ns": 12200.2763671875,
-      "max_ns": 12383.7890625
+      "median_ns": 11282.755859375,
+      "min_ns": 11081.1357421875,
+      "max_ns": 11500.4072265625
     },
     {
       "name": "local_lending_1000",
       "allocations": 1001,
-      "median_ns": 28808.4296875,
-      "min_ns": 28505.208984375,
-      "max_ns": 29025.390625
+      "median_ns": 22198.404296875,
+      "min_ns": 21833.4140625,
+      "max_ns": 22374.267578125
     }
   ]
 }

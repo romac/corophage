@@ -467,20 +467,20 @@ Run the state-change example with `cargo run --example debug_snapshot`. Add `-- 
 
 ## Performance
 
-The concrete implementation at commit `6d073a9` was measured against commit `fa68b5a` on the same macOS arm64 machine with Rust 1.97.1, release optimization, and LTO. These are medians for complete operations, including construction and execution:
+The current implementation at commit `6cc6ff2` was measured against the boxed implementation at commit `fa68b5a` on the same macOS arm64 machine with Rust 1.99.1, release optimization, and LTO. These are medians for complete operations, including construction and execution:
 
-| Operation | Boxed baseline | Concrete default |
+| Operation | Boxed baseline | Current |
 | --- | ---: | ---: |
-| Construct and drop | 16.1 ns | 0.7 ns |
-| 1,000 sync effects | 10.5 µs | 14.1 µs |
-| 1,000 async effects | 17.6 µs | 16.6 µs |
-| 1,000 stateful sync effects | 10.5 µs | 14.0 µs |
-| 1,000 stateful async effects | 17.7 µs | 14.6 µs |
-| 20 nested invocations, one leaf effect | 2.08 µs | 0.93 µs |
+| Construct and drop | 12.9 ns | 0.7 ns |
+| 1,000 sync effects | 10.4 µs | 9.6 µs |
+| 1,000 async effects | 16.2 µs | 11.6 µs |
+| 1,000 stateful sync effects | 10.4 µs | 9.5 µs |
+| 1,000 stateful async effects | 17.2 µs | 12.1 µs |
+| 20 nested invocations, one leaf effect | 1.84 µs | 0.74 µs |
 
 Construction performs no allocation. A flat computation with 1 or 1,000 ordinary handler calls used one runtime allocation, down from two; ordinary dispatch adds no per-call allocation. Explicit body boxing adds one allocation, and each `local` or `local_stateful` handler call boxes its future.
 
-Concrete storage is larger: the measured flat execution future grew from 312 to 528 bytes, and the depth-20 future occupies 9,088 bytes. These sizes exclude heap storage used by boxed bodies. The common measurement binary grew by 7.5%, and one clean build took 7.8 seconds versus 6.7 seconds. These results describe this fixture and toolchain, not a general performance guarantee.
+Concrete storage is larger: the measured flat async execution future grew from 280 to 448 bytes, and the depth-20 future occupies 8,048 bytes. These sizes exclude heap storage used by boxed bodies. The common measurement binary grew by 4.2%, and one clean build took 6.7 seconds versus 5.7 seconds. These results describe this fixture and toolchain, not a general performance guarantee.
 
 Run `python3 scripts/execution/measure.py` from the repository root to reproduce the isolated comparison. The [performance documentation](https://corophage.rs/docs/performance/) gives the method, tradeoffs, and refreshed Divan nesting results. Run the Divan suites with `cargo bench`; their nesting fixtures are shared with regression tests that check peak active depth and effect counts. The stress suite counts active programs (leaf depth 1), while the comparison above counts invocation edges (leaf depth 0).
 

@@ -4,44 +4,44 @@ weight = 7
 description = "Measured execution costs and concrete future storage tradeoffs."
 +++
 
-The default concrete implementation at commit `6d073a9` was compared with the boxed implementation at commit `fa68b5a` on 2026-09-09. The candidate was measured with no tracked changes, and the recorded source and generated-fixture hashes match that commit. Both builds used the same macOS arm64 machine, Rust 1.97.1, release optimization, LTO, and one code generation unit.
+The current implementation at commit `6cc6ff2` was compared with the boxed implementation at commit `fa68b5a` on 2026-10-19. The candidate was measured with no tracked changes, and the recorded source and generated-fixture hashes match that commit. Both builds used the same macOS arm64 machine, Rust 1.99.1, release optimization, LTO, and one code generation unit.
 
 ## Execution costs
 
 Each row measures a complete operation, including construction and execution. Async cases use a warmed Tokio runtime on the current thread with immediately ready handlers; the cooperative dispatch budget remains enabled.
 
-| Operation | Boxed baseline | Concrete default |
+| Operation | Boxed baseline | Current |
 | --- | ---: | ---: |
-| Construct and drop | 16.1 ns | 0.7 ns |
-| One sync effect | 50.4 ns | 35.3 ns |
-| One async effect | 125.0 ns | 92.2 ns |
-| 1,000 sync effects | 10.5 µs | 14.1 µs |
-| 1,000 async effects | 17.6 µs | 16.6 µs |
-| 1,000 stateful sync effects | 10.5 µs | 14.0 µs |
-| 1,000 stateful async effects | 17.7 µs | 14.6 µs |
-| Five nested invocations | 436 ns | 246 ns |
-| Ten nested invocations | 863 ns | 471 ns |
-| Twenty nested invocations | 2,076 ns | 932 ns |
+| Construct and drop | 12.9 ns | 0.7 ns |
+| One sync effect | 44.9 ns | 28.1 ns |
+| One async effect | 114.5 ns | 92.2 ns |
+| 1,000 sync effects | 10.4 µs | 9.6 µs |
+| 1,000 async effects | 16.2 µs | 11.6 µs |
+| 1,000 stateful sync effects | 10.4 µs | 9.5 µs |
+| 1,000 stateful async effects | 17.2 µs | 12.1 µs |
+| Five nested invocations | 406 ns | 209 ns |
+| Ten nested invocations | 734 ns | 376 ns |
+| Twenty nested invocations | 1,838 ns | 745 ns |
 
-Nested cases perform one effect at the leaf. Depth counts invocation edges, so depth 20 has 21 active programs. Every generated level invokes the preceding level exactly once. This comparison uses its own generated chains; corrected Divan stress fixtures are measured separately below.
+Nested cases perform one effect at the leaf and run synchronously. Depth counts invocation edges, so depth 20 has 21 active programs. Every generated level invokes the preceding level exactly once. This comparison uses its own generated chains; corrected Divan stress fixtures are measured separately below.
 
-Construction and nesting improve, while the 1,000-effect synchronous loops take about 33% longer than the boxed baseline at `fa68b5a` in this fixture. Real handlers can have much larger costs than the dispatch itself. Do not apply these ratios to an application without measuring it.
+The current implementation is faster in every row. Construction no longer allocates, nested invocations take 49–60% less time, and the 1,000-effect loops are 8–9% faster when synchronous and 29–30% faster when asynchronous. Synchronous runners poll the program directly in an inline loop; async runners use the cooperative loop. Real handlers can have much larger costs than the dispatch itself. Do not apply these ratios to an application without measuring it.
 
 ## Stress nesting benchmarks
 
-The corrected Divan fixtures were measured on 2026-09-09 with the concrete default on macOS arm64, Rust 1.97.1, and the workspace's optimized bench profile with LTO. Each case has 1,000 samples of 1,000 iterations. The medians include program construction, synchronous execution with a no-op handler, and destruction.
+The corrected Divan fixtures were measured on 2026-10-19 at commit `6cc6ff2` on macOS arm64, Rust 1.99.1, and the workspace's optimized bench profile with LTO. Each case has 1,000 samples of 1,000 iterations. The medians include program construction, synchronous execution with a no-op handler, and destruction.
 
 This suite counts active programs: the leaf has depth 1, and depth 20 has 19 invocation edges. The leaf-only case yields once. The other case yields once in each program and returns the number of yields. Regression tests run these same fixtures with guards that check peak active depth and handler calls; timing runs use a no-op observer.
 
 | Depth (active programs) | One leaf effect | One effect per level |
 | --- | ---: | ---: |
-| 1 | 34.33 ns | 31.46 ns |
-| 2 | 66.13 ns | 80.58 ns |
-| 3 | 103.2 ns | 136.7 ns |
-| 5 | 199.9 ns | 294.7 ns |
-| 10 | 443.2 ns | 936.1 ns |
-| 15 | 726.2 ns | — |
-| 20 | 969.9 ns | — |
+| 1 | 28.08 ns | 28.7 ns |
+| 2 | 59.95 ns | 68.58 ns |
+| 3 | 94.58 ns | 121.7 ns |
+| 5 | 176.8 ns | 262.2 ns |
+| 10 | 376.5 ns | 795.4 ns |
+| 15 | 584.7 ns | — |
+| 20 | 799.5 ns | — |
 
 The old depth-15 and depth-20 fixtures both peaked at 11 active programs and yielded twice. The old depth-10 yielding fixture peaked at 6 programs and yielded 11 times. Their timings cannot support conclusions about the labelled depths; this table replaces those results.
 
@@ -59,14 +59,14 @@ The raw Divan output and source hashes are recorded in `corophage/benches/result
 
 Allocations were counted separately from timings, after runtime warmup.
 
-| Case | Boxed baseline | Concrete default |
+| Case | Boxed baseline | Current |
 | --- | ---: | ---: |
 | Construct and drop | 1 allocation | 0 allocations |
 | Flat run, 1 or 1,000 ordinary effects | 2 allocations | 1 allocation |
 | Twenty nested invocations | 42 allocations | 21 allocations |
-| Unhandled flat program | 48 bytes | 184 bytes |
-| Flat execution future | 312 bytes | 528 bytes |
-| Depth-20 execution future | 312 bytes | 9,088 bytes |
+| Unhandled flat program | 48 bytes | 160 bytes |
+| Flat async execution future | 280 bytes | 448 bytes |
+| Depth-20 async execution future | 280 bytes | 8,048 bytes |
 
 Future sizes exclude heap allocations. The boxed baseline stores each body separately on the heap; concrete bodies are stored inside the surrounding future. Invocation stores each child once, so concrete storage grows linearly with the chain depth. Use explicit boxing for recursive programs or to limit stored type size.
 
@@ -74,7 +74,7 @@ Explicit body boxing adds one allocation per body. A flat run using `local` requ
 
 ## Build and code size
 
-The common measurement binary grew from 541,696 to 582,512 bytes (7.5%). Its Mach-O `__TEXT` segment grew from 384 to 416 KiB. One clean offline build, including dependencies, took 6.7 seconds for the baseline and 7.8 seconds for the candidate. These are single build observations, not stable estimates of application compile time or library footprint.
+The common measurement binary grew from 545,808 to 568,800 bytes (4.2%). Its Mach-O `__TEXT` segment grew from 384 to 400 KiB. One clean offline build, including dependencies, took 5.7 seconds for the baseline and 6.7 seconds for the candidate. These are single build observations, not stable estimates of application compile time or library footprint.
 
 ## Reproduce
 

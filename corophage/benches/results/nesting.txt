@@ -1,22 +1,22 @@
-Corrected stress nesting measurements: 2026-09-09
+Stress nesting measurements: 2026-10-19
 Command: cargo bench -p corophage --bench stress -- nesting_depth --sample-count 1000 --sample-size 1000 --color never
 Profile: workspace bench profile (optimized, LTO enabled)
-Revision: working tree after execution simplification and deep-review finding 7 fixes
+Revision: 6cc6ff2597f68379bb0a17b400bac02ab6b80376 (inline synchronous execution loop)
 Depth convention: active programs, leaf = 1 (invoke edges = depth - 1)
-Platform: macOS-26.6.1-arm64-arm-64bit
+Platform: macOS-27.0.1-arm64-arm-64bit-Mach-O
 
-rustc 1.97.1 (8bab26f4f 2026-07-14)
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
 binary: rustc
-commit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452
-commit-date: 2026-07-14
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
 host: aarch64-apple-darwin
-release: 1.97.1
-LLVM version: 22.1.6
+release: 1.99.1
+LLVM version: 23.1.1
 
 Source SHA-256:
 548e816cf65bba67813bd430229493fbc07604a7f06f43215c702dcb6c5f2db2  Cargo.toml
-74c9730fad3e0ee5a76d06a15d6a4be7d0f158a103b227812de20b603dd150b4  Cargo.lock
-1ff1026e8eda229af058e38b7ba0ef6fc31050fa0a6b8dbd44fbaf6f54848b3b  corophage/Cargo.toml
+0b487248e7db712b9df122089497989594680fcb6e19b72f1f84baa6e05dd6d4  Cargo.lock
+779504982b274db5f25ea6a97ac9ae89d30fedfa89144b2ac0c69f423a0b97f5  corophage/Cargo.toml
 cd04f987d48c6bb10adb52445f7133c4d6c29e09e05da4e6f75e3a9fea152f74  corophage/benches/stress.rs
 07a6766e12b3b4b590dfd07b35f09379ea1d7cedf3b40c44c11f92b48ca9a6b6  corophage/benches/support/nesting.rs
 f297710f6662978c07f22adfc0be22673d3af2be3cc10d55b13a37421f3b8d97  corophage/tests/benchmark_nesting.rs
@@ -25,16 +25,17 @@ Timer precision: 41 ns
 stress                           fastest       │ slowest       │ median        │ mean          │ samples │ iters
 ╰─ deep_nesting                                │               │               │               │         │
    ├─ nesting_depth                            │               │               │               │         │
-   │  ├─ 1                       29.87 ns      │ 770.1 ns      │ 34.33 ns      │ 34.97 ns      │ 1000    │ 1000000
-   │  ├─ 2                       63.5 ns       │ 107.7 ns      │ 66.13 ns      │ 67.08 ns      │ 1000    │ 1000000
-   │  ├─ 3                       99.29 ns      │ 158.7 ns      │ 103.2 ns      │ 104.6 ns      │ 1000    │ 1000000
-   │  ├─ 5                       191.2 ns      │ 257.2 ns      │ 199.9 ns      │ 201.6 ns      │ 1000    │ 1000000
-   │  ├─ 10                      424.7 ns      │ 581.5 ns      │ 443.2 ns      │ 445.5 ns      │ 1000    │ 1000000
-   │  ├─ 15                      699.7 ns      │ 878.7 ns      │ 726.2 ns      │ 729.7 ns      │ 1000    │ 1000000
-   │  ╰─ 20                      930.8 ns      │ 1.18 µs       │ 969.9 ns      │ 972.4 ns      │ 1000    │ 1000000
+   │  ├─ 1                       27.7 ns       │ 67.25 ns      │ 28.08 ns      │ 28.58 ns      │ 1000    │ 1000000
+   │  ├─ 2                       59.7 ns       │ 118 ns        │ 59.95 ns      │ 61.5 ns       │ 1000    │ 1000000
+   │  ├─ 3                       91.75 ns      │ 126.5 ns      │ 94.58 ns      │ 95.78 ns      │ 1000    │ 1000000
+   │  ├─ 5                       170.2 ns      │ 220.8 ns      │ 176.8 ns      │ 178.6 ns      │ 1000    │ 1000000
+   │  ├─ 10                      357.4 ns      │ 519.8 ns      │ 376.5 ns      │ 382 ns        │ 1000    │ 1000000
+   │  ├─ 15                      562.7 ns      │ 689.4 ns      │ 584.7 ns      │ 589.6 ns      │ 1000    │ 1000000
+   │  ╰─ 20                      770.2 ns      │ 916.2 ns      │ 799.5 ns      │ 805.4 ns      │ 1000    │ 1000000
    ╰─ nesting_depth_with_yields                │               │               │               │         │
-      ├─ 1                       30.42 ns      │ 58.96 ns      │ 31.46 ns      │ 31.96 ns      │ 1000    │ 1000000
-      ├─ 2                       76.79 ns      │ 126.3 ns      │ 80.58 ns      │ 81.7 ns       │ 1000    │ 1000000
-      ├─ 3                       131.7 ns      │ 184 ns        │ 136.7 ns      │ 138.4 ns      │ 1000    │ 1000000
-      ├─ 5                       281.5 ns      │ 377.3 ns      │ 294.7 ns      │ 297.7 ns      │ 1000    │ 1000000
-      ╰─ 10                      901.6 ns      │ 1.11 µs       │ 936.1 ns      │ 940.7 ns      │ 1000    │ 1000000
+      ├─ 1                       28.58 ns      │ 81.29 ns      │ 28.7 ns       │ 29.11 ns      │ 1000    │ 1000000
+      ├─ 2                       67.87 ns      │ 92.62 ns      │ 68.58 ns      │ 69.55 ns      │ 1000    │ 1000000
+      ├─ 3                       118.3 ns      │ 162.1 ns      │ 121.7 ns      │ 123.6 ns      │ 1000    │ 1000000
+      ├─ 5                       251.6 ns      │ 334.5 ns      │ 262.2 ns      │ 267.7 ns      │ 1000    │ 1000000
+      ╰─ 10                      766.1 ns      │ 893 ns        │ 795.4 ns      │ 800.7 ns      │ 1000    │ 1000000
+
