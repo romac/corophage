@@ -9,7 +9,7 @@ Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_co
 - `corophage/src/control.rs` — `Control<R>` (user-facing resume/cancel), `CoControl<'a, Effs>` (internal resume/cancel), and `Cancelled`
 - `corophage/src/coproduct/dispatch.rs` — one mutable dispatch protocol with named branch/injection futures, synchronous metadata, and explicit `local`/`local_stateful` lending adapters
 - `corophage/src/coproduct.rs` — handler-kind inference, effect/resume conversion, and two retained local async compatibility dispatch families (`AsyncHandleMut`/`AsyncHandleWith`)
-- `corophage/src/execution.rs` — common execution loop, one state owner, short handler/state loans, and checked `Send` compatibility wrapper
+- `corophage/src/execution.rs` — cooperative async loop and inline synchronous loop sharing one dispatch protocol, one state owner, short handler/state loans, and checked `Send` compatibility wrapper
 - `corophage/src/locality.rs` — `Locality` sealed trait, `Local` and `Sendable` marker types for controlling `Send`-ness of `Co`
 - `corophage/src/macros.rs` — the `Effects!` public macro and the `yield_!`/`invoke!` fallback macros
 - `corophage/src/lib.rs` — low-level sync/async compatibility runners, the remaining local `run!` macro, and primary exports including `Locality`/`Local`/`Sendable` and the local lending adapters

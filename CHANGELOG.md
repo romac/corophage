@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Synchronous execution (`.run_sync()`, `sync::run`, and `sync::run_stateful`) polls the program directly instead of driving the async execution loop. In our measurements this is about 7–12% faster for flat programs and 13–22% faster for 20 nested invocations, with the same allocations.
+
 ## v0.6.1 (2026-10-11)
 
 ### Added

@@ -232,7 +232,7 @@ pub mod sync {
     use crate::coproduct::dispatch::{Dispatch, Synchronous};
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
-    use crate::execution::{CoproductDispatch, drive, inline};
+    use crate::execution::{CoproductDispatch, drive_inline};
     use crate::locality::Locality;
 
     use super::*;
@@ -254,12 +254,12 @@ pub mod sync {
         ES: Effects<'a> + for<'c> Dispatch<'a, ES, &'c mut (), &'c mut &'h mut F, Indices>,
         Indices: Synchronous,
     {
-        inline(drive::<false, _, _, _, _, _, _>(
+        drive_inline(
             co.generator(),
             (),
             handler,
             CoproductDispatch::<'a, ES, Indices>::new(),
-        ))
+        )
     }
 
     /// Run a coroutine with an hlist of synchronous handlers and shared mutable state.
@@ -280,11 +280,11 @@ pub mod sync {
         ES: Effects<'a> + for<'c> Dispatch<'a, ES, &'c mut S, &'c mut &'h F, Indices>,
         Indices: Synchronous,
     {
-        inline(drive::<false, _, _, _, _, _, _>(
+        drive_inline(
             co.generator(),
             state,
             handler,
             CoproductDispatch::<'a, ES, Indices>::new(),
-        ))
+        )
     }
 }

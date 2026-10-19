@@ -1,4 +1,5 @@
-//! A single execution loop, with scheduling selected by the entry point.
+//! Two execution loops share one dispatch protocol and state owner: a
+//! cooperative async loop, and an inline loop for synchronous dispatch.
 
 use std::future::Future;
 use std::marker::PhantomData;
@@ -69,7 +70,7 @@ where
     }
 }
 
-pub(crate) async fn drive<const COOPERATIVE: bool, G, S, H, D, E, A>(
+pub(crate) async fn drive<G, S, H, D, E, A>(
     generator: G,
     mut state: S,
     mut handlers: H,
@@ -92,13 +93,11 @@ where
                     Coproduct::Inl(_) => unreachable!("Start must not be yielded"),
                 };
                 // Completion at the budget boundary needs no extra poll.
-                if COOPERATIVE {
-                    if budget == 0 {
-                        crate::yield_to_executor().await;
-                        budget = crate::ASYNC_DISPATCH_BUDGET;
-                    }
-                    budget -= 1;
+                if budget == 0 {
+                    crate::yield_to_executor().await;
+                    budget = crate::ASYNC_DISPATCH_BUDGET;
                 }
+                budget -= 1;
                 match dispatch
                     .dispatch(
                         effect,
@@ -119,19 +118,55 @@ where
     }
 }
 
-pub(crate) fn inline<F: Future>(future: F) -> F::Output {
-    let mut future = std::pin::pin!(future);
-    match future
-        .as_mut()
-        .poll(&mut Context::from_waker(Waker::noop()))
-    {
-        Poll::Ready(value) => value,
-        Poll::Pending => {
-            panic!(
+/// Poll the generator and each dispatch future directly, without an async
+/// state machine. The generator is pinned once, in place, which avoids moving
+/// large concrete bodies into an enclosing future.
+///
+/// Callers must restrict dispatch to [`Synchronous`] handlers, whose futures
+/// are always ready.
+///
+/// [`Synchronous`]: crate::coproduct::dispatch::Synchronous
+pub(crate) fn drive_inline<G, S, H, D, E, A>(
+    generator: G,
+    mut state: S,
+    mut handlers: H,
+    dispatch: D,
+) -> Result<G::Return, Cancelled>
+where
+    G: AsyncGenerator<Coproduct<Start, A>, Yield = Coproduct<Start, E>>,
+    S: State,
+    D: for<'call> Dispatcher<CallContext<'call, S::Value, H>, E, A>,
+{
+    let mut generator = std::pin::pin!(generator);
+    let mut context = Context::from_waker(Waker::noop());
+    let mut argument = Some(Coproduct::Inl(Start));
+    loop {
+        let effect = match generator
+            .as_mut()
+            .poll_resume(&mut context, argument.take())
+        {
+            Poll::Ready(GeneratorState::Complete(value)) => return Ok(value),
+            Poll::Ready(GeneratorState::Yielded(Coproduct::Inr(effect))) => effect,
+            Poll::Ready(GeneratorState::Yielded(Coproduct::Inl(_))) => {
+                unreachable!("Start must not be yielded")
+            }
+            Poll::Pending => panic!(
                 "computation suspended on a non-effect future; use an async runner instead. \
                  Nested `.run().await` calls also suspend after a bounded number of effects; \
                  use `invoke` or `.run_sync()` for sub-programs of a synchronous program"
-            )
+            ),
+        };
+        let future = std::pin::pin!(dispatch.dispatch(
+            effect,
+            CallContext {
+                state: state.value_mut(),
+                handlers: &mut handlers,
+            },
+        ));
+        match future.poll(&mut context) {
+            Poll::Ready(Control::Cancel) => return Err(Cancelled),
+            Poll::Ready(Control::Resume(value)) => argument = Some(Coproduct::Inr(value)),
+            Poll::Pending => unreachable!("synchronous dispatch is always ready"),
         }
     }
 }
@@ -155,5 +190,5 @@ where
     E: Send,
     A: Send,
 {
-    drive::<true, _, _, _, _, _, _>(generator, state, handlers, dispatch)
+    drive(generator, state, handlers, dispatch)
 }

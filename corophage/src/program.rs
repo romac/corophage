@@ -257,7 +257,7 @@ impl<'a, Effs: Effects<'a>, F: Future, H, S: State> Program<'a, Effs, F, CNil, H
     where
         Effs: for<'call> Dispatch<'a, Effs, &'call mut S::Value, &'call mut H, I>,
     {
-        crate::execution::drive::<true, _, _, _, _, _, _>(
+        crate::execution::drive(
             self.co.generator(),
             self.state,
             self.handlers,
@@ -267,7 +267,7 @@ impl<'a, Effs: Effects<'a>, F: Future, H, S: State> Program<'a, Effs, F, CNil, H
 }
 
 impl<'a, Effs: Effects<'a>, F: Future, H, S: State, Mode> Program<'a, Effs, F, CNil, H, S, Mode> {
-    /// Execute inline with synchronous handlers through the same dispatch loop.
+    /// Execute inline with synchronous handlers through the shared dispatch protocol.
     ///
     /// # Panics
     ///
@@ -280,12 +280,12 @@ impl<'a, Effs: Effects<'a>, F: Future, H, S: State, Mode> Program<'a, Effs, F, C
         Effs: for<'call> Dispatch<'a, Effs, &'call mut S::Value, &'call mut H, I>,
         I: Synchronous,
     {
-        crate::execution::inline(crate::execution::drive::<false, _, _, _, _, _, _>(
+        crate::execution::drive_inline(
             self.co.generator(),
             self.state,
             self.handlers,
             crate::execution::CoproductDispatch::<'a, Effs, I>::new(),
-        ))
+        )
     }
 }
 
