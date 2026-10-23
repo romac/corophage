@@ -567,6 +567,36 @@ fn test_effectful_explicit_lifetime_forms() {
     assert_eq!(inferred_placeholder_lifetime(&value).run_sync(), Ok(5));
 }
 
+#[derive(Debug, PartialEq)]
+struct Missing(&'static str);
+
+#[effectful(Ask, Throw<Missing>)]
+fn ask_or_throw(x: i32) -> usize {
+    if x < 0 {
+        throw!(Missing("negative"));
+    }
+    let answer: &str = if yield_!(Ask(x)) {
+        "yes"
+    } else {
+        throw!(Missing("refused"))
+    };
+    answer.len()
+}
+
+#[test]
+fn test_effectful_throw_in_statement_and_expression_position() {
+    let run = |x, answer| {
+        ask_or_throw(x)
+            .handle(move |_: Ask| Control::resume(answer))
+            .catch()
+            .run_sync()
+    };
+
+    assert_eq!(run(1, true), Ok(Ok(3)));
+    assert_eq!(run(1, false), Ok(Err(Missing("refused"))));
+    assert_eq!(run(-1, true), Ok(Err(Missing("negative"))));
+}
+
 #[effectful(Ask)]
 fn effectful_with_control_flow(x: i32) -> &'static str {
     if yield_!(Ask(x)) {

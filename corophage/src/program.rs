@@ -77,7 +77,7 @@ impl<'a, R> Program<'a, CNil, Ready<R>> {
     }
 }
 
-type HandleEffects<'a, Remaining, H, Effs, HandleIdx, SubsetIdx> =
+pub(crate) type HandleEffects<'a, Remaining, H, Effs, HandleIdx, SubsetIdx> =
     <Remaining as CoproductSubsetter<
         <H as HandlersToEffects<'a, Effs, HandleIdx>>::Effects,
         SubsetIdx,
@@ -102,8 +102,8 @@ pub struct Program<
     Mode = Inferred,
 > {
     pub(crate) co: Coroutine<'a, Effs, F>,
-    state: S,
-    handlers: Handlers,
+    pub(crate) state: S,
+    pub(crate) handlers: Handlers,
     remaining: PhantomData<Remaining>,
     mode: PhantomData<fn() -> Mode>,
 }
@@ -256,7 +256,7 @@ impl<'a, Effs: Effects<'a>, F: Future, H, S: State> Program<'a, Effs, F, CNil, H
         crate::execution::drive(
             self.co.generator(),
             self.state,
-            self.handlers,
+            crate::execution::Owned(self.handlers),
             crate::execution::CoproductDispatch::<'a, Effs, I>::new(),
         )
     }
@@ -279,7 +279,7 @@ impl<'a, Effs: Effects<'a>, F: Future, H, S: State, Mode> Program<'a, Effs, F, C
         crate::execution::drive_inline(
             self.co.generator(),
             self.state,
-            self.handlers,
+            crate::execution::Owned(self.handlers),
             crate::execution::CoproductDispatch::<'a, Effs, I>::new(),
         )
     }
@@ -329,7 +329,7 @@ impl<'a, Effs: Effects<'a>, R, H>
         crate::execution::drive_send(
             self.co.generator(),
             (),
-            self.handlers,
+            crate::execution::Owned(self.handlers),
             crate::execution::CoproductDispatch::<'a, Effs, I>::new(),
         )
     }
@@ -351,7 +351,7 @@ impl<'a, Effs: Effects<'a>, R, H>
         crate::execution::drive_send(
             self.co.generator(),
             state,
-            self.handlers,
+            crate::execution::Owned(self.handlers),
             crate::execution::CoproductDispatch::<'a, Effs, I>::new(),
         )
     }

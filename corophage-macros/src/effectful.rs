@@ -256,6 +256,13 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
                     }
                 }
 
+                #[allow(unused_macros)]
+                macro_rules! throw {
+                    ($error:expr) => {
+                        match #yielder.yield_(#corophage::Throw($error)).await {}
+                    }
+                }
+
                 #(#body)*
             }) #boxing
         }

@@ -7,14 +7,15 @@ Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_co
 - `corophage/src/effect.rs` — `Effect` trait (with GAT `Resume<'r>`), `MapResume` (with GAT `Output<'r>`), `Resumes<'r, E>`, `Effects`, `Start`, `CanStart`
 - `corophage/src/coroutine.rs` — concrete `Coroutine<'a, Effs, F>`, erased `GenericCo<'a, Effs, Return, L>` with `Co`/`CoSend` aliases, pin-projected transport and invocation futures, and `Yielder<'a, Effs>`
 - `corophage/src/control.rs` — `Control<R>` (handler resume/cancel) and `Cancelled`
+- `corophage/src/catch.rs` — the `Throw<E>` effect, `Program::catch`, and the `Catch` runner, which lends its handler list to the execution loop and reads the thrown error back
 - `corophage/src/coproduct/dispatch.rs` — one mutable dispatch protocol with named branch/injection futures, synchronous metadata, and explicit `local`/`local_stateful` lending adapters
 - `corophage/src/coproduct.rs` — handler-kind inference and effect/resume conversion
-- `corophage/src/execution.rs` — cooperative async loop and inline synchronous loop sharing one dispatch protocol, one state owner, short handler/state loans, and checked `Send` compatibility wrapper
+- `corophage/src/execution.rs` — cooperative async loop and inline synchronous loop sharing one dispatch protocol, one state owner, owned or lent handler lists (`HandlerOwner`), short handler/state loans, and checked `Send` compatibility wrapper
 - `corophage/src/locality.rs` — `Locality` sealed trait, `Local` and `Sendable` marker types for controlling `Send`-ness of `Co`, and the execution mode of erased programs (`Local` uses inferred execution, `Sendable` keeps explicit `Send` methods)
-- `corophage/src/macros.rs` — the `Effects!` public macro and the `yield_!`/`invoke!` fallback macros
+- `corophage/src/macros.rs` — the `Effects!` public macro and the `yield_!`/`invoke!`/`throw!` fallback macros
 - `corophage/src/lib.rs` — low-level sync/async runners and primary exports including `Locality`/`Local`/`Sendable` and the local lending adapters
 - `corophage/src/program.rs` — `Program<'a, Effs, F>` retains a concrete body by default; `.with_state()` binds state and `.run()`/`.run_sync()` execute. `Effectful<'a, Effs, R, L>` is the explicit erased alias; `.boxed()`/`.boxed_send()`, `new_send`, and `from_co` preserve erased signatures and terminal contracts.
-- `corophage/src/prelude.rs` — re-exports core types (`Effect`, `Effectful`, `Effects!`, `Control`, `Cancelled`, `Never`, `Program`, `Yielder`, `frunk`, `hlist`); `Co`/`CoSend`/`sync`/`asynk` are public but not in prelude
+- `corophage/src/prelude.rs` — re-exports core types (`Effect`, `Effectful`, `Effects!`, `Control`, `Cancelled`, `Never`, `Program`, `Throw`, `Yielder`, `frunk`, `hlist`); `Co`/`CoSend`/`sync`/`asynk` are public but not in prelude
 - `corophage-macros/` — `corophage-macros` proc-macro crate providing `#[effect]` and `#[effectful]` attribute macros
 
 ## Key Design Constraints

@@ -88,3 +88,34 @@ struct Cancel;
 ```
 
 The `Never` resume type indicates this effect can never resume — the handler must always cancel.
+
+## Throwing errors
+
+`Control::cancel()` does not record why the computation stopped. To abort with a typed error, yield the built-in `Throw<E>` effect and catch it when running:
+
+```rust
+#[effect(Option<String>)]
+struct Lookup(u64);
+
+#[derive(Debug)]
+struct NotFound(u64);
+
+#[effectful(Lookup, Throw<NotFound>)]
+fn find_user(id: u64) -> String {
+    match yield_!(Lookup(id)) {
+        Some(user) => user,
+        None => throw!(NotFound(id)),
+    }
+}
+
+let result: Result<Result<String, NotFound>, Cancelled> = find_user(42)
+    .handle(|_: Lookup| Control::resume(None))
+    .catch()
+    .run_sync();
+```
+
+`.catch()` handles `Throw<E>` and changes what the run returns: `Ok(Ok(value))` on completion, `Ok(Err(error))` when the program throws, and `Err(Cancelled)` when a handler cancels. Use `?` to propagate the cancellation and keep the error: `find_user(42).handle(...).catch().run_sync()?` has type `Result<String, NotFound>`. Both `.run()` and `.run_sync()` are available after `.catch()`.
+
+Inside `#[effectful]` functions, `throw!(error)` can stand in for a value of any type. In a `Program::new` closure, use `y.throw(error).await`. In statement position, write `return y.throw(error).await` so the type can be inferred.
+
+Attach the other handlers and bind state before calling `.catch()`. A program catches one error type; use an enum when several errors are possible. A throw from an invoked sub-program aborts the whole computation, and catching inside a program body is not supported yet. Without `.catch()`, `Throw<E>` is an ordinary effect that you can handle like any other.

@@ -22,6 +22,18 @@ macro_rules! invoke {
     };
 }
 
+/// Fallback `throw!` macro that produces a clear error when used outside
+/// an `#[effectful]` function.
+///
+/// Inside an `#[effectful]` function, this macro is shadowed by a local
+/// `macro_rules!` definition that yields [`Throw`](crate::Throw) and diverges.
+#[macro_export]
+macro_rules! throw {
+    ($($tt:tt)*) => {
+        ::core::compile_error!("throw!() can only be used inside an #[effectful] function")
+    };
+}
+
 /// Constructs a coproduct type from a list of [`Effect`](crate::Effect) types.
 ///
 /// `Effects![A, B, C]` expands to `Coprod!(A, B, C)` from `frunk_core`.

@@ -225,6 +225,8 @@ A **Handler** is a function (sync or async) that implements the logic for a spec
 *   `Control::resume(value)`: Resumes the computation, passing `value` back as the result of the `yield_`. The type of `value` must match the effect's `Resume` type.
 *   `Control::cancel()`: Aborts the entire computation immediately. The final result of the run will be `Err(Cancelled)`.
 
+To abort with a typed error instead, yield the built-in `Throw<E>` effect, with `throw!(error)` inside `#[effectful]` functions, and run with `.catch()`. The caught run returns `Ok(Err(error))` for a throw and keeps `Err(Cancelled)` for cancellation. See [Throwing errors](https://corophage.rs/docs/handlers/#throwing-errors).
+
 ```rust,ignore
 // Sync handler — a regular closure
 |Log(msg)| {

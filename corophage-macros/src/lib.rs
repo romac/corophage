@@ -38,7 +38,8 @@ pub fn effect(
 /// Mark a function as an effectful computation.
 ///
 /// Transforms the function to return a `Program` with a concrete body future and
-/// enables `yield_!()` and `invoke!()` inside the function body. Auto traits such
+/// enables `yield_!()`, `invoke!()`, and `throw!()` inside the function body.
+/// `throw!(error)` yields `Throw(error)` and diverges. Auto traits such
 /// as `Send` remain available without a flag when the body permits them.
 /// Borrowed wrapper arguments such as `Cow<'_, str>` are supported, including
 /// nested wrappers whose placeholder lifetimes are inferred independently.

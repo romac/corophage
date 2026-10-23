@@ -33,6 +33,31 @@ impl<S> State for &mut S {
     }
 }
 
+/// The owner of a handler list: the list itself, or a borrow of it. A runner
+/// that lends its list can inspect the handlers after execution.
+pub(crate) trait HandlerOwner {
+    type List;
+    fn list(&mut self) -> &mut Self::List;
+}
+
+/// An owned handler list, consumed by the execution loop.
+pub(crate) struct Owned<H>(pub(crate) H);
+
+impl<H> HandlerOwner for Owned<H> {
+    type List = H;
+    fn list(&mut self) -> &mut H {
+        &mut self.0
+    }
+}
+
+// Lending the list lets a runner read handler state after execution.
+impl<H> HandlerOwner for &mut H {
+    type List = H;
+    fn list(&mut self) -> &mut H {
+        self
+    }
+}
+
 /// Keep resume and effect types independent of GAT projections in the async
 /// loop. This makes the concrete dispatch and resume futures' auto traits
 /// available without rustc's higher-ranked opaque-future limitation (#100013).
@@ -79,7 +104,8 @@ pub(crate) async fn drive<G, S, H, D, E, A>(
 where
     G: AsyncGenerator<Coproduct<Start, A>, Yield = Coproduct<Start, E>>,
     S: State,
-    D: for<'call> Dispatcher<CallContext<'call, S::Value, H>, E, A>,
+    H: HandlerOwner,
+    D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
 {
     let mut generator = std::pin::pin!(generator);
     let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
@@ -103,7 +129,7 @@ where
                         effect,
                         CallContext {
                             state: state.value_mut(),
-                            handlers: &mut handlers,
+                            handlers: handlers.list(),
                         },
                     )
                     .await
@@ -135,7 +161,8 @@ pub(crate) fn drive_inline<G, S, H, D, E, A>(
 where
     G: AsyncGenerator<Coproduct<Start, A>, Yield = Coproduct<Start, E>>,
     S: State,
-    D: for<'call> Dispatcher<CallContext<'call, S::Value, H>, E, A>,
+    H: HandlerOwner,
+    D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
 {
     let mut generator = std::pin::pin!(generator);
     let mut context = Context::from_waker(Waker::noop());
@@ -160,7 +187,7 @@ where
             effect,
             CallContext {
                 state: state.value_mut(),
-                handlers: &mut handlers,
+                handlers: handlers.list(),
             },
         ));
         match future.poll(&mut context) {
@@ -184,9 +211,9 @@ where
     G::Return: Send,
     S: State + Send,
     S::Value: Send,
-    H: Send,
-    D: Send + for<'c> Dispatcher<CallContext<'c, S::Value, H>, E, A>,
-    for<'c> <D as Dispatcher<CallContext<'c, S::Value, H>, E, A>>::Future: Send,
+    H: HandlerOwner + Send,
+    D: Send + for<'c> Dispatcher<CallContext<'c, S::Value, H::List>, E, A>,
+    for<'c> <D as Dispatcher<CallContext<'c, S::Value, H::List>, E, A>>::Future: Send,
     E: Send,
     A: Send,
 {

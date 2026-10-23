@@ -341,6 +341,21 @@ where
         }
     }
 
+    /// Throw an error, aborting the computation.
+    ///
+    /// Yields [`Throw`](crate::Throw) and never returns, so the call can stand in
+    /// for a value of any type. [`Program::catch`](crate::Program::catch) returns
+    /// the error from the run. In statement position, write
+    /// `return y.throw(error).await` so the type can be inferred.
+    #[inline]
+    pub async fn throw<T, E, Index>(&mut self, error: E) -> T
+    where
+        Effs: CoprodInjector<crate::Throw<E>, Index>,
+        <Effs as MapResume>::Output<'a>: CoprodUninjector<crate::Never, Index>,
+    {
+        match self.yield_(crate::Throw(error)).await {}
+    }
+
     /// Invoke a sub-program, forwarding its effects through this yielder.
     ///
     /// The sub-program's effects must be a subset of this yielder's effects.

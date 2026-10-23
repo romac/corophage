@@ -22,6 +22,11 @@ note: required because it appears within the type `HCons<{closure@$DIR/tests/com
    |
    | pub struct HCons<H, T> {
    |            ^^^^^
+note: required because it appears within the type `corophage::execution::Owned<HCons<{closure@$DIR/tests/compile_fail/execution_non_send_handler.rs:14:35: 14:48}, HNil>>`
+  --> src/execution.rs
+   |
+   | pub(crate) struct Owned<H>(pub(crate) H);
+   |                   ^^^^^
 note: required because it's used within this `async` fn body
   --> src/execution.rs
    |

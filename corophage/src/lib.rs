@@ -8,6 +8,7 @@ mod coproduct;
 
 pub use coproduct::{EmbedEffect, ProjectResume};
 
+mod catch;
 mod control;
 mod effect;
 mod execution;
@@ -25,6 +26,7 @@ pub mod coroutine;
 #[doc(hidden)]
 pub use frunk_core as __frunk_core;
 
+pub use catch::{Catch, Throw};
 pub use control::{Cancelled, Control};
 pub use coproduct::dispatch::{LocalHandler, LocalStatefulHandler, local, local_stateful};
 pub use coroutine::{Co, CoSend, Yielder};
@@ -74,7 +76,7 @@ pub mod asynk {
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
     use crate::effect::Resumes;
-    use crate::execution::{CoproductDispatch, drive, drive_send};
+    use crate::execution::{CoproductDispatch, Owned, drive, drive_send};
     use crate::locality::{Locality, Sendable};
 
     use super::*;
@@ -97,7 +99,7 @@ pub mod asynk {
         drive(
             co.generator(),
             (),
-            handler,
+            Owned(handler),
             CoproductDispatch::<'a, ES, Indices>::new(),
         )
     }
@@ -119,7 +121,7 @@ pub mod asynk {
         drive_send(
             co.generator(),
             (),
-            handler,
+            Owned(handler),
             CoproductDispatch::<'a, ES, I>::new(),
         )
     }
@@ -143,7 +145,7 @@ pub mod asynk {
         drive(
             co.generator(),
             state,
-            handler,
+            Owned(handler),
             CoproductDispatch::<'a, ES, Indices>::new(),
         )
     }
@@ -167,7 +169,7 @@ pub mod asynk {
         drive_send(
             co.generator(),
             state,
-            handler,
+            Owned(handler),
             CoproductDispatch::<'a, ES, I>::new(),
         )
     }
@@ -181,7 +183,7 @@ pub mod sync {
     use crate::coproduct::dispatch::{Dispatch, Synchronous};
     use crate::coroutine::GenericCo;
     use crate::effect::Effects;
-    use crate::execution::{CoproductDispatch, drive_inline};
+    use crate::execution::{CoproductDispatch, Owned, drive_inline};
     use crate::locality::Locality;
 
     use super::*;
@@ -206,7 +208,7 @@ pub mod sync {
         drive_inline(
             co.generator(),
             (),
-            handler,
+            Owned(handler),
             CoproductDispatch::<'a, ES, Indices>::new(),
         )
     }
@@ -232,7 +234,7 @@ pub mod sync {
         drive_inline(
             co.generator(),
             state,
-            handler,
+            Owned(handler),
             CoproductDispatch::<'a, ES, Indices>::new(),
         )
     }

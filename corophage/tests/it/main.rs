@@ -1,5 +1,6 @@
 mod asynk;
 mod cancel;
+mod catch;
 mod common;
 #[cfg(all(feature = "macros", not(miri)))]
 mod downstream;
