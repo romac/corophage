@@ -43,6 +43,15 @@ pub struct ReadDir { pub path: String, pub recursive: bool }
 pub struct Lookup(pub String);
 ```
 
+A resume type that borrows a value of a type parameter, such as `&'r T`, needs that parameter to be `'static`:
+
+```rust
+#[effect(&'r T)]
+pub struct Get<T: Send + Sync + 'static>(pub std::marker::PhantomData<T>);
+```
+
+Only the type parameter must be `'static`. The handler can still resume with a short-lived borrow, such as a reference to a local value, and the program remains `Send`. Without the bound, the compiler reports that `T` may not live long enough. Removing the requirement would break `Send` for effects with lifetime parameters because of a current compiler limitation ([rust-lang/rust#100013](https://github.com/rust-lang/rust/issues/100013)).
+
 ## Manual `Effect` implementation
 
 If you need to implement the `Effect` trait by hand (without the macro), you must provide both the `Resume` associated type and the `shorten_resume` method:

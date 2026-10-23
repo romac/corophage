@@ -95,6 +95,31 @@ pub struct GetState<S> {
 #[effect(())]
 pub struct SetState<S>(pub S);
 
+// A generic borrowed resume needs a `'static` type parameter. The resume
+// itself may still borrow short-lived data.
+#[effect(&'r T)]
+struct GetRef<T: Send + Sync + 'static>(std::marker::PhantomData<T>);
+
+#[tokio::test]
+#[cfg_attr(miri, ignore)]
+async fn test_generic_borrowed_resume_with_static_parameter() {
+    fn assert_send<T: Send>(value: T) -> T {
+        value
+    }
+
+    let value = String::from("borrowed");
+    let value_ref = &value;
+    let program = Program::new(|mut y: Yielder<'_, Effects![GetRef<String>]>| async move {
+        y.yield_(GetRef(std::marker::PhantomData)).await.len()
+    });
+    let future = assert_send(
+        program
+            .handle(|_: GetRef<String>| Control::resume(value_ref))
+            .run(),
+    );
+    assert_eq!(future.await, Ok(8));
+}
+
 #[effect(Vec<u8>)]
 #[allow(dead_code)]
 struct NamedFields {
