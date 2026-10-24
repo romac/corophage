@@ -165,19 +165,11 @@ where
         let mut generator = unsafe { Pin::new_unchecked(&mut generator) };
         let mut step = generator.as_mut().resume(None).await;
         let mut budget = crate::ASYNC_DISPATCH_BUDGET;
+        // Keep the common path, an effect and its resume, in one arm; the
+        // scheduler is only awaited on the rare paths.
         loop {
-            let resume = match step {
+            match step {
                 GeneratorState::Complete(value) => return Ok(value),
-                GeneratorState::Signalled(Signal::Cancel) => {
-                    poll_fn(|cx| scheduler.poll_cancel(cx)).await;
-                    return Err(Cancelled);
-                }
-                // A nested invocation used its budget of local dispatches.
-                GeneratorState::Signalled(Signal::Reschedule) => {
-                    poll_fn(|cx| scheduler.poll_reschedule(cx)).await;
-                    budget = crate::ASYNC_DISPATCH_BUDGET;
-                    None
-                }
                 GeneratorState::Yielded(effect) => {
                     // Completion at the budget boundary needs no extra poll.
                     if budget == 0 {
@@ -190,16 +182,23 @@ where
                         handlers: handlers.list(),
                     };
                     match dispatch.dispatch(effect, context).await {
-                        Control::Cancel => {
-                            poll_fn(|cx| scheduler.poll_cancel(cx)).await;
-                            return Err(Cancelled);
+                        Control::Cancel => break,
+                        Control::Resume(value) => {
+                            step = generator.as_mut().resume(Some(value)).await;
                         }
-                        Control::Resume(value) => Some(value),
                     }
                 }
-            };
-            step = generator.as_mut().resume(resume).await;
+                // A nested invocation used its budget of local dispatches.
+                GeneratorState::Signalled(Signal::Reschedule) => {
+                    poll_fn(|cx| scheduler.poll_reschedule(cx)).await;
+                    budget = crate::ASYNC_DISPATCH_BUDGET;
+                    step = generator.as_mut().resume(None).await;
+                }
+                GeneratorState::Signalled(Signal::Cancel) => break,
+            }
         }
+        poll_fn(|cx| scheduler.poll_cancel(cx)).await;
+        Err(Cancelled)
     }
 }
 
