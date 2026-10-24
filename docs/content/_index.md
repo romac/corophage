@@ -46,7 +46,7 @@ Build complex programs from simple building blocks. Effects propagate to the cal
 
 ### Practical
 
-Works on stable Rust, no nightly required. Built on async coroutines via [fauxgen](https://github.com/Phantomical/fauxgen) and hlists/coproducts via [frunk](https://github.com/lloydmeta/frunk).
+Works on stable Rust, no nightly required. Built on async/await, with hlists/coproducts via [frunk](https://github.com/lloydmeta/frunk).
 
 </div>
 <div class="feature">
@@ -439,7 +439,7 @@ The [exact state-change assertion example](https://github.com/romac/corophage/bl
 
 `corophage` is heavily inspired by [`effing-mad`](https://github.com/rosefromthedead/effing-mad), a pioneering algebraic effects library for nightly Rust.
 `effing-mad` demonstrated that algebraic effects and effect handlers are viable in Rust by leveraging coroutines to let effectful functions suspend, pass control to their callers, and resume with results.
-While `effing-mad` requires nightly Rust for its `#[coroutine]`-based approach, `corophage` supports stable Rust by leveraging async coroutines via [`fauxgen`](https://github.com/Phantomical/fauxgen). Big thanks as well to [`frunk`](https://github.com/lloydmeta/frunk) for its coproduct and hlist implementation.
+While `effing-mad` requires nightly Rust for its `#[coroutine]`-based approach, `corophage` supports stable Rust by building on async/await. Versions before 0.8 used [`fauxgen`](https://github.com/Phantomical/fauxgen)'s async generators. Big thanks as well to [`frunk`](https://github.com/lloydmeta/frunk) for its coproduct and hlist implementation.
 
 </div>
 </section>

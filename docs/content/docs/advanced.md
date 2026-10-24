@@ -135,7 +135,7 @@ fn erased_send() -> Effectful<'static, Effects![FileRead], String, corophage::Se
 }
 ```
 
-`.boxed()` erases `Send` even when the original body was sendable. `.boxed_send()` retains that guarantee and checks the body and resume transport. Each conversion allocates once for the body. `Effectful<'a, Effs, R, L>` remains the erased alias, including for callers generic over `L: Locality`. The concrete `Program` type now takes its body future as its third parameter; update explicit full `Program` signatures accordingly.
+`.boxed()` erases `Send` even when the original body was sendable. `.boxed_send()` retains that guarantee and checks the body. Each conversion allocates once for the body. `Effectful<'a, Effs, R, L>` remains the erased alias, including for callers generic over `L: Locality`. The concrete `Program` type now takes its body future as its third parameter; update explicit full `Program` signatures accordingly.
 
 Use the `boxed` macro flag for recursive functions or to limit concrete type growth. Combine it with `send` when the erased body must be sendable:
 
@@ -210,8 +210,27 @@ Erased sendable programs retain explicit `Send` guarantees on `.run()` and `.run
 
 Rust can report that an implementation is not general enough (for example of `Effect` or `FnOnce`) when a program with lifetime-parameterized effects or GAT resumes is awaited inside another async block that must be `Send`, such as `tokio::spawn(async { ... })`. This affects both stateless and stateful runners, and can occur even if the run future itself passes a `Send` assertion. Passing the run future to `tokio::spawn` directly, without an enclosing async block, avoids the problem. Otherwise, box the unhandled body with `.boxed_send()` and use the compatibility `.run()` or `.run_stateful(&mut state)` method. Both have an explicit `Send` return guarantee.
 
-## Polling context restriction
+## Combinators and cancellation
 
-`fauxgen` transports effects through the polling context. Effect operations must be polled through that context; placing them inside a combinator that substitutes its own context can break this transport. Ordinary awaited futures remain supported, but boxing the body or using an async runner does not remove this restriction. Keep `yield_!` and `invoke!` in the directly awaited computation flow, and await each operation before starting another.
+Each run owns a frame that holds the pending effect and its resume value. While the runner polls the computation, the frame is registered on the current thread, and effect operations find it there. An operation therefore works inside any combinator that is polled within the computation's own poll, such as `select!`, `join!`, or `FuturesUnordered`, and inside boxed futures. Polling an operation anywhere else panics: after its computation has finished, from another task, or on another thread.
 
-Effect operations are also not cancel-safe. The first poll of a `yield_!` or `invoke!` operation hands its effect to the runner. If the operation is then dropped before completing, for example by losing a `select!` race, the abandoned effect may still be handled at the computation's next suspension, with its resume value discarded, or it may be silently dropped. Do not race effect operations against other futures; await each one to completion.
+With an explicit yielder, `y.yield_(effect)` and `y.invoke(program)` are futures that a combinator can poll. Inside an `#[effectful]` function, wrap the awaiting macro in an async block instead, as in `async { yield_!(effect) }`.
+
+Only one operation of a computation can be in flight at a time, because `yield_!` and `invoke!` borrow the yielder mutably.
+
+Dropping an operation before it completes withdraws its effect:
+
+- If the handler has not taken the effect yet, the effect is never handled.
+- If the handler already resumed, the resume value is discarded. The handler's side effects remain.
+
+This is weaker than cancel-safety. The runner does not poll the computation while a handler runs, so a competing branch cannot interrupt a handler. It can only win in the poll that yielded the effect, which withdraws it, or in the poll after the handler resumed, which discards the resume. Under `tokio::select!`'s random branch order, the second case is likely. Use `biased;` and list the effect branch first to rule it out:
+
+```rust,ignore
+let reply = tokio::select! {
+    biased;
+    reply = y.yield_(Ask) => Some(reply),
+    () = shutdown.notified() => None,
+};
+```
+
+For the same reason, `tokio::time::timeout` around an effect operation has no effect: the operation is polled again only after its handler finishes, and it completes first. Dropping an `invoke!` operation withdraws the effect it forwards and drops the sub-program.

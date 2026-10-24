@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- Effect operations work inside combinators that poll them with their own context, such as `FuturesUnordered`, as well as `select!` and `join!`. A yielder moved into a nested async runner within its own computation also works. Both previously panicked.
+- Dropping a `yield_` or `invoke` operation before it completes withdraws its effect. An effect that the handler has not taken yet is never handled; a resume that the handler already provided is discarded. Previously, an abandoned effect could be handled at a later suspension or dropped silently. The advanced guide describes how this interacts with `select!`.
+
+### Changed
+
+- Effects travel through a small frame owned by each run, and `fauxgen` is no longer a dependency. A yielder finds its run's frame by a unique id while the runner polls the computation, so the transport no longer relies on another crate's private API or on allocation addresses.
+- Runs no longer allocate. In our measurements against 0.7.0, one synchronous effect is about 40% faster, 1,000 effects are 4% faster synchronously and 12–14% faster asynchronously, and 5 to 20 nested invocations are 36–46% faster.
+- Resume values no longer need to be `Sync`. `CoSend::new`, `.boxed_send()`, and `Program::new_send` drop their resume bounds, and the sendable `.run()`, `.run_stateful()`, `asynk::run_send`, and `asynk::run_stateful_send` require resumes to be `Send` only. An unrun program places no requirement on its resumes.
+- Polling an effect operation outside its computation panics with "effect operation polled outside its computation".
+
 ## v0.7.0 (2026-10-23)
 
 ### Added

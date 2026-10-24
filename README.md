@@ -209,7 +209,7 @@ type AllEffects = Effects![Cancel, ...IoEffects];
 
 When you call `yield_!` (or `y.yield_(...).await` in the manual style), the computation pauses, the effect is handled, and execution resumes with the value provided by the handler.
 
-A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another.
+A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another. A single operation can still run inside a combinator such as `select!`; see [Combinators and cancellation](https://corophage.rs/docs/advanced/#combinators-and-cancellation).
 
 Computation bodies may also await ordinary futures when executed with `.run().await` or the low-level `asynk` runners. Synchronous runners handle effect suspension but cannot wait for unrelated futures; if one returns `Pending`, use an async runner instead.
 
@@ -391,7 +391,7 @@ Erased sendable programs retain explicit `Send` terminal contracts, including th
 
 The direct API (`sync::run`, `sync::run_stateful`, `asynk::run`, `asynk::run_stateful`) accepts a `Co`/`CoSend` and an `hlist!` of all handlers at once. This is useful for concise one-shot execution but requires providing all handlers together.
 
-`fauxgen` transports effects through the polling context. Effect operations inside combinators that replace that context can break the transport. Keep `yield_!` and `invoke!` in the directly awaited computation flow; boxing does not remove this restriction.
+Effect operations work inside any combinator that is polled within the computation's own poll, such as `select!`, `join!`, and `FuturesUnordered`. Dropping an operation before it completes withdraws its effect, or discards its resume value if the handler already ran. See the [advanced documentation](https://corophage.rs/docs/advanced/#combinators-and-cancellation).
 
 #### Borrowing non-`'static` data
 
@@ -490,7 +490,7 @@ Run `python3 scripts/execution/measure.py` from the repository root to reproduce
 
 `corophage` is heavily inspired by [`effing-mad`](https://github.com/rosefromthedead/effing-mad), a pioneering algebraic effects library for nightly Rust. 
 `effing-mad` demonstrated that algebraic effects and effect handlers are viable in Rust by leveraging coroutines to let effectful functions suspend, pass control to their callers, and resume with results.
-While `effing-mad` requires nightly Rust for its `#[coroutine]`-based approach, `corophage` supports stable Rust by leveraging async coroutines (via [`fauxgen`](https://github.com/jmkr/fauxgen)). Big thanks as well to [`frunk`](https://github.com/lloydmeta/frunk) for its coproduct and hlist implementation.
+While `effing-mad` requires nightly Rust for its `#[coroutine]`-based approach, `corophage` supports stable Rust by building on async/await. Versions before 0.8 used [`fauxgen`](https://github.com/jmkr/fauxgen)'s async generators. Big thanks as well to [`frunk`](https://github.com/lloydmeta/frunk) for its coproduct and hlist implementation.
 
 ## License
 

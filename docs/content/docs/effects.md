@@ -106,7 +106,7 @@ fn identity<'a, Es: Effects<'a>, F>(
 }
 ```
 
-`Effects<'a>` is implemented automatically for effect coproducts whose payloads satisfy `Send + Sync + 'a`, including `Effects![]`. The lifetime permits effects to borrow local data. It does not require their resume values to be `Send` or `Sync`; sendable execution checks those requirements separately.
+`Effects<'a>` is implemented automatically for effect coproducts whose payloads satisfy `Send + Sync + 'a`, including `Effects![]`. The lifetime permits effects to borrow local data. It does not require their resume values to be `Send` or `Sync`; sendable execution requires them to be `Send`.
 
 A generic helper that invokes a callback's program also needs bounds to forward its effects and return the corresponding resumes. `Resumes<'r, Es>` names the coproduct of the effects' `Resume<'r>` types, in the same order as `Es`. Its resume lifetime is independent of the effect-set lifetime.
 

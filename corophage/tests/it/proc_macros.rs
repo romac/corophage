@@ -148,6 +148,34 @@ fn test_simple_effectful() {
     assert_eq!(result, Ok(true));
 }
 
+// The generated yielder is hygienic, so race an operation by wrapping the
+// awaiting macro in an async block.
+#[effectful(Ask)]
+fn ask_unless_ready(ready: bool) -> Option<bool> {
+    tokio::select! {
+        biased;
+        answer = async { yield_!(Ask(20)) } => Some(answer),
+        () = std::future::ready(()), if ready => None,
+    }
+}
+
+#[test]
+fn test_effectful_operations_inside_select() {
+    let mut asked = 0;
+    let mut run = |ready| {
+        ask_unless_ready(ready)
+            .handle(|Ask(n)| {
+                asked += 1;
+                Control::resume(n > 10)
+            })
+            .run_sync()
+    };
+    assert_eq!(run(false), Ok(Some(true)));
+    // The ready branch wins in the poll that yielded Ask, which withdraws it.
+    assert_eq!(run(true), Ok(None));
+    assert_eq!(asked, 1);
+}
+
 #[test]
 fn test_generated_yielder_does_not_shadow_arguments() {
     let result = arguments_named_like_generated_yielder(42, 7)

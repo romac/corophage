@@ -233,7 +233,7 @@ let program = Program::new(|mut y: Yielder<'_, Effs>| async move {
 
 When you `await` the result of `y.yield_(some_effect)`, the computation pauses, the effect is handled, and the `await` resolves to the value provided by the handler.
 
-A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another.
+A `Yielder` supports one effect operation at a time. Its `yield_` and `invoke` methods require `&mut self`, so the borrow checker rejects overlapping operations such as passing two `yield_` futures to `join!`. Await each operation before starting another. A single operation can still run inside a combinator such as `select!`; see [Combinators and cancellation](@/docs/advanced.md#combinators-and-cancellation).
 
 Computation bodies may also await ordinary futures. This works inside `#[effectful]` functions, manual `Program::new` closures, and invoked sub-programs when executed with `.run().await` or a low-level `asynk` runner:
 
