@@ -5,7 +5,7 @@ Algebraic effects for stable Rust, built on async/await with an internal frame t
 ## Architecture
 
 - `corophage/src/effect.rs` — `Effect` trait (with GAT `Resume<'r>`), `MapResume` (with GAT `Output<'r>`), `Resumes<'r, E>`, `Effects`
-- `corophage/src/frame.rs` — the frame transport: `Frame` (id, effect/resume slot), the thread-local registry, `RawYield` (withdrawable raw yield), and the `Generator` adapter that polls a body with its frame registered. Its module docs state invariants I1–I5
+- `corophage/src/frame.rs` — the frame transport: `Frame` (id, effect/resume slot), the thread-local registry, `Operation` (one withdrawable effect operation on a frame), `RawYield`, and the `Generator` adapter that polls a body with its frame registered. Its module docs state invariants I1–I5
 - `corophage/src/coroutine.rs` — concrete `Coroutine<'a, Effs, F>`, erased `GenericCo<'a, Effs, Return, L>` with `Co`/`CoSend` aliases, the pin-projected invocation future, the `yield_` future, and `Yielder<'a, Effs>`
 - `corophage/src/control.rs` — `Control<R>` (handler resume/cancel) and `Cancelled`
 - `corophage/src/catch.rs` — the `Throw<E>` effect, `Program::catch`, and the `Catch` runner, which lends its handler list to the execution loop and reads the thrown error back
@@ -33,7 +33,7 @@ Algebraic effects for stable Rust, built on async/await with an internal frame t
 - Dispatch injects resumes through `InjectResume`; `Yielder::yield_` keeps a checked panic for deliberately mismatched public index parameters.
 - Pin projection uses `pin-project-lite`. `Yielder`, `Coroutine`, and `GenericCo` carry an `Invariant<'a, Effs>` marker. The runner creates its frame from the same parameters as the body's yielder, so variance must never change them (I3); the `variance_*` compile-fail tests guard this. Never replace the marker with a covariant or contravariant one.
 - Frames are only reached through shared references, and slot values are moved out before they are dropped (I4). A frame takes its id at first registration: constructing a frame must stay free of side effects, or LLVM stops eliding moves of large unstarted bodies, which made deep invoke chains superlinear.
-- `Invocation` stores each pinned child once. Its forwarding future borrows the external yielder, never its own movable fields. An async function that stores both the child argument and its pinned generator causes exponential future-size growth.
+- `Invocation` stores each pinned child generator once, next to an `Operation` on the parent frame. It moves each child effect into the parent's slot and the resume back with synchronous conversions, so no level creates a future of its own. An async function that stores both the child argument and its pinned generator causes exponential future-size growth.
 
 ## Commands
 

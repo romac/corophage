@@ -245,58 +245,61 @@ fn not_registered() -> ! {
     )
 }
 
-/// Yields a whole effect coproduct on a frame and returns its resume.
+/// One effect operation on a frame: it hands an effect to the frame's owner,
+/// then waits for the resume.
 ///
-/// Dropping the operation before it completes withdraws its effect, or
-/// discards its resume if the handler already ran.
-pub(crate) struct RawYield<'a, Effs: MapResume> {
+/// Dropping the operation while it waits withdraws its effect, or discards its
+/// resume if the handler already ran.
+pub(crate) struct Operation<'a, Effs: MapResume> {
     frame: FrameId,
-    // Present until the first poll.
-    effect: Option<Effs>,
     waiting: bool,
     marker: Invariant<'a, Effs>,
 }
 
-// The effect is moved out on the first poll and never pinned.
-impl<'a, Effs: MapResume> Unpin for RawYield<'a, Effs> {}
-
-impl<'a, Effs: MapResume> RawYield<'a, Effs> {
+impl<'a, Effs: MapResume> Operation<'a, Effs> {
     /// # Safety
     ///
     /// `frame` must be the id of a `Frame<Effs, Resumes<'a, Effs>>` (I3).
-    pub(crate) unsafe fn new(frame: FrameId, effect: Effs) -> Self {
+    pub(crate) unsafe fn new(frame: FrameId) -> Self {
         Self {
             frame,
-            effect: Some(effect),
             waiting: false,
             marker: PhantomData,
         }
     }
-}
 
-impl<'a, Effs: MapResume> Future for RawYield<'a, Effs> {
-    type Output = Resumes<'a, Effs>;
+    pub(crate) fn is_waiting(&self) -> bool {
+        self.waiting
+    }
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
+    /// Hand an effect to the frame's owner. The caller must then return
+    /// `Pending` up to the owner.
+    pub(crate) fn yield_(&mut self, cx: &Context<'_>, effect: Effs) {
         // SAFETY: The constructor's caller guarantees the frame type.
+        let found = unsafe {
+            with_frame::<Effs, Resumes<'a, Effs>, _>(self.frame, |frame| {
+                if !frame.is_empty() {
+                    panic!("another effect operation of this computation is in flight");
+                }
+                frame.replace(Slot::Yielded(effect));
+                self.waiting = true;
+                frame.wake_unless_owner(cx);
+            })
+        };
+        found.unwrap_or_else(|| not_registered())
+    }
+
+    /// Take the resume of the yielded effect once the owner provides it.
+    pub(crate) fn poll_resume(&mut self, cx: &Context<'_>) -> Poll<Resumes<'a, Effs>> {
+        if !self.waiting {
+            panic!("effect operation polled after completion");
+        }
+        // SAFETY: As in `yield_`.
         let poll = unsafe {
-            with_frame::<Effs, Resumes<'a, Effs>, _>(this.frame, |frame| {
-                if let Some(effect) = this.effect.take() {
-                    if !frame.is_empty() {
-                        panic!("another effect operation of this computation is in flight");
-                    }
-                    frame.replace(Slot::Yielded(effect));
-                    this.waiting = true;
-                    frame.wake_unless_owner(cx);
-                    return Poll::Pending;
-                }
-                if !this.waiting {
-                    panic!("effect operation polled after completion");
-                }
+            with_frame::<Effs, Resumes<'a, Effs>, _>(self.frame, |frame| {
                 match frame.replace(Slot::Empty) {
                     Slot::Resumed(value) => {
-                        this.waiting = false;
+                        self.waiting = false;
                         Poll::Ready(value)
                     }
                     // Polled again before the owner took the effect.
@@ -313,19 +316,53 @@ impl<'a, Effs: MapResume> Future for RawYield<'a, Effs> {
     }
 }
 
-impl<'a, Effs: MapResume> Drop for RawYield<'a, Effs> {
+impl<'a, Effs: MapResume> Drop for Operation<'a, Effs> {
     fn drop(&mut self) {
         if self.waiting {
             // At most one operation per frame is in flight, so the slot holds
             // this operation's effect or resume. An unregistered frame keeps
             // it until the frame itself is dropped.
-            // SAFETY: As in `poll`.
+            // SAFETY: As in `yield_`.
             let withdrawn = unsafe {
                 with_frame::<Effs, Resumes<'a, Effs>, _>(self.frame, |frame| {
                     frame.replace(Slot::Empty)
                 })
             };
             drop(withdrawn);
+        }
+    }
+}
+
+/// Yields a whole effect coproduct on a frame and returns its resume.
+pub(crate) struct RawYield<'a, Effs: MapResume> {
+    operation: Operation<'a, Effs>,
+    // Present until the first poll.
+    effect: Option<Effs>,
+}
+
+// The effect is moved out on the first poll and never pinned.
+impl<'a, Effs: MapResume> Unpin for RawYield<'a, Effs> {}
+
+impl<'a, Effs: MapResume> RawYield<'a, Effs> {
+    pub(crate) fn new(operation: Operation<'a, Effs>, effect: Effs) -> Self {
+        Self {
+            operation,
+            effect: Some(effect),
+        }
+    }
+}
+
+impl<'a, Effs: MapResume> Future for RawYield<'a, Effs> {
+    type Output = Resumes<'a, Effs>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        match this.effect.take() {
+            Some(effect) => {
+                this.operation.yield_(cx, effect);
+                Poll::Pending
+            }
+            None => this.operation.poll_resume(cx),
         }
     }
 }

@@ -16,7 +16,7 @@ use frunk_core::coproduct::{CoprodInjector, CoprodUninjector};
 
 use crate::coproduct::{EmbedEffect, ProjectResume};
 use crate::effect::{Effect, Effects, MapResume, Resumes};
-use crate::frame::{FrameId, Generator, GeneratorState, Invariant, RawYield};
+use crate::frame::{FrameId, Generator, GeneratorState, Invariant, Operation, RawYield};
 use crate::locality::{Local, Locality, Sendable};
 
 /// A coroutine body whose future type has not been erased.
@@ -183,38 +183,46 @@ pin_project_lite::pin_project! {
     // Store each invoked generator once. Moving a concrete program into an
     // async fn and then pinning it inside that function duplicates its storage
     // in the future layout, which grows exponentially in deep invoke chains.
-    struct Invocation<F, Y, A, Forward, Fut> {
+    struct Invocation<'a, 'b, Effs: MapResume, SubEffs: MapResume, F, Indices> {
         #[pin]
-        generator: Generator<F, Y, A>,
-        forward: Forward,
-        #[pin]
-        forwarding: Option<Fut>,
-        resume: Option<A>,
+        generator: Generator<F, SubEffs, Resumes<'b, SubEffs>>,
+        // Moves each child effect into the parent's slot and its resume back.
+        parent: Operation<'a, Effs>,
+        indices: PhantomData<fn() -> Indices>,
     }
 }
 
-impl<F, Y, A, Forward, Fut> Future for Invocation<F, Y, A, Forward, Fut>
+impl<'a, 'b, Effs, SubEffs, F, Indices> Future for Invocation<'a, 'b, Effs, SubEffs, F, Indices>
 where
+    'a: 'b,
+    Effs: MapResume,
+    SubEffs: MapResume + EmbedEffect<Effs, Indices>,
+    Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
     F: Future,
-    Forward: FnMut(Y) -> Fut,
-    Fut: Future<Output = A>,
 {
     type Output = F::Output;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
-        loop {
-            if let Some(forwarding) = this.forwarding.as_mut().as_pin_mut() {
-                *this.resume = Some(std::task::ready!(forwarding.poll(cx)));
-                this.forwarding.set(None);
-            }
-            match std::task::ready!(this.generator.as_mut().poll_resume(cx, this.resume.take())) {
-                GeneratorState::Complete(value) => return Poll::Ready(value),
-                GeneratorState::Yielded(effect) => {
-                    // The forwarding future borrows the outer yielder, which
-                    // lives outside this object. It never borrows our fields.
-                    this.forwarding.set(Some((this.forward)(effect)));
-                }
+        let this = self.project();
+        let resume = if this.parent.is_waiting() {
+            // Project the outer resume back to the sub-effect resume. This
+            // produces Resumes<'a, SubEffs> (the outer handler's lifetime).
+            let resume: Resumes<'a, SubEffs> =
+                std::task::ready!(this.parent.poll_resume(cx)).project();
+            // Convert from the outer lifetime 'a to the sub-program's lifetime
+            // 'b. Effect::shorten_resume witnesses covariance for every effect.
+            Some(SubEffs::shorten_resumes(resume))
+        } else {
+            None
+        };
+        match std::task::ready!(this.generator.poll_resume(cx, resume)) {
+            GeneratorState::Complete(value) => Poll::Ready(value),
+            GeneratorState::Yielded(effect) => {
+                // Hand the child's effect to the parent's owner directly; no
+                // level of the chain needs a future of its own.
+                this.parent.yield_(cx, effect.embed());
+                Poll::Pending
             }
         }
     }
@@ -255,9 +263,9 @@ where
     }
 
     #[inline]
-    fn raw(&self, effect: Effs) -> RawYield<'a, Effs> {
+    fn operation(&self) -> Operation<'a, Effs> {
         // SAFETY: This yielder's frame has the matching type (see `start`).
-        unsafe { RawYield::new(self.frame, effect) }
+        unsafe { Operation::new(self.frame) }
     }
 
     /// Yield an effect to the handler and suspend until resumed.
@@ -290,7 +298,7 @@ where
         <Effs as MapResume>::Output<'a>: CoprodUninjector<E::Resume<'a>, Index>,
     {
         Yield::<'a, Effs, E, Index> {
-            raw: self.raw(Effs::inject(effect)),
+            raw: RawYield::new(self.operation(), Effs::inject(effect)),
             marker: PhantomData,
         }
     }
@@ -317,8 +325,9 @@ where
     /// via this yielder, and the resume value is passed back to the sub-program.
     ///
     /// Effect forwarding uses synchronous coproduct conversions
-    /// ([`EmbedEffect`] / [`ProjectResume`]) combined with a raw yield on this
-    /// yielder's frame. This works in both `Send` and non-`Send` contexts.
+    /// ([`EmbedEffect`] / [`ProjectResume`]) that move each effect from the
+    /// sub-program's frame into this yielder's frame and its resume back. This
+    /// works in both `Send` and non-`Send` contexts.
     ///
     /// Returns the sub-program's result directly. If the outer handler cancels,
     /// the entire coroutine is dropped, so `invoke` never returns in that case.
@@ -341,26 +350,10 @@ where
         Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
         F: Future<Output = R>,
     {
-        let yielder = &*self;
         Invocation {
             generator: program.co.generator(),
-            resume: None,
-            forwarding: None,
-            forward: move |effect: SubEffs| {
-                // Embed sub-effect into the outer coproduct (synchronous).
-                let outer = yielder.raw(effect.embed());
-                async move {
-                    // Project the outer resume back to sub-effect resume
-                    // (synchronous). This produces Resumes<'a, SubEffs> (the
-                    // outer handler's lifetime).
-                    let resume: Resumes<'a, SubEffs> = outer.await.project();
-
-                    // Convert from the outer lifetime 'a to the sub-program's
-                    // lifetime 'b. Effect::shorten_resume witnesses covariance
-                    // for every effect.
-                    SubEffs::shorten_resumes(resume)
-                }
-            },
+            parent: self.operation(),
+            indices: PhantomData,
         }
     }
 }

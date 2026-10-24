@@ -713,6 +713,17 @@ mod macros {
         // invoke and overflowed the stack at depth 20. This allows normal layout
         // variation while rejecting that exponential growth without constructing it.
         assert!(future_bytes(|| nested_20().handle(|Add(n)| Control::resume(n)).run()) < 64 * 1024);
+        // Each level stores its child body, frame, and parent operation once,
+        // with no forwarding future, so every level adds the same storage.
+        let bytes = [
+            future_bytes(|| nested_1().handle(|Add(n)| Control::resume(n)).run()),
+            future_bytes(|| nested_2().handle(|Add(n)| Control::resume(n)).run()),
+            future_bytes(|| nested_10().handle(|Add(n)| Control::resume(n)).run()),
+            future_bytes(|| nested_20().handle(|Add(n)| Control::resume(n)).run()),
+        ];
+        let per_level = bytes[1] - bytes[0];
+        assert_eq!(bytes[2], bytes[0] + 9 * per_level);
+        assert_eq!(bytes[3], bytes[0] + 19 * per_level);
         assert_eq!(
             nested_20().handle(|Add(n)| Control::resume(n)).run_sync(),
             Ok(1)
@@ -726,6 +737,30 @@ impl Effect for LocalResume {
     fn shorten_resume<'a: 'b, 'b>(value: Rc<usize>) -> Rc<usize> {
         value
     }
+}
+
+fn recurse(depth: usize) -> Effectful<'static, Effects![Add], usize> {
+    Program::new(move |mut y: Yielder<'_, Effects![Add]>| async move {
+        if depth == 0 {
+            y.yield_(Add(0)).await
+        } else {
+            y.invoke(recurse(depth - 1)).await + 1
+        }
+    })
+    .boxed()
+}
+
+// Each level forwards effects with synchronous conversions between frames,
+// not a nested future, so it adds a bounded amount of stack to every poll.
+#[test]
+fn boxed_recursion_runs_a_thousand_levels_deep() {
+    let result = std::thread::Builder::new()
+        .stack_size(2 << 20)
+        .spawn(|| recurse(1000).handle(|Add(n)| Control::resume(n)).run_sync())
+        .unwrap()
+        .join()
+        .unwrap();
+    assert_eq!(result, Ok(1000));
 }
 
 // Nothing shares stored resumes, so a resume that is `Send` but not `Sync`
