@@ -1,0 +1,49 @@
+error: lifetime may not live long enough
+  --> tests/compile_fail/variance_co.rs:10:5
+   |
+ 9 | fn shorten_effects<'s>(co: Co<'s, Effects![Log<'static>], ()>) -> Co<'s, Effects![Log<'s>], ()> {
+   |                    -- lifetime `'s` defined here
+10 |     co
+   |     ^^ returning this value requires that `'s` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `GenericCo<'_, Coproduct<Log<'_>, CNil>, ()>`, which makes the generic argument `'_` invariant
+   = note: the struct `GenericCo<'a, Effs, Return, L>` is invariant over the parameter `'a`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error: lifetime may not live long enough
+  --> tests/compile_fail/variance_co.rs:14:5
+   |
+13 | fn lengthen_effects<'s>(co: Co<'s, Effects![Log<'s>], ()>) -> Co<'s, Effects![Log<'static>], ()> {
+   |                     -- lifetime `'s` defined here
+14 |     co
+   |     ^^ returning this value requires that `'s` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `GenericCo<'_, Coproduct<Log<'_>, CNil>, ()>`, which makes the generic argument `'_` invariant
+   = note: the struct `GenericCo<'a, Effs, Return, L>` is invariant over the parameter `'a`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error: lifetime may not live long enough
+  --> tests/compile_fail/variance_co.rs:20:5
+   |
+17 | fn shorten_lifetime<'s>(
+   |                     -- lifetime `'s` defined here
+...
+20 |     co
+   |     ^^ returning this value requires that `'s` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `GenericCo<'_, Coproduct<Log<'_>, CNil>, ()>`, which makes the generic argument `'_` invariant
+   = note: the struct `GenericCo<'a, Effs, Return, L>` is invariant over the parameter `'a`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error: lifetime may not live long enough
+  --> tests/compile_fail/variance_co.rs:26:5
+   |
+23 | fn lengthen_lifetime<'s>(
+   |                      -- lifetime `'s` defined here
+...
+26 |     co
+   |     ^^ returning this value requires that `'s` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `GenericCo<'_, Coproduct<Log<'_>, CNil>, ()>`, which makes the generic argument `'_` invariant
+   = note: the struct `GenericCo<'a, Effs, Return, L>` is invariant over the parameter `'a`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
