@@ -163,42 +163,89 @@ where
         // is never moved again. Pinning it where it was captured keeps a
         // single copy of a possibly large body in the block's state.
         let mut generator = unsafe { Pin::new_unchecked(&mut generator) };
-        let mut step = generator.as_mut().resume(None).await;
-        let mut budget = crate::ASYNC_DISPATCH_BUDGET;
-        // Keep the common path, an effect and its resume, in one arm; the
-        // scheduler is only awaited on the rare paths.
+        let mut stepper = Stepper {
+            budget: crate::ASYNC_DISPATCH_BUDGET,
+            resume: None,
+            pending: None,
+            rescheduling: false,
+        };
         loop {
-            match step {
-                GeneratorState::Complete(value) => return Ok(value),
-                GeneratorState::Yielded(effect) => {
-                    // Completion at the budget boundary needs no extra poll.
-                    if budget == 0 {
-                        poll_fn(|cx| scheduler.poll_reschedule(cx)).await;
-                        budget = crate::ASYNC_DISPATCH_BUDGET;
-                    }
-                    budget -= 1;
+            match poll_fn(|cx| stepper.poll_step(generator.as_mut(), &mut scheduler, cx)).await {
+                Next::Complete(value) => return Ok(value),
+                Next::Effect(effect) => {
                     let context = CallContext {
                         state: state.value_mut(),
                         handlers: handlers.list(),
                     };
                     match dispatch.dispatch(effect, context).await {
+                        Control::Resume(value) => stepper.resume = Some(value),
                         Control::Cancel => break,
-                        Control::Resume(value) => {
-                            step = generator.as_mut().resume(Some(value)).await;
-                        }
                     }
                 }
-                // A nested invocation used its budget of local dispatches.
-                GeneratorState::Signalled(Signal::Reschedule) => {
-                    poll_fn(|cx| scheduler.poll_reschedule(cx)).await;
-                    budget = crate::ASYNC_DISPATCH_BUDGET;
-                    step = generator.as_mut().resume(None).await;
-                }
-                GeneratorState::Signalled(Signal::Cancel) => break,
+                Next::Cancel => break,
             }
         }
         poll_fn(|cx| scheduler.poll_cancel(cx)).await;
         Err(Cancelled)
+    }
+}
+
+/// What the cooperative loop does after a step.
+enum Next<E, R> {
+    Effect(E),
+    Complete(R),
+    Cancel,
+}
+
+/// Resumes the body and polls it to its next effect, completion, or
+/// cancellation. Rescheduling, whether the dispatch budget runs out or a
+/// nested invocation asks for it, happens inside the step, so the loop only
+/// awaits steps and dispatches.
+struct Stepper<E, A> {
+    budget: usize,
+    resume: Option<A>,
+    // An effect held back while the scheduler runs at the budget boundary.
+    pending: Option<E>,
+    rescheduling: bool,
+}
+
+impl<E, A> Stepper<E, A> {
+    // Inlining the step into the loop's poll keeps both concrete and boxed
+    // bodies fast; without it, measured loops lost up to 15%.
+    #[inline(always)]
+    fn poll_step<F: Future, C: Scheduler>(
+        &mut self,
+        mut generator: Pin<&mut Generator<F, E, A>>,
+        scheduler: &mut C,
+        cx: &mut Context<'_>,
+    ) -> Poll<Next<E, F::Output>> {
+        loop {
+            if self.rescheduling {
+                std::task::ready!(scheduler.poll_reschedule(cx));
+                self.rescheduling = false;
+                self.budget = crate::ASYNC_DISPATCH_BUDGET;
+                if let Some(effect) = self.pending.take() {
+                    self.budget -= 1;
+                    return Poll::Ready(Next::Effect(effect));
+                }
+            }
+            match std::task::ready!(generator.as_mut().poll_resume(cx, self.resume.take())) {
+                GeneratorState::Complete(value) => return Poll::Ready(Next::Complete(value)),
+                GeneratorState::Yielded(effect) => {
+                    // Completion at the budget boundary needs no extra poll.
+                    if self.budget == 0 {
+                        self.pending = Some(effect);
+                        self.rescheduling = true;
+                    } else {
+                        self.budget -= 1;
+                        return Poll::Ready(Next::Effect(effect));
+                    }
+                }
+                // A nested invocation used its budget of local dispatches.
+                GeneratorState::Signalled(Signal::Reschedule) => self.rescheduling = true,
+                GeneratorState::Signalled(Signal::Cancel) => return Poll::Ready(Next::Cancel),
+            }
+        }
     }
 }
 

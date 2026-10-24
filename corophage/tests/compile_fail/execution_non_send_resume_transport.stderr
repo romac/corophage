@@ -17,11 +17,16 @@ note: required because it appears within the type `Coproduct<Rc<usize>, CNil>`
    |
    | pub enum Coproduct<H, T> {
    |          ^^^^^^^^^
-note: required because it appears within the type `corophage::Control<Coproduct<Rc<usize>, CNil>>`
-  --> src/control.rs
+note: required because it appears within the type `Option<Coproduct<Rc<usize>, CNil>>`
+  --> $RUST/core/src/option.rs
    |
-   | pub enum Control<R> {
-   |          ^^^^^^^
+   | pub enum Option<T> {
+   |          ^^^^^^
+note: required because it appears within the type `corophage::execution::Stepper<Coproduct<Ask, CNil>, Coproduct<Rc<usize>, CNil>>`
+  --> src/execution.rs
+   |
+   | struct Stepper<E, A> {
+   |        ^^^^^^^
 note: required because it's used within this `async` block
   --> src/execution.rs
    |

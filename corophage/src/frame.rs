@@ -564,11 +564,4 @@ impl<F: Future, Y, A> Generator<F, Y, A> {
             },
         }
     }
-
-    pub(crate) fn resume(
-        mut self: Pin<&mut Self>,
-        mut resume: Option<A>,
-    ) -> impl Future<Output = GeneratorState<Y, F::Output>> {
-        std::future::poll_fn(move |cx| self.as_mut().poll_resume(cx, resume.take()))
-    }
 }
