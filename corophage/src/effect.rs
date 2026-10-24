@@ -87,7 +87,7 @@ impl<H: Effect, T: MapResume> MapResume for Coproduct<H, T> {
 ///
 /// The bound also provides the effect-to-resume mapping used by [`Resumes`].
 /// It does not require resume values to be `Send` or `Sync`; sendable execution
-/// checks those constraints separately. Define individual [`Effect`] types
+/// requires them to be `Send`. Define individual [`Effect`] types
 /// and combine them with the macro instead of implementing this trait yourself.
 ///
 /// ```
@@ -148,24 +148,3 @@ where
         Coproduct::Inr(T::inject_resume(r))
     }
 }
-
-/// Internal start signal used to kick off a coroutine.
-///
-/// This is prepended to the effect coproduct via [`CanStart`] so that
-/// the generator can distinguish its initial activation from effect resumes.
-#[derive(Copy, Clone, Debug)]
-pub struct Start;
-
-impl Effect for Start {
-    type Resume<'r> = Start;
-
-    #[inline]
-    fn shorten_resume<'a: 'b, 'b>(resume: Start) -> Start {
-        resume
-    }
-}
-
-/// Wraps an effect coproduct with a [`Start`] signal at the head.
-///
-/// Used internally by the coroutine machinery to bootstrap the generator.
-pub type CanStart<Effs> = Coproduct<Start, Effs>;

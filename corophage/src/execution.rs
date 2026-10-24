@@ -5,11 +5,9 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::task::{Context, Poll, Waker};
 
-use fauxgen::{AsyncGenerator, GeneratorState};
-use frunk_core::coproduct::Coproduct;
-
 use crate::coproduct::dispatch::Dispatch;
-use crate::effect::{Effects, Resumes, Start};
+use crate::effect::{Effects, Resumes};
+use crate::frame::{Generator, GeneratorState};
 use crate::{Cancelled, Control};
 
 /// One state owner lends a fresh mutable reference to each handler call.
@@ -95,29 +93,25 @@ where
     }
 }
 
-pub(crate) async fn drive<G, S, H, D, E, A>(
-    generator: G,
+pub(crate) async fn drive<F, S, H, D, E, A>(
+    generator: Generator<F, E, A>,
     mut state: S,
     mut handlers: H,
     dispatch: D,
-) -> Result<G::Return, Cancelled>
+) -> Result<F::Output, Cancelled>
 where
-    G: AsyncGenerator<Coproduct<Start, A>, Yield = Coproduct<Start, E>>,
+    F: Future,
     S: State,
     H: HandlerOwner,
     D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
 {
     let mut generator = std::pin::pin!(generator);
-    let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
+    let mut step = generator.as_mut().resume(None).await;
     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
     loop {
         match step {
             GeneratorState::Complete(value) => return Ok(value),
             GeneratorState::Yielded(effect) => {
-                let effect = match effect {
-                    Coproduct::Inr(effect) => effect,
-                    Coproduct::Inl(_) => unreachable!("Start must not be yielded"),
-                };
                 // Completion at the budget boundary needs no extra poll.
                 if budget == 0 {
                     crate::yield_to_executor().await;
@@ -136,7 +130,7 @@ where
                 {
                     Control::Cancel => return Err(Cancelled),
                     Control::Resume(value) => {
-                        step = generator.as_mut().resume(Coproduct::Inr(value)).await;
+                        step = generator.as_mut().resume(Some(value)).await;
                     }
                 }
             }
@@ -152,31 +146,28 @@ where
 /// are always ready.
 ///
 /// [`Synchronous`]: crate::coproduct::dispatch::Synchronous
-pub(crate) fn drive_inline<G, S, H, D, E, A>(
-    generator: G,
+pub(crate) fn drive_inline<F, S, H, D, E, A>(
+    generator: Generator<F, E, A>,
     mut state: S,
     mut handlers: H,
     dispatch: D,
-) -> Result<G::Return, Cancelled>
+) -> Result<F::Output, Cancelled>
 where
-    G: AsyncGenerator<Coproduct<Start, A>, Yield = Coproduct<Start, E>>,
+    F: Future,
     S: State,
     H: HandlerOwner,
     D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
 {
     let mut generator = std::pin::pin!(generator);
     let mut context = Context::from_waker(Waker::noop());
-    let mut argument = Some(Coproduct::Inl(Start));
+    let mut argument = None;
     loop {
         let effect = match generator
             .as_mut()
             .poll_resume(&mut context, argument.take())
         {
             Poll::Ready(GeneratorState::Complete(value)) => return Ok(value),
-            Poll::Ready(GeneratorState::Yielded(Coproduct::Inr(effect))) => effect,
-            Poll::Ready(GeneratorState::Yielded(Coproduct::Inl(_))) => {
-                unreachable!("Start must not be yielded")
-            }
+            Poll::Ready(GeneratorState::Yielded(effect)) => effect,
             Poll::Pending => panic!(
                 "computation suspended on a non-effect future; use an async runner instead. \
                  Nested `.run().await` calls also suspend after a bounded number of effects; \
@@ -192,7 +183,7 @@ where
         ));
         match future.poll(&mut context) {
             Poll::Ready(Control::Cancel) => return Err(Cancelled),
-            Poll::Ready(Control::Resume(value)) => argument = Some(Coproduct::Inr(value)),
+            Poll::Ready(Control::Resume(value)) => argument = Some(value),
             Poll::Pending => unreachable!("synchronous dispatch is always ready"),
         }
     }
@@ -200,15 +191,15 @@ where
 
 /// Preserve the explicit guarantee of the legacy sendable low-level functions.
 /// All proofs here concern concrete types; the main loop has no Send bounds.
-pub(crate) fn drive_send<G, S, H, D, E, A>(
-    generator: G,
+pub(crate) fn drive_send<F, S, H, D, E, A>(
+    generator: Generator<F, E, A>,
     state: S,
     handlers: H,
     dispatch: D,
-) -> impl Future<Output = Result<G::Return, Cancelled>> + Send
+) -> impl Future<Output = Result<F::Output, Cancelled>> + Send
 where
-    G: AsyncGenerator<Coproduct<Start, A>, Yield = Coproduct<Start, E>> + Send,
-    G::Return: Send,
+    F: Future + Send,
+    F::Output: Send,
     S: State + Send,
     S::Value: Send,
     H: HandlerOwner + Send,

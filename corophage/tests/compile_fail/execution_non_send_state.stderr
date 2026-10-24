@@ -18,7 +18,7 @@ note: required because it's used within this `async` fn body
    |
    | / {
    | |     let mut generator = std::pin::pin!(generator);
-   | |     let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
+   | |     let mut step = generator.as_mut().resume(None).await;
    | |     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
 ...  |
    | | }

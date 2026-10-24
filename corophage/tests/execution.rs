@@ -728,6 +728,34 @@ impl Effect for LocalResume {
     }
 }
 
+// Nothing shares stored resumes, so a resume that is `Send` but not `Sync`
+// leaves programs, mapped programs, and their run futures `Send`.
+#[test]
+fn resumes_need_not_be_sync() {
+    struct Shared;
+    impl Effect for Shared {
+        type Resume<'r> = Cell<usize>;
+        fn shorten_resume<'a: 'b, 'b>(value: Cell<usize>) -> Cell<usize> {
+            value
+        }
+    }
+
+    let program = || {
+        Program::new(
+            |mut y: Yielder<'_, Effects![Shared]>| async move { y.yield_(Shared).await.get() },
+        )
+    };
+    assert_send(&program());
+    assert_send(&program().map(|value| value + 1));
+    assert_send(&program().boxed_send());
+    let future = program()
+        .handle(|_: Shared| Control::resume(Cell::new(1)))
+        .run();
+    assert_send(&future);
+    let result = std::pin::pin!(future).poll(&mut Context::from_waker(Waker::noop()));
+    assert_eq!(result, Poll::Ready(Ok(1)));
+}
+
 #[tokio::test]
 async fn local_resume_storage_and_result_need_not_be_send() {
     let future = Program::new(|mut y: Yielder<'_, Effects![LocalResume]>| async move {

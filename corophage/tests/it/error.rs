@@ -84,14 +84,13 @@ impl Effect for Inner {
     }
 }
 
-// fauxgen identifies a generator by its token's address. Dropping the yielder
-// must not free that address while the generator runs, or a token allocated
-// later could pass the check and write a foreign value into this generator.
+// A yielder finds its frame by a unique id while the frame's owner polls the
+// body. A yielder that escaped a finished program must not reach the frame
+// that is registered when it is used, including one at the same address.
 #[test]
-#[should_panic(expected = "waker id does not match generator id")]
-fn foreign_yielder_after_dropping_own_yielder_panics() {
-    let _ = Program::new(|outer: Yielder<'_, Effects![Outer]>| async move {
-        drop(outer);
+#[should_panic(expected = "effect operation polled outside its computation")]
+fn foreign_yielder_panics() {
+    let _ = Program::new(|_: Yielder<'_, Effects![Outer]>| async move {
         let mut inner = Program::new(|inner: Yielder<'_, Effects![Inner]>| async move { inner })
             .handle(|_: Inner| Control::resume(()))
             .run_sync()

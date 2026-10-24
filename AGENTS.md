@@ -1,11 +1,12 @@
 # corophage
 
-Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_core` (heterogeneous lists/coproducts).
+Algebraic effects for stable Rust, built on async/await with an internal frame transport, and `frunk_core` (heterogeneous lists/coproducts).
 
 ## Architecture
 
-- `corophage/src/effect.rs` — `Effect` trait (with GAT `Resume<'r>`), `MapResume` (with GAT `Output<'r>`), `Resumes<'r, E>`, `Effects`, `Start`, `CanStart`
-- `corophage/src/coroutine.rs` — concrete `Coroutine<'a, Effs, F>`, erased `GenericCo<'a, Effs, Return, L>` with `Co`/`CoSend` aliases, pin-projected transport and invocation futures, and `Yielder<'a, Effs>`
+- `corophage/src/effect.rs` — `Effect` trait (with GAT `Resume<'r>`), `MapResume` (with GAT `Output<'r>`), `Resumes<'r, E>`, `Effects`
+- `corophage/src/frame.rs` — the frame transport: `Frame` (id, effect/resume slot), the thread-local registry, `RawYield` (withdrawable raw yield), and the `Generator` adapter that polls a body with its frame registered. Its module docs state invariants I1–I5
+- `corophage/src/coroutine.rs` — concrete `Coroutine<'a, Effs, F>`, erased `GenericCo<'a, Effs, Return, L>` with `Co`/`CoSend` aliases, the pin-projected invocation future, the `yield_` future, and `Yielder<'a, Effs>`
 - `corophage/src/control.rs` — `Control<R>` (handler resume/cancel) and `Cancelled`
 - `corophage/src/catch.rs` — the `Throw<E>` effect, `Program::catch`, and the `Catch` runner, which lends its handler list to the execution loop and reads the thrown error back
 - `corophage/src/coproduct/dispatch.rs` — one mutable dispatch protocol with named branch/injection futures, synchronous metadata, and explicit `local`/`local_stateful` lending adapters
@@ -21,7 +22,7 @@ Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_co
 ## Key Design Constraints
 
 - **Effects are parameterized by lifetime `'a`**: The bound is `Effects<'a>: MapResume + Send + Sync + 'a`, propagated through `Co<'a, Effs, Return>`. Effects can borrow non-`'static` data by using a shorter lifetime.
-- **`Effect::Resume<'r>` is a GAT**: Resume types can contain borrowed or local data. Sendable transport requires `Send + Sync` for the stored resumes; local execution does not. Keep the computation lifetime independent of temporary state/handler loans, and never let a resume borrow escape such a loan.
+- **`Effect::Resume<'r>` is a GAT**: Resume types can contain borrowed or local data. Sendable execution requires `Send` for the stored resumes; local execution does not. Nothing shares stored resumes, so they never need `Sync`. Keep the computation lifetime independent of temporary state/handler loans, and never let a resume borrow escape such a loan.
 - **`Co` vs `CoSend`**: `Co<'a, Effs, Return>` is not `Send` (uses `Pin<Box<dyn Future + 'a>>`). Use `CoSend<'a, Effs, Return>` (backed by `Sendable` locality) for `Send`-able coroutines compatible with `tokio::spawn`. Both are type aliases for `GenericCo<'a, Effs, Return, L>` parameterized by a `Locality` marker.
 - **`Program` is the primary API**: `Program::new` creates a computation from a closure, `.handle()` attaches handlers one at a time, `.run_sync()`/`.run()` execute once all effects are handled. `Co`/`CoSend` and the direct `run`/`sync::run` functions are advanced/internal.
 - **Handler order is flexible**: `.handle()` and `.handle_all()` remove handled effects from `Remaining`. Low-level handler lists also support lookup in any order and can contain extra handlers. Missing and duplicate program handlers remain compile errors.
@@ -29,9 +30,9 @@ Algebraic effects for stable Rust, built on `fauxgen` (coroutines) and `frunk_co
 
 ## Internal Invariants
 
-- `Yielder::yield_` always wraps the effect in `Coproduct::Inr(...)`, so the `Inl` (Start) arm in the execution loops and `invoke` is always `unreachable!()`.
 - Dispatch injects resumes through `InjectResume`; `Yielder::yield_` keeps a checked panic for deliberately mismatched public index parameters.
-- Pin projection uses `pin-project-lite`. `Coroutine` and `Transport` retain an `Arc<Resumes<...>>` phantom marker: fauxgen's unchecked generator `Send` impl does not itself check resume storage. Do not remove that marker based only on the body's auto traits.
+- Pin projection uses `pin-project-lite`. `Yielder`, `Coroutine`, and `GenericCo` carry an `Invariant<'a, Effs>` marker. The runner creates its frame from the same parameters as the body's yielder, so variance must never change them (I3); the `variance_*` compile-fail tests guard this. Never replace the marker with a covariant or contravariant one.
+- Frames are only reached through shared references, and slot values are moved out before they are dropped (I4). A frame takes its id at first registration: constructing a frame must stay free of side effects, or LLVM stops eliding moves of large unstarted bodies, which made deep invoke chains superlinear.
 - `Invocation` stores each pinned child once. Its forwarding future borrows the external yielder, never its own movable fields. An async function that stores both the child argument and its pinned generator causes exponential future-size growth.
 
 ## Commands

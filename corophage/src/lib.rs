@@ -12,6 +12,7 @@ mod catch;
 mod control;
 mod effect;
 mod execution;
+mod frame;
 mod locality;
 mod program;
 
@@ -116,7 +117,7 @@ pub mod asynk {
         F: Send + 'h,
         ES: Effects<'a> + for<'s, 'f> Dispatch<'a, ES, &'s mut (), &'f mut &'h mut F, I>,
         for<'s, 'f> <ES as Dispatch<'a, ES, &'s mut (), &'f mut &'h mut F, I>>::Future: Send,
-        Resumes<'a, ES>: Send + Sync,
+        Resumes<'a, ES>: Send,
     {
         drive_send(
             co.generator(),
@@ -164,7 +165,7 @@ pub mod asynk {
         F: Sync + 'h,
         ES: Effects<'a> + for<'s, 'f> Dispatch<'a, ES, &'s mut S, &'f mut &'h F, I>,
         for<'s, 'f> <ES as Dispatch<'a, ES, &'s mut S, &'f mut &'h F, I>>::Future: Send,
-        Resumes<'a, ES>: Send + Sync,
+        Resumes<'a, ES>: Send,
     {
         drive_send(
             co.generator(),

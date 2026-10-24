@@ -10,7 +10,7 @@ use crate::control::Cancelled;
 use crate::coproduct::HandlersToEffects;
 use crate::coproduct::dispatch::{Dispatch, Synchronous};
 use crate::coroutine::{CoSend, Coroutine, GenericCo, Yielder};
-use crate::effect::{CanStart, Effects, Resumes};
+use crate::effect::{Effects, Resumes};
 use crate::execution::State;
 use crate::locality::{Local, Locality, Sendable};
 
@@ -57,7 +57,6 @@ impl<'a, R> Program<'a, CNil, Ready<R>> {
     ) -> Effectful<'a, Effs, R, Sendable>
     where
         Effs: Effects<'a>,
-        for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
         F: Future<Output = R> + Send,
     {
         Self::from_co(CoSend::new(f))
@@ -178,7 +177,6 @@ impl<'a, Effs: Effects<'a>, F: Future> Program<'a, Effs, F> {
     pub fn boxed_send(self) -> Effectful<'a, Effs, F::Output, Sendable>
     where
         F: Send + 'a,
-        for<'r> Resumes<'r, CanStart<Effs>>: Send + Sync,
     {
         Program::from_co(self.co.boxed_send())
     }
@@ -322,7 +320,7 @@ impl<'a, Effs: Effects<'a>, R, H>
     where
         R: Send,
         H: Send,
-        Resumes<'a, Effs>: Send + Sync,
+        Resumes<'a, Effs>: Send,
         Effs: for<'s, 'h> Dispatch<'a, Effs, &'s mut (), &'h mut H, I>,
         for<'s, 'h> <Effs as Dispatch<'a, Effs, &'s mut (), &'h mut H, I>>::Future: Send,
     {
@@ -344,7 +342,7 @@ impl<'a, Effs: Effects<'a>, R, H>
         R: Send,
         S: Send,
         H: Send + Sync,
-        Resumes<'a, Effs>: Send + Sync,
+        Resumes<'a, Effs>: Send,
         Effs: for<'s, 'h> Dispatch<'a, Effs, &'s mut S, &'h mut H, I>,
         for<'s, 'h> <Effs as Dispatch<'a, Effs, &'s mut S, &'h mut H, I>>::Future: Send,
     {

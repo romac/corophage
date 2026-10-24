@@ -8,10 +8,10 @@ error[E0277]: `Rc<i32>` cannot be sent between threads safely
    |
   ::: src/program.rs
    |
-   |     ) -> Program<'a, Effs, impl Future<Output = R>, Remaining, Handlers, S> {
-   |                            ----------------------- within this `impl Future<Output = i32>`
+   |     pub fn run<I>(self) -> impl Future<Output = Result<F::Output, Cancelled>>
+   |                            -------------------------------------------------- within this `impl Future<Output = Result<<impl Future<Output = i32> as Future>::Output, Cancelled>>`
    |
-   = help: within `impl Future<Output = i32>`, the trait `Send` is not implemented for `Rc<i32>`
+   = help: within `impl Future<Output = Result<<impl Future<Output = i32> as Future>::Output, Cancelled>>`, the trait `Send` is not implemented for `Rc<i32>`
 note: required because it's used within this closure
   --> tests/compile_fail/execution_map_non_send_capture.rs:10:14
    |
@@ -27,18 +27,17 @@ note: required because it appears within the type `impl Future<Output = i32>`
    |
    |     ) -> Program<'a, Effs, impl Future<Output = R>, Remaining, Handlers, S> {
    |                            ^^^^^^^^^^^^^^^^^^^^^^^
-   = note: required for `fauxgen::export::asynk::AsyncGenerator<impl Future<Output = i32>, Coproduct<corophage::effect::Start, CNil>, Coproduct<corophage::effect::Start, CNil>>` to implement `Send`
-note: required because it appears within the type `coroutine::Transport<fauxgen::export::asynk::AsyncGenerator<impl Future<Output = i32>, Coproduct<corophage::effect::Start, CNil>, Coproduct<corophage::effect::Start, CNil>>, Coproduct<corophage::effect::Start, CNil>>`
-  --> src/coroutine.rs
+note: required because it appears within the type `corophage::frame::Generator<impl Future<Output = i32>, CNil, CNil>`
+  --> src/frame.rs
    |
-   |     pub(crate) struct Transport<G, A> {
+   |     pub(crate) struct Generator<F, Y, A> {
    |                       ^^^^^^^^^
 note: required because it's used within this `async` fn body
   --> src/execution.rs
    |
    | / {
    | |     let mut generator = std::pin::pin!(generator);
-   | |     let mut step = generator.as_mut().resume(Coproduct::Inl(Start)).await;
+   | |     let mut step = generator.as_mut().resume(None).await;
    | |     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
 ...  |
    | | }
