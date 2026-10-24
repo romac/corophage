@@ -27,7 +27,7 @@ pub mod coroutine;
 #[doc(hidden)]
 pub use frunk_core as __frunk_core;
 
-pub use catch::{Catch, Throw};
+pub use catch::Throw;
 pub use control::{Cancelled, Control};
 pub use coproduct::dispatch::{LocalHandler, LocalStatefulHandler, local, local_stateful};
 pub use coroutine::{Co, CoSend, Yielder};

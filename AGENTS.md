@@ -8,7 +8,7 @@ Algebraic effects for stable Rust, built on async/await with an internal frame t
 - `corophage/src/frame.rs` — the frame transport: `Frame` (id, effect/resume slot), the thread-local registry, `Operation` (one withdrawable effect operation on a frame), `RawYield`, and the `Generator` adapter that polls a body with its frame registered. Its module docs state invariants I1–I5
 - `corophage/src/coroutine.rs` — concrete `Coroutine<'a, Effs, F>`, erased `GenericCo<'a, Effs, Return, L>` with `Co`/`CoSend` aliases, the pin-projected invocation future, the `yield_` future, and `Yielder<'a, Effs>`
 - `corophage/src/control.rs` — `Control<R>` (handler resume/cancel) and `Cancelled`
-- `corophage/src/catch.rs` — the `Throw<E>` effect, `Program::catch`, and the `Catch` runner, which lends its handler list to the execution loop and reads the thrown error back
+- `corophage/src/catch.rs` — the `Throw<E>` effect and `Program::catch`, which wraps the body so that it takes its own throws from its frame (`Coroutine::intercept`) and completes with `Err`. The placeholder `CatchHandler` only fills the dispatch entry for `Throw<E>` and is never called
 - `corophage/src/coproduct/dispatch.rs` — one mutable dispatch protocol with named branch/injection futures, synchronous metadata, and explicit `local`/`local_stateful` lending adapters
 - `corophage/src/coproduct.rs` — handler-kind inference and effect/resume conversion
 - `corophage/src/execution.rs` — cooperative async loop and inline synchronous loop sharing one dispatch protocol, one state owner, owned or lent handler lists (`HandlerOwner`), short handler/state loans, and checked `Send` compatibility wrapper

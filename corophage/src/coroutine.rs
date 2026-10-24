@@ -16,7 +16,9 @@ use frunk_core::coproduct::{CoprodInjector, CoprodUninjector};
 
 use crate::coproduct::{EmbedEffect, ProjectResume};
 use crate::effect::{Effect, Effects, MapResume, Resumes};
-use crate::frame::{FrameId, Generator, GeneratorState, Invariant, Operation, RawYield};
+use crate::frame::{
+    FrameId, Generator, GeneratorState, Interceptor, Invariant, Operation, RawYield,
+};
 use crate::locality::{Local, Locality, Sendable};
 
 /// A coroutine body whose future type has not been erased.
@@ -39,6 +41,24 @@ impl<'a, Effs: Effects<'a>, F: Future> Coroutine<'a, Effs, F> {
         Coroutine {
             // Reuse the body and its yielder; mapping needs no new frame or box.
             body: async move { map(self.body.await) },
+            marker: self.marker,
+        }
+    }
+
+    /// Complete with `Err` as soon as the body yields an effect that `select`
+    /// takes, and drop the rest of the body. Other effects reach the runner.
+    pub(crate) fn intercept<T>(
+        self,
+        select: impl FnMut(Effs) -> Result<T, Effs>,
+    ) -> Coroutine<'a, Effs, impl Future<Output = Result<F::Output, T>>> {
+        Coroutine {
+            body: Intercepted {
+                body: Some(self.body),
+                // SAFETY: The interceptor becomes part of this coroutine's
+                // body, whose runner creates a frame of the matching type.
+                interceptor: unsafe { Interceptor::new() },
+                select,
+            },
             marker: self.marker,
         }
     }
@@ -88,6 +108,47 @@ where
             build(yielder).await
         },
         marker: PhantomData,
+    }
+}
+
+pin_project_lite::pin_project! {
+    struct Intercepted<'a, Effs: MapResume, F, S> {
+        #[pin]
+        body: Option<F>,
+        interceptor: Interceptor<'a, Effs>,
+        select: S,
+    }
+}
+
+impl<'a, Effs, F, S, T> Future for Intercepted<'a, Effs, F, S>
+where
+    Effs: MapResume,
+    F: Future,
+    S: FnMut(Effs) -> Result<T, Effs>,
+{
+    type Output = Result<F::Output, T>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        // Before the body's first poll, while its frame is still starting.
+        this.interceptor.attach();
+        let body = this
+            .body
+            .as_mut()
+            .as_pin_mut()
+            .expect("intercepted body polled after completion");
+        if let Poll::Ready(value) = body.poll(cx) {
+            return Poll::Ready(Ok(value));
+        }
+        match this.interceptor.take(&mut *this.select) {
+            Some(taken) => {
+                // The slot is already empty, so the operation that yielded the
+                // effect withdraws nothing when it is dropped with the body.
+                this.body.set(None);
+                Poll::Ready(Err(taken))
+            }
+            None => Poll::Pending,
+        }
     }
 }
 
@@ -306,8 +367,8 @@ where
     /// Throw an error, aborting the computation.
     ///
     /// Yields [`Throw`](crate::Throw) and never returns, so the call can stand in
-    /// for a value of any type. [`Program::catch`](crate::Program::catch) returns
-    /// the error from the run. In statement position, write
+    /// for a value of any type. [`Program::catch`](crate::Program::catch) makes
+    /// the error the program's result. In statement position, write
     /// `return y.throw(error).await` so the type can be inferred.
     #[inline]
     pub async fn throw<T, E, Index>(&mut self, error: E) -> T

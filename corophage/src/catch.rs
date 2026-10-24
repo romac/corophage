@@ -1,26 +1,25 @@
 //! Typed errors as an effect: [`Throw`] aborts a computation with an error, and
-//! [`Program::catch`] returns that error from the run.
+//! [`Program::catch`] makes that error the program's result.
 
-use std::future::{Future, Ready, ready};
+use std::future::{Future, Ready};
 use std::marker::PhantomData;
 use std::ops::Add;
 
-use frunk_core::coproduct::{CNil, Coproduct, CoproductSubsetter};
-use frunk_core::hlist::{HCons, HNil, Selector};
+use frunk_core::coproduct::{Coproduct, CoproductSubsetter};
+use frunk_core::hlist::{HCons, HNil};
 
-use crate::coproduct::HandlersToEffects;
-use crate::coproduct::dispatch::{Call, Dispatch, Synchronous};
+use crate::coproduct::dispatch::{Call, Synchronous};
+use crate::coproduct::{CoprodAt, HandlersToEffects};
 use crate::effect::{Effect, Effects, InjectResume};
-use crate::execution::{CoproductDispatch, State, drive, drive_inline};
 use crate::program::{HandleEffects, Program};
-use crate::{Cancelled, Control, Never};
+use crate::{Control, Never};
 
 /// An effect that aborts the computation with an error.
 ///
 /// `Throw<E>` never resumes. Throw from a body with [`Yielder::throw`] or,
 /// inside an `#[effectful]` function, with `throw!(error)`. Attach
-/// [`Program::catch`] to return the error from the run as `Ok(Err(error))`,
-/// or handle `Throw<E>` like any other effect.
+/// [`Program::catch`] to make the error the program's result, or handle
+/// `Throw<E>` like any other effect.
 ///
 /// [`Yielder::throw`]: crate::Yielder::throw
 pub struct Throw<E>(pub E);
@@ -34,12 +33,10 @@ impl<E> Effect for Throw<E> {
     }
 }
 
-/// Handler installed by [`Program::catch`]. It stores the thrown error and
-/// cancels; the caught runner reads the error back after execution.
+/// Handler entry installed by [`Program::catch`]. The caught body takes every
+/// throw before dispatch, so this handler is never called.
 #[doc(hidden)]
-pub struct CatchHandler<E> {
-    thrown: Option<E>,
-}
+pub struct CatchHandler<E>(PhantomData<fn() -> E>);
 
 /// Dispatch kind of [`CatchHandler`].
 #[doc(hidden)]
@@ -49,9 +46,9 @@ impl Synchronous for Caught {}
 
 impl<State, E> Call<State, Throw<E>, Never, Caught> for &mut CatchHandler<E> {
     type Future = Ready<Control<Never>>;
-    fn call(self, _: State, Throw(error): Throw<E>) -> Self::Future {
-        self.thrown = Some(error);
-        ready(Control::Cancel)
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn call(self, _: State, _: Throw<E>) -> Self::Future {
+        unreachable!("a caught throw is taken by its program body")
     }
 }
 
@@ -65,22 +62,17 @@ where
     type Effects = Coproduct<Throw<E>, Tail::Effects>;
 }
 
-/// A program whose thrown errors of type `E` are returned by its run.
-///
-/// Created by [`Program::catch`]. Run it with [`Catch::run`] or [`Catch::run_sync`].
-pub struct Catch<P, E> {
-    program: P,
-    error: PhantomData<fn() -> E>,
-}
-
-impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, S, Mode>
+impl<'a, Effs: Effects<'a>, F: Future, Remaining, Handlers, S, Mode>
     Program<'a, Effs, F, Remaining, Handlers, S, Mode>
 {
-    /// Handle [`Throw<E>`] by returning the error from the run.
+    /// Handle [`Throw<E>`] by completing the program with the error.
     ///
-    /// The run returns `Ok(Ok(value))` on completion, `Ok(Err(error))` when the
-    /// body throws, and `Err(Cancelled)` when another handler cancels. Use `?`
-    /// to propagate cancellation and keep the thrown error:
+    /// The caught program returns `Ok(value)` on completion and `Err(error)`
+    /// as soon as its body throws, dropping the rest of the body. A throw
+    /// from an invoked sub-program is caught too. Its run returns
+    /// `Ok(Ok(value))`, `Ok(Err(error))`, or `Err(Cancelled)` when another
+    /// handler cancels. Use `?` to propagate cancellation and keep the thrown
+    /// error:
     ///
     /// ```
     /// use corophage::prelude::*;
@@ -96,23 +88,21 @@ impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, S, Mode>
     /// assert!(matches!(result, Ok(Err(NotFound))));
     /// ```
     ///
-    /// Attach other handlers and bind state before calling `catch`.
+    /// Handlers and state can be attached before or after `catch`. Like
+    /// [`map`](Program::map), the caught program uses inferred execution.
     #[allow(clippy::type_complexity)]
-    pub fn catch<E, HandleIdx, SubsetIdx>(
+    pub fn catch<E, ThrowIdx, HandleIdx, SubsetIdx>(
         self,
-    ) -> Catch<
-        Program<
-            'a,
-            Effs,
-            F,
-            HandleEffects<'a, Remaining, HCons<CatchHandler<E>, HNil>, Effs, HandleIdx, SubsetIdx>,
-            <Handlers as Add<HCons<CatchHandler<E>, HNil>>>::Output,
-            S,
-            Mode,
-        >,
-        E,
+    ) -> Program<
+        'a,
+        Effs,
+        impl Future<Output = Result<F::Output, E>>,
+        HandleEffects<'a, Remaining, HCons<CatchHandler<E>, HNil>, Effs, HandleIdx, SubsetIdx>,
+        <Handlers as Add<HCons<CatchHandler<E>, HNil>>>::Output,
+        S,
     >
     where
+        Effs: CoprodAt<Throw<E>, ThrowIdx>,
         HCons<CatchHandler<E>, HNil>: HandlersToEffects<'a, Effs, HandleIdx>,
         Remaining: CoproductSubsetter<
                 <HCons<CatchHandler<E>, HNil> as HandlersToEffects<'a, Effs, HandleIdx>>::Effects,
@@ -120,79 +110,7 @@ impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, S, Mode>
             >,
         Handlers: Add<HCons<CatchHandler<E>, HNil>>,
     {
-        Catch {
-            program: self.handle(CatchHandler { thrown: None }),
-            error: PhantomData,
-        }
-    }
-}
-
-impl<'a, Effs: Effects<'a>, F: Future, H, S: State, Mode, E>
-    Catch<Program<'a, Effs, F, CNil, H, S, Mode>, E>
-{
-    /// Execute with cooperative scheduling, returning a thrown error as
-    /// `Ok(Err(error))`. `Send` follows the stored components, as for
-    /// [`Program::run`].
-    pub fn run<I, Sel>(self) -> impl Future<Output = Result<Result<F::Output, E>, Cancelled>>
-    where
-        Effs: for<'call> Dispatch<'a, Effs, &'call mut S::Value, &'call mut H, I>,
-        H: Selector<CatchHandler<E>, Sel>,
-    {
-        let Program {
-            co,
-            state,
-            mut handlers,
-            ..
-        } = self.program;
-        async move {
-            let result = drive(
-                co.generator(),
-                state,
-                &mut handlers,
-                CoproductDispatch::<'a, Effs, I>::new(),
-            )
-            .await;
-            caught(result, handlers.get_mut().thrown.take())
-        }
-    }
-
-    /// Execute inline with synchronous handlers, returning a thrown error as
-    /// `Ok(Err(error))`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the computation suspends on an ordinary future, as in
-    /// [`Program::run_sync`].
-    pub fn run_sync<I, Sel>(self) -> Result<Result<F::Output, E>, Cancelled>
-    where
-        Effs: for<'call> Dispatch<'a, Effs, &'call mut S::Value, &'call mut H, I>,
-        I: Synchronous,
-        H: Selector<CatchHandler<E>, Sel>,
-    {
-        let Program {
-            co,
-            state,
-            mut handlers,
-            ..
-        } = self.program;
-        let result = drive_inline(
-            co.generator(),
-            state,
-            &mut handlers,
-            CoproductDispatch::<'a, Effs, I>::new(),
-        );
-        caught(result, handlers.get_mut().thrown.take())
-    }
-}
-
-/// A cancellation that stored an error was a throw; any other is a cancellation.
-fn caught<R, E>(
-    result: Result<R, Cancelled>,
-    thrown: Option<E>,
-) -> Result<Result<R, E>, Cancelled> {
-    match (result, thrown) {
-        (Ok(value), _) => Ok(Ok(value)),
-        (Err(Cancelled), Some(error)) => Ok(Err(error)),
-        (Err(Cancelled), None) => Err(Cancelled),
+        self.handle(CatchHandler(PhantomData))
+            .with_body(|co| co.intercept(|effect: Effs| effect.at().map(|Throw(error)| error)))
     }
 }

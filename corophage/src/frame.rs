@@ -227,10 +227,17 @@ unsafe fn with_frame<Y, A, R>(id: FrameId, f: impl FnOnce(&Frame<Y, A>) -> R) ->
 ///
 /// Only the owner polls a body, so its frame is the most recently registered.
 pub(crate) fn start() -> FrameId {
+    starting(true)
+}
+
+/// The id of the frame whose owner polls a body for the first time. A wrapper
+/// around the body keeps the frame starting, so the body can take its yielder.
+fn starting(start: bool) -> FrameId {
     let header = FRAMES.with(Cell::get);
     // SAFETY: Registered frames are alive (I1).
     match unsafe { header.as_ref() } {
-        Some(header) if header.starting.replace(false) => {
+        Some(header) if header.starting.get() => {
+            header.starting.set(!start);
             header.id.get().expect("registered frames have an id")
         }
         _ => panic!("a computation body was polled outside its runner"),
@@ -330,6 +337,59 @@ impl<'a, Effs: MapResume> Drop for Operation<'a, Effs> {
             };
             drop(withdrawn);
         }
+    }
+}
+
+/// Lets a wrapper around a body take effects of its own computation before
+/// the frame's owner sees them.
+///
+/// The wrapper attaches before it polls the body for the first time, and
+/// inspects the slot each time the body returns `Pending`.
+pub(crate) struct Interceptor<'a, Effs: MapResume> {
+    frame: Option<FrameId>,
+    marker: Invariant<'a, Effs>,
+}
+
+impl<'a, Effs: MapResume> Interceptor<'a, Effs> {
+    /// # Safety
+    ///
+    /// The interceptor must only be polled as part of a body whose runner's
+    /// frame has type `Frame<Effs, Resumes<'a, Effs>>` (I3).
+    pub(crate) unsafe fn new() -> Self {
+        Self {
+            frame: None,
+            marker: PhantomData,
+        }
+    }
+
+    /// Record the frame of the runner that polls the body for the first time.
+    pub(crate) fn attach(&mut self) {
+        if self.frame.is_none() {
+            self.frame = Some(starting(false));
+        }
+    }
+
+    /// Take the effect that the body just yielded, if `select` accepts it.
+    /// Otherwise the effect stays in the slot for the owner.
+    pub(crate) fn take<T>(&self, select: impl FnOnce(Effs) -> Result<T, Effs>) -> Option<T> {
+        let id = self.frame.expect("interceptor polled before attaching");
+        // SAFETY: The constructor's caller guarantees the frame type.
+        let taken = unsafe {
+            with_frame::<Effs, Resumes<'a, Effs>, _>(id, |frame| match frame.replace(Slot::Empty) {
+                Slot::Yielded(effect) => match select(effect) {
+                    Ok(taken) => Some(taken),
+                    Err(effect) => {
+                        frame.replace(Slot::Yielded(effect));
+                        None
+                    }
+                },
+                other => {
+                    frame.replace(other);
+                    None
+                }
+            })
+        };
+        taken.unwrap_or_else(|| not_registered())
     }
 }
 

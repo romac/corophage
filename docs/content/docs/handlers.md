@@ -91,7 +91,7 @@ The `Never` resume type indicates this effect can never resume — the handler m
 
 ## Throwing errors
 
-`Control::cancel()` does not record why the computation stopped. To abort with a typed error, yield the built-in `Throw<E>` effect and catch it when running:
+`Control::cancel()` does not record why the computation stopped. To abort with a typed error, yield the built-in `Throw<E>` effect and catch it:
 
 ```rust
 #[effect(Option<String>)]
@@ -114,8 +114,8 @@ let result: Result<Result<String, NotFound>, Cancelled> = find_user(42)
     .run_sync();
 ```
 
-`.catch()` handles `Throw<E>` and changes what the run returns: `Ok(Ok(value))` on completion, `Ok(Err(error))` when the program throws, and `Err(Cancelled)` when a handler cancels. Use `?` to propagate the cancellation and keep the error: `find_user(42).handle(...).catch().run_sync()?` has type `Result<String, NotFound>`. Both `.run()` and `.run_sync()` are available after `.catch()`.
+`.catch()` handles `Throw<E>` by completing the program with the error: the caught program returns `Result<T, E>`, and the rest of its body is dropped at the throw. Its run returns `Ok(Ok(value))` on completion, `Ok(Err(error))` when the program throws, and `Err(Cancelled)` when a handler cancels. Use `?` to propagate the cancellation and keep the error: `find_user(42).handle(...).catch().run_sync()?` has type `Result<String, NotFound>`. A caught program is an ordinary program, so handlers, state, and `.map()` can follow `.catch()`.
 
 Inside `#[effectful]` functions, `throw!(error)` can stand in for a value of any type. In a `Program::new` closure, use `y.throw(error).await`. In statement position, write `return y.throw(error).await` so the type can be inferred.
 
-Attach the other handlers and bind state before calling `.catch()`. A program catches one error type; use an enum when several errors are possible. A throw from an invoked sub-program aborts the whole computation, and catching inside a program body is not supported yet. Without `.catch()`, `Throw<E>` is an ordinary effect that you can handle like any other.
+Each `.catch()` handles one error type; use an enum, or one `.catch()` per type, when several errors are possible. A throw from an invoked sub-program reaches the nearest catch above it, dropping every body in between; catching inside a program body is not supported yet. A throw withdrawn by a combinator, such as the losing branch of a `select!`, is never caught. Without `.catch()`, `Throw<E>` is an ordinary effect that you can handle like any other.

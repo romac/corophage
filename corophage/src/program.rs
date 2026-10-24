@@ -143,6 +143,24 @@ impl<'a, Effs: Effects<'a>, F: Future, Remaining, Handlers, S, Mode>
     }
 }
 
+impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, S, Mode>
+    Program<'a, Effs, F, Remaining, Handlers, S, Mode>
+{
+    /// Replace the body, keeping its handlers, remaining effects, and state.
+    pub(crate) fn with_body<G>(
+        self,
+        body: impl FnOnce(Coroutine<'a, Effs, F>) -> Coroutine<'a, Effs, G>,
+    ) -> Program<'a, Effs, G, Remaining, Handlers, S> {
+        Program {
+            co: body(self.co),
+            state: self.state,
+            handlers: self.handlers,
+            remaining: PhantomData,
+            mode: PhantomData,
+        }
+    }
+}
+
 impl<'a, Effs: Effects<'a>, F, Remaining, Handlers, Mode>
     Program<'a, Effs, F, Remaining, Handlers, (), Mode>
 {

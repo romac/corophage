@@ -144,3 +144,92 @@ fn throw_in_statement_position_and_ordinary_handling() {
     assert_eq!(result, Err(Cancelled));
     assert_eq!(seen, Some(NotFound(7)));
 }
+
+#[test]
+fn handlers_state_and_mapping_can_follow_catch() {
+    let mut lookups = 0;
+    let result = find(2)
+        .catch()
+        .with_state(&mut lookups)
+        .handle(|lookups: &mut usize, effect: Lookup| {
+            *lookups += 1;
+            lookup(effect)
+        })
+        .handle(|_: Stop| Control::cancel())
+        .map(|caught| caught.map_err(|NotFound(id)| id))
+        .run_sync();
+
+    assert_eq!(result, Ok(Err(2)));
+    assert_eq!(lookups, 1);
+}
+
+#[test]
+fn a_caught_throw_drops_the_rest_of_the_body() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static DROPPED: AtomicUsize = AtomicUsize::new(0);
+    struct Guard;
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            DROPPED.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    let result = Program::new(|mut y: Yielder<'_, Effs>| async move {
+        let _guard = Guard;
+        let found = y.yield_(Lookup(2)).await;
+        if found.is_none() {
+            // The body is dropped here; the handler for `Throw` never runs.
+            y.throw::<(), _, _>(NotFound(2)).await;
+        }
+        unreachable!("the throw completes the program")
+    })
+    .handle(lookup)
+    .handle(|_: Stop| Control::cancel())
+    .catch()
+    .map(|caught: Result<(), NotFound>| {
+        assert_eq!(DROPPED.load(Ordering::Relaxed), 1);
+        caught
+    })
+    .run_sync();
+
+    assert_eq!(result, Ok(Err(NotFound(2))));
+}
+
+#[derive(Debug, PartialEq)]
+struct Invalid;
+
+#[test]
+fn nested_catches_take_their_own_errors() {
+    type Both = Effects![Throw<NotFound>, Throw<Invalid>];
+    let program = |which: u8| {
+        Program::new(move |mut y: Yielder<'_, Both>| async move {
+            match which {
+                0 => y.throw(NotFound(1)).await,
+                1 => y.throw(Invalid).await,
+                _ => 7,
+            }
+        })
+        .catch::<NotFound, _, _, _>()
+        .catch::<Invalid, _, _, _>()
+        .run_sync()
+    };
+
+    assert_eq!(program(0), Ok(Ok(Err(NotFound(1)))));
+    assert_eq!(program(1), Ok(Err(Invalid)));
+    assert_eq!(program(2), Ok(Ok(Ok(7))));
+}
+
+#[test]
+fn a_withdrawn_throw_is_not_caught() {
+    let result = Program::new(|mut y: Yielder<'_, Effects![Throw<NotFound>]>| async move {
+        tokio::select! {
+            biased;
+            never = y.throw::<Never, _, _>(NotFound(3)) => match never {},
+            () = std::future::ready(()) => "recovered",
+        }
+    })
+    .catch()
+    .run_sync();
+
+    assert_eq!(result, Ok(Ok("recovered")));
+}
