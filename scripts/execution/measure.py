@@ -24,7 +24,7 @@ def run(args, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", default="fa68b5a")
+    parser.add_argument("--baseline", default="v0.7.0")
     parser.add_argument("--output", type=Path, default=ROOT / "corophage/benches/results/execution.json")
     args = parser.parse_args()
     source = Path(__file__).with_name("probe.rs").read_text()

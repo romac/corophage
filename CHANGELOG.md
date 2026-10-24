@@ -10,7 +10,7 @@
 ### Changed
 
 - Effects travel through a small frame owned by each run, and `fauxgen` is no longer a dependency. A yielder finds its run's frame by a unique id while the runner polls the computation, so the transport no longer relies on another crate's private API or on allocation addresses.
-- Runs no longer allocate, and `invoke` moves each effect of a sub-program into its parent's frame without a future per level. In our measurements against 0.7.0, one synchronous effect is about 54% faster, 1,000 effects are 25–33% faster, and 1 to 20 nested invocations are 48–53% faster. The run future of a 20-level invocation chain shrinks from 8,048 to 3,792 bytes.
+- Runs no longer allocate, and `invoke` moves each effect of a sub-program into its parent's frame without a future per level. In our measurements against 0.7.0, one synchronous effect takes 52% less time, 1,000 effects take 28–32% less, and 5 to 20 nested invocations take 49–53% less. The performance guide has been re-measured against 0.7.0. The run future of a 20-level invocation chain shrinks from 8,048 to 3,792 bytes.
 - Resume values no longer need to be `Sync`. `CoSend::new`, `.boxed_send()`, and `Program::new_send` drop their resume bounds, and the sendable `.run()`, `.run_stateful()`, `asynk::run_send`, and `asynk::run_stateful_send` require resumes to be `Send` only. An unrun program places no requirement on its resumes.
 - Polling an effect operation outside its computation panics with "effect operation polled outside its computation".
 
