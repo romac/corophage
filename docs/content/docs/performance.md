@@ -4,7 +4,7 @@ weight = 7
 description = "Measured execution costs and concrete future storage tradeoffs."
 +++
 
-The current implementation at commit `f9b3925` was compared with v0.7.0 at commit `0e52000` on 2026-10-24. The candidate was measured with no tracked changes, and the recorded source and generated-fixture hashes match that commit. Both builds used the same macOS arm64 machine, Rust 1.99.1, release optimization, LTO, and one code generation unit.
+The current implementation at commit `bcfb6f2` was compared with v0.7.0 at commit `0e52000` on 2026-10-25, on AC power. The candidate was measured with no tracked changes, and the recorded source and generated-fixture hashes match that commit. Both builds used the same macOS arm64 machine, Rust 1.99.1, release optimization, LTO, and one code generation unit.
 
 ## Execution costs
 
@@ -12,36 +12,36 @@ Each row measures a complete operation, including construction and execution. As
 
 | Operation | v0.7.0 | Current |
 | --- | ---: | ---: |
-| Construct and drop | 0.5 ns | 0.6 ns |
-| One sync effect | 28.1 ns | 13.4 ns |
-| One async effect | 91.4 ns | 77.7 ns |
-| 1,000 sync effects | 9.6 µs | 6.9 µs |
-| 1,000 async effects | 11.5 µs | 8.2 µs |
-| 1,000 stateful sync effects | 9.5 µs | 6.8 µs |
-| 1,000 stateful async effects | 12.0 µs | 8.1 µs |
-| Five nested invocations | 203 ns | 104 ns |
-| Ten nested invocations | 375 ns | 189 ns |
-| Twenty nested invocations | 748 ns | 348 ns |
+| Construct and drop | 0.5 ns | 0.5 ns |
+| One sync effect | 35.0 ns | 15.6 ns |
+| One async effect | 100.8 ns | 74.0 ns |
+| 1,000 sync effects | 9.6 µs | 7.0 µs |
+| 1,000 async effects | 11.6 µs | 8.6 µs |
+| 1,000 stateful sync effects | 9.5 µs | 7.0 µs |
+| 1,000 stateful async effects | 12.0 µs | 8.8 µs |
+| Five nested invocations | 215 ns | 73 ns |
+| Ten nested invocations | 371 ns | 131 ns |
+| Twenty nested invocations | 738 ns | 274 ns |
 
 Nested cases perform one effect at the leaf and run synchronously. Depth counts invocation edges, so depth 20 has 21 active programs. Every generated level invokes the preceding level exactly once. This comparison uses its own generated chains; the Divan stress fixtures are measured separately below.
 
-Each run owns a small frame that carries effects and resumes between the computation and its runner, and an invocation moves each effect from its child's frame into its parent's without a future per level. One synchronous effect takes 52% less time, the 1,000-effect loops 28–32% less, and nested invocations 49–53% less. Construction stays below a nanosecond; its 0.1 ns difference is within the timer's resolution for this case. Real handlers can have much larger costs than the dispatch itself. Do not apply these ratios to an application without measuring it.
+Each run owns a small frame that carries effects and resumes between the computation and its runner, and an invocation moves each effect from its child's frame into its parent's without a future per level. One synchronous effect takes 44–56% less time, the 1,000-effect loops 25–27% less, and nested invocations 62–66% less. Construction stays below a nanosecond. Each revision is built once, in a fresh temporary directory. Across two runs on AC power on 2026-10-25, the v0.7.0 single-effect rows varied between builds, from 27.9 to 35.0 ns for one sync effect and from 90.5 to 100.8 ns for one async effect; the table shows the recorded run. The current rows varied by less than 2%. For v0.7.0, the 1,000-effect rows varied by less than 3% and the nested rows by up to 11%. Real handlers can have much larger costs than the dispatch itself. Do not apply these ratios to an application without measuring it.
 
 ## Stress nesting benchmarks
 
-The Divan fixtures were measured on 2026-10-24 at commit `f9b3925`, and for v0.7.0 from an archived checkout, on macOS arm64, Rust 1.99.1, and the workspace's optimized bench profile with LTO. Each case has 1,000 samples of 1,000 iterations. The medians include program construction, synchronous execution with a no-op handler, and destruction.
+The Divan fixtures were measured on 2026-10-25 at commit `bcfb6f2`, and for v0.7.0 from an archived checkout right after it, on macOS arm64, Rust 1.99.1, and the workspace's optimized bench profile with LTO. Each case has 1,000 samples of 1,000 iterations. The medians include program construction, synchronous execution with a no-op handler, and destruction.
 
 This suite counts active programs: the leaf has depth 1, and depth 20 has 19 invocation edges. The leaf-only case yields once. The other case yields once in each program and returns the number of yields. Regression tests run these same fixtures with guards that check peak active depth and handler calls; timing runs use a no-op observer.
 
 | Depth (active programs) | One leaf effect, v0.7.0 | Current | One effect per level, v0.7.0 | Current |
 | --- | ---: | ---: | ---: | ---: |
-| 1 | 28.32 ns | 9.75 ns | 28.74 ns | 8.58 ns |
-| 2 | 59.78 ns | 14.33 ns | 68.74 ns | 23.08 ns |
-| 3 | 90.36 ns | 19.58 ns | 120.9 ns | 52.78 ns |
-| 5 | 178.6 ns | 34.91 ns | 256.9 ns | 108.2 ns |
-| 10 | 371.1 ns | 70.41 ns | 790.2 ns | 354.6 ns |
-| 15 | 581.8 ns | 120.6 ns | — | — |
-| 20 | 798.9 ns | 158.5 ns | — | — |
+| 1 | 28.57 ns | 6.83 ns | 28.28 ns | 5.99 ns |
+| 2 | 61.03 ns | 12.57 ns | 67.32 ns | 16.61 ns |
+| 3 | 91.15 ns | 18.11 ns | 118.3 ns | 38.15 ns |
+| 5 | 178.6 ns | 34.53 ns | 257.3 ns | 96.74 ns |
+| 10 | 378.7 ns | 94.28 ns | 773.1 ns | 327.8 ns |
+| 15 | 564 ns | 146.2 ns | — | — |
+| 20 | 779.6 ns | 198.7 ns | — | — |
 
 These fixtures use a zero-sized effect and resume, so v0.7.0's allocation per program dominates them, and the difference is larger than in the execution comparison. Yielding at every level also increases total work: at depth `d`, effects cross `d × (d − 1) / 2` invocation edges in total, versus `d − 1` for the single leaf effect. These are complete workload timings, not an isolated cost per invocation.
 
@@ -63,16 +63,16 @@ Allocations were counted separately from timings, after runtime warmup.
 | Flat run, 1 or 1,000 ordinary effects | 1 allocation | 0 allocations |
 | Twenty nested invocations | 21 allocations | 0 allocations |
 | Unhandled flat program | 160 bytes | 96 bytes |
-| Flat async execution future | 448 bytes | 352 bytes |
-| Depth-20 async execution future | 8,048 bytes | 3,792 bytes |
+| Flat async execution future | 448 bytes | 232 bytes |
+| Depth-20 async execution future | 8,048 bytes | 1,952 bytes |
 
-Future sizes exclude heap allocations. Concrete bodies and their frames are stored inside the surrounding future. Invocation stores each child once, so concrete storage grows linearly with the chain depth, by 176 bytes per level in this fixture. Use explicit boxing for recursive programs or to limit stored type size.
+Future sizes exclude heap allocations. Concrete bodies and their frames are stored inside the surrounding future. Invocation stores each child once, so concrete storage grows linearly with the chain depth, by 88 bytes per level in this fixture. Use explicit boxing for recursive programs or to limit stored type size.
 
 Explicit body boxing adds one allocation per body. A flat run using `local` required 1 allocation for one call and 1,000 for 1,000 calls: one boxed future per handler call. Ordinary handlers add no per-dispatch allocation. Both local lending adapters explicitly box their returned futures.
 
 ## Build and code size
 
-The common measurement binary grew from 568,848 to 569,232 bytes, and its Mach-O `__TEXT` segment stayed at 400 KiB. One clean offline build, including dependencies, took 6.9 seconds for v0.7.0 and 5.6 seconds for the candidate, which no longer depends on `fauxgen`. These are single build observations, not stable estimates of application compile time or library footprint.
+The common measurement binary shrank from 568,848 to 563,328 bytes, and its Mach-O `__TEXT` segment stayed at 400 KiB. One clean offline build, including dependencies, took 6.8 seconds for v0.7.0 and 6.2 seconds for the candidate, which no longer depends on `fauxgen`. These are single build observations, not stable estimates of application compile time or library footprint.
 
 ## Reproduce
 

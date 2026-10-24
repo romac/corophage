@@ -1,9 +1,9 @@
-Stress nesting measurements: 2026-10-24
+Stress nesting measurements: 2026-10-25
 Command: cargo bench -p corophage --bench stress -- nesting_depth --sample-count 1000 --sample-size 1000 --color never
 Profile: workspace bench profile (optimized, LTO enabled)
-Revision: f9b3925e1a5f139e8b51580dc68efe3eebd4a1e1 (frame transport, direct invocation forwarding)
+Revision: bcfb6f2c6ac4c159cc3bd1ccab12c141230fedd9 (frame transport, handled invocations)
 Depth convention: active programs, leaf = 1 (invoke edges = depth - 1)
-Platform: macOS-27.0.1-arm64-arm-64bit-Mach-O
+Platform: macOS-27.0.1-arm64-arm-64bit-Mach-O, on AC power
 
 rustc 1.99.1 (58cf8f9c3 2026-10-13)
 binary: rustc
@@ -25,34 +25,34 @@ Timer precision: 41 ns
 stress                           fastest       │ slowest       │ median        │ mean          │ samples │ iters
 ╰─ deep_nesting                                │               │               │               │         │
    ├─ nesting_depth                            │               │               │               │         │
-   │  ├─ 1                       9.663 ns      │ 18.66 ns      │ 9.747 ns      │ 9.852 ns      │ 1000    │ 1000000
-   │  ├─ 2                       14.24 ns      │ 25.74 ns      │ 14.33 ns      │ 14.58 ns      │ 1000    │ 1000000
-   │  ├─ 3                       19.37 ns      │ 36.45 ns      │ 19.58 ns      │ 19.91 ns      │ 1000    │ 1000000
-   │  ├─ 5                       34.7 ns       │ 55.41 ns      │ 34.91 ns      │ 35.58 ns      │ 1000    │ 1000000
-   │  ├─ 10                      70.03 ns      │ 98.37 ns      │ 70.41 ns      │ 71.5 ns       │ 1000    │ 1000000
-   │  ├─ 15                      114.6 ns      │ 150.7 ns      │ 120.6 ns      │ 121.7 ns      │ 1000    │ 1000000
-   │  ╰─ 20                      151.5 ns      │ 259.7 ns      │ 158.5 ns      │ 158.3 ns      │ 1000    │ 1000000
+   │  ├─ 1                       6.742 ns      │ 46.65 ns      │ 6.826 ns      │ 7.191 ns      │ 1000    │ 1000000
+   │  ├─ 2                       12.32 ns      │ 21.9 ns       │ 12.57 ns      │ 12.72 ns      │ 1000    │ 1000000
+   │  ├─ 3                       17.99 ns      │ 31.86 ns      │ 18.11 ns      │ 18.5 ns       │ 1000    │ 1000000
+   │  ├─ 5                       34.36 ns      │ 55.45 ns      │ 34.53 ns      │ 35.08 ns      │ 1000    │ 1000000
+   │  ├─ 10                      93.65 ns      │ 118.7 ns      │ 94.28 ns      │ 96.01 ns      │ 1000    │ 1000000
+   │  ├─ 15                      144.9 ns      │ 222.4 ns      │ 146.2 ns      │ 148.6 ns      │ 1000    │ 1000000
+   │  ╰─ 20                      194.3 ns      │ 269.7 ns      │ 198.7 ns      │ 201.6 ns      │ 1000    │ 1000000
    ╰─ nesting_depth_with_yields                │               │               │               │         │
-      ├─ 1                       8.496 ns      │ 14.28 ns      │ 8.58 ns       │ 8.607 ns      │ 1000    │ 1000000
-      ├─ 2                       22.83 ns      │ 44.91 ns      │ 23.08 ns      │ 23.5 ns       │ 1000    │ 1000000
-      ├─ 3                       52.58 ns      │ 113 ns        │ 52.78 ns      │ 53.68 ns      │ 1000    │ 1000000
-      ├─ 5                       107.9 ns      │ 151.6 ns      │ 108.2 ns      │ 109.4 ns      │ 1000    │ 1000000
-      ╰─ 10                      348.9 ns      │ 419.2 ns      │ 354.6 ns      │ 357.2 ns      │ 1000    │ 1000000
+      ├─ 1                       5.95 ns       │ 20.9 ns       │ 5.992 ns      │ 6.164 ns      │ 1000    │ 1000000
+      ├─ 2                       16.49 ns      │ 32.32 ns      │ 16.61 ns      │ 17.01 ns      │ 1000    │ 1000000
+      ├─ 3                       37.07 ns      │ 59.28 ns      │ 38.15 ns      │ 38.44 ns      │ 1000    │ 1000000
+      ├─ 5                       96.4 ns       │ 136.3 ns      │ 96.74 ns      │ 98.3 ns       │ 1000    │ 1000000
+      ╰─ 10                      324.2 ns      │ 406.4 ns      │ 327.8 ns      │ 330.7 ns      │ 1000    │ 1000000
 
-Baseline: v0.7.0 (0e520004bb9462a94341d41a5609455e3ba8beca), same command, machine, and toolchain, from an archived checkout
+Baseline: v0.7.0 (0e520004bb9462a94341d41a5609455e3ba8beca), same command, machine, and toolchain, from an archived checkout, run right after the revision above
 stress                           fastest       │ slowest       │ median        │ mean          │ samples │ iters
 ╰─ deep_nesting                                │               │               │               │         │
    ├─ nesting_depth                            │               │               │               │         │
-   │  ├─ 1                       27.03 ns      │ 67.82 ns      │ 28.32 ns      │ 29.09 ns      │ 1000    │ 1000000
-   │  ├─ 2                       57.95 ns      │ 125.2 ns      │ 59.78 ns      │ 60.89 ns      │ 1000    │ 1000000
-   │  ├─ 3                       86.82 ns      │ 204.6 ns      │ 90.36 ns      │ 91.15 ns      │ 1000    │ 1000000
-   │  ├─ 5                       166.6 ns      │ 225 ns        │ 178.6 ns      │ 179.7 ns      │ 1000    │ 1000000
-   │  ├─ 10                      355 ns        │ 416.4 ns      │ 371.1 ns      │ 372.4 ns      │ 1000    │ 1000000
-   │  ├─ 15                      560 ns        │ 760.1 ns      │ 581.8 ns      │ 583.4 ns      │ 1000    │ 1000000
-   │  ╰─ 20                      770.7 ns      │ 921.7 ns      │ 798.9 ns      │ 800.3 ns      │ 1000    │ 1000000
+   │  ├─ 1                       27.11 ns      │ 107.4 ns      │ 28.57 ns      │ 28.92 ns      │ 1000    │ 1000000
+   │  ├─ 2                       58.32 ns      │ 120.8 ns      │ 61.03 ns      │ 62.03 ns      │ 1000    │ 1000000
+   │  ├─ 3                       86.53 ns      │ 117.8 ns      │ 91.15 ns      │ 91.33 ns      │ 1000    │ 1000000
+   │  ├─ 5                       167.7 ns      │ 207.7 ns      │ 178.6 ns      │ 179.2 ns      │ 1000    │ 1000000
+   │  ├─ 10                      358.7 ns      │ 777.5 ns      │ 378.7 ns      │ 380.1 ns      │ 1000    │ 1000000
+   │  ├─ 15                      554 ns        │ 658.7 ns      │ 564 ns        │ 570.4 ns      │ 1000    │ 1000000
+   │  ╰─ 20                      761.3 ns      │ 1.01 µs       │ 779.6 ns      │ 796.5 ns      │ 1000    │ 1000000
    ╰─ nesting_depth_with_yields                │               │               │               │         │
-      ├─ 1                       27.61 ns      │ 38.15 ns      │ 28.74 ns      │ 28.84 ns      │ 1000    │ 1000000
-      ├─ 2                       66.28 ns      │ 108 ns        │ 68.74 ns      │ 69.5 ns       │ 1000    │ 1000000
-      ├─ 3                       118.8 ns      │ 141.1 ns      │ 120.9 ns      │ 121.7 ns      │ 1000    │ 1000000
-      ├─ 5                       246.8 ns      │ 293.6 ns      │ 256.9 ns      │ 257.6 ns      │ 1000    │ 1000000
-      ╰─ 10                      756.7 ns      │ 911.6 ns      │ 790.2 ns      │ 790.2 ns      │ 1000    │ 1000000
+      ├─ 1                       27.95 ns      │ 49.07 ns      │ 28.28 ns      │ 29.06 ns      │ 1000    │ 1000000
+      ├─ 2                       66.28 ns      │ 137.1 ns      │ 67.32 ns      │ 69.12 ns      │ 1000    │ 1000000
+      ├─ 3                       116 ns        │ 148.7 ns      │ 118.3 ns      │ 120.6 ns      │ 1000    │ 1000000
+      ├─ 5                       252.2 ns      │ 313.4 ns      │ 257.3 ns      │ 259.7 ns      │ 1000    │ 1000000
+      ╰─ 10                      758.4 ns      │ 935 ns        │ 773.1 ns      │ 779.4 ns      │ 1000    │ 1000000
