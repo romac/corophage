@@ -14,11 +14,8 @@ use std::task::{Context, Poll};
 
 use frunk_core::coproduct::{CoprodInjector, CoprodUninjector};
 
-use crate::coproduct::{EmbedEffect, ProjectResume};
 use crate::effect::{Effect, Effects, MapResume, Resumes};
-use crate::frame::{
-    FrameId, Generator, GeneratorState, Interceptor, Invariant, Operation, RawYield,
-};
+use crate::frame::{FrameRef, Generator, Interceptor, Invariant, RawYield};
 use crate::locality::{Local, Locality, Sendable};
 
 /// A coroutine body whose future type has not been erased.
@@ -240,55 +237,6 @@ impl<'a, Effs: Effects<'a>, R, L: Locality> GenericCo<'a, Effs, R, L> {
     }
 }
 
-pin_project_lite::pin_project! {
-    // Store each invoked generator once. Moving a concrete program into an
-    // async fn and then pinning it inside that function duplicates its storage
-    // in the future layout, which grows exponentially in deep invoke chains.
-    struct Invocation<'a, 'b, Effs: MapResume, SubEffs: MapResume, F, Indices> {
-        #[pin]
-        generator: Generator<F, SubEffs, Resumes<'b, SubEffs>>,
-        // Moves each child effect into the parent's slot and its resume back.
-        parent: Operation<'a, Effs>,
-        indices: PhantomData<fn() -> Indices>,
-    }
-}
-
-impl<'a, 'b, Effs, SubEffs, F, Indices> Future for Invocation<'a, 'b, Effs, SubEffs, F, Indices>
-where
-    'a: 'b,
-    Effs: MapResume,
-    SubEffs: MapResume + EmbedEffect<Effs, Indices>,
-    Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
-    F: Future,
-{
-    type Output = F::Output;
-
-    #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        let resume = if this.parent.is_waiting() {
-            // Project the outer resume back to the sub-effect resume. This
-            // produces Resumes<'a, SubEffs> (the outer handler's lifetime).
-            let resume: Resumes<'a, SubEffs> =
-                std::task::ready!(this.parent.poll_resume(cx)).project();
-            // Convert from the outer lifetime 'a to the sub-program's lifetime
-            // 'b. Effect::shorten_resume witnesses covariance for every effect.
-            Some(SubEffs::shorten_resumes(resume))
-        } else {
-            None
-        };
-        match std::task::ready!(this.generator.poll_resume(cx, resume)) {
-            GeneratorState::Complete(value) => Poll::Ready(value),
-            GeneratorState::Yielded(effect) => {
-                // Hand the child's effect to the parent's owner directly; no
-                // level of the chain needs a future of its own.
-                this.parent.yield_(cx, effect.embed());
-                Poll::Pending
-            }
-        }
-    }
-}
-
 /// Handle passed to computation closures for yielding effects.
 ///
 /// Use [`yield_`](Yielder::yield_) to perform an effect and receive the handler's
@@ -301,8 +249,7 @@ where
 {
     // The yielder only names its frame, which it finds while its owner polls
     // the body. This keeps it `Send` and `Sync` without any resume bounds.
-    frame: FrameId,
-    marker: Invariant<'a, Effs>,
+    frame: FrameRef<'a, Effs>,
 }
 
 impl<'a, Effs> Yielder<'a, Effs>
@@ -318,15 +265,14 @@ where
     #[inline]
     unsafe fn start() -> Self {
         Self {
-            frame: crate::frame::start(),
-            marker: PhantomData,
+            // SAFETY: The caller guarantees the frame type.
+            frame: unsafe { crate::frame::start() },
         }
     }
 
     #[inline]
-    fn operation(&self) -> Operation<'a, Effs> {
-        // SAFETY: This yielder's frame has the matching type (see `start`).
-        unsafe { Operation::new(self.frame) }
+    pub(crate) fn frame(&self) -> FrameRef<'a, Effs> {
+        self.frame
     }
 
     /// Yield an effect to the handler and suspend until resumed.
@@ -359,7 +305,7 @@ where
         <Effs as MapResume>::Output<'a>: CoprodUninjector<E::Resume<'a>, Index>,
     {
         Yield::<'a, Effs, E, Index> {
-            raw: RawYield::new(self.operation(), Effs::inject(effect)),
+            raw: RawYield::new(self.frame.operation(), Effs::inject(effect)),
             marker: PhantomData,
         }
     }
@@ -384,6 +330,8 @@ where
     /// The sub-program's effects must be a subset of this yielder's effects.
     /// Each effect yielded by the sub-program is forwarded to the outer handler
     /// via this yielder, and the resume value is passed back to the sub-program.
+    /// Use [`invoke_handled`](Yielder::invoke_handled) for a sub-program with
+    /// handlers attached; `invoke!` selects the right method.
     ///
     /// Effect forwarding uses synchronous coproduct conversions
     /// ([`EmbedEffect`] / [`ProjectResume`]) that move each effect from the
@@ -400,6 +348,9 @@ where
     ///
     /// Like [`yield_`](Yielder::yield_), the returned future withdraws a
     /// forwarded effect when dropped, and drops the sub-program.
+    ///
+    /// [`EmbedEffect`]: crate::EmbedEffect
+    /// [`ProjectResume`]: crate::ProjectResume
     #[inline]
     pub fn invoke<'b, SubEffs, R, F, Mode, Indices>(
         &mut self,
@@ -407,15 +358,54 @@ where
     ) -> impl Future<Output = R>
     where
         'a: 'b,
-        SubEffs: Effects<'b> + EmbedEffect<Effs, Indices>,
-        Resumes<'a, Effs>: ProjectResume<'a, SubEffs, Indices>,
+        SubEffs: Effects<'b> + crate::EmbedEffect<Effs, Indices>,
+        Resumes<'a, Effs>: crate::ProjectResume<'a, SubEffs, Indices>,
         F: Future<Output = R>,
     {
-        Invocation {
-            generator: program.co.generator(),
-            parent: self.operation(),
-            indices: PhantomData,
-        }
+        crate::invoke::unhandled(program, self)
+    }
+
+    /// Invoke a sub-program with handlers attached, and return its result.
+    ///
+    /// The attached handlers handle the sub-program's effects locally. Only
+    /// its remaining effects must be a subset of this yielder's effects, and
+    /// they are forwarded as by [`invoke`](Yielder::invoke). A fully handled
+    /// or [caught](crate::Program::catch) sub-program can be invoked too.
+    /// State bound with `.with_state()` is borrowed for the invocation.
+    ///
+    /// Local handlers can be sync or async. Under a synchronous runner, an
+    /// async local handler that suspends panics, as an ordinary future in the
+    /// body would. If any handler cancels, outer or local, the entire
+    /// computation is cancelled, so this never returns in that case. After a
+    /// bounded number of local dispatches, the root runner gets a chance to
+    /// reschedule, as for its own dispatches.
+    ///
+    /// The returned future withdraws a forwarded effect or a pending
+    /// cancellation when dropped, and drops the sub-program.
+    #[inline]
+    #[allow(clippy::type_complexity)]
+    pub fn invoke_handled<'b, SubEffs, F, Remaining, Handlers, S, Mode, Indices>(
+        &mut self,
+        program: crate::Program<'b, SubEffs, F, Remaining, Handlers, S, Mode>,
+    ) -> impl Future<Output = F::Output>
+    where
+        'a: 'b,
+        SubEffs: Effects<'b>
+            + for<'call> crate::coproduct::dispatch::Dispatch<
+                'b,
+                SubEffs,
+                &'call mut S::Value,
+                &'call mut frunk_core::hlist::HCons<
+                    crate::invoke::Forward<'a, 'b, Effs, Remaining>,
+                    Handlers,
+                >,
+                Indices,
+            >,
+        Remaining: MapResume,
+        F: Future,
+        S: crate::execution::State,
+    {
+        crate::invoke::handled(program, self)
     }
 }
 

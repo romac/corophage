@@ -157,6 +157,36 @@ fn invoked_effects_share_the_outer_runner_budget() {
 }
 
 #[test]
+fn locally_handled_effects_share_the_outer_runner_budget() {
+    let handled = AtomicUsize::new(0);
+    let handled = &handled;
+    let future = Program::new::<Effects![], _>(|mut y| async move {
+        y.invoke_handled(
+            Program::new(ready_effects).handle(|tick: Tick| handle_tick(handled, tick)),
+        )
+        .await
+    })
+    .run();
+
+    drive_in_batches(future, handled);
+}
+
+#[test]
+fn locally_handled_effects_complete_under_a_sync_root() {
+    let handled = AtomicUsize::new(0);
+    let handled = &handled;
+    let result = Program::new::<Effects![], _>(|mut y| async move {
+        y.invoke_handled(
+            Program::new(ready_effects).handle(|tick: Tick| handle_tick(handled, tick)),
+        )
+        .await
+    })
+    .run_sync();
+
+    assert_eq!(result, Ok(EFFECT_COUNT * (EFFECT_COUNT + 1) / 2));
+}
+
+#[test]
 fn small_async_programs_complete_without_a_budget_yield() {
     // Include completion exactly at the budget boundary.
     for effects in [0, 1, 128] {

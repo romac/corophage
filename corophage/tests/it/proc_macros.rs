@@ -1128,3 +1128,75 @@ fn test_effectful_generic_effects() {
     assert_eq!(result, Ok(1)); // 0 + 1
     assert_eq!(state, 2);
 }
+
+// --- invoke! with handled sub-programs ---
+
+#[effect(Option<u64>)]
+struct Fetch(u64);
+
+#[derive(Debug, PartialEq)]
+struct Unknown(u64);
+
+#[effectful(Fetch, Log<'static>)]
+fn load_all(ids: Vec<u64>) -> u64 {
+    let mut total = 0;
+    for id in ids {
+        total += yield_!(Fetch(id)).unwrap_or(0);
+    }
+    yield_!(Log("loaded"));
+    total
+}
+
+#[effectful(Fetch, Throw<Unknown>)]
+fn fetch_or_throw(id: u64) -> u64 {
+    match yield_!(Fetch(id)) {
+        Some(value) => value,
+        None => throw!(Unknown(id)),
+    }
+}
+
+// Fetch is served from a local cache; Log reaches report's caller. The cache
+// borrow lasts for the invocation only.
+#[effectful(Fetch, Log<'static>)]
+fn report(ids: Vec<u64>) -> (u64, usize) {
+    let mut cache = HashMap::from([(1, 10), (2, 20)]);
+    let total = invoke!(load_all(ids).with_state(&mut cache).handle(
+        |cache: &mut HashMap<u64, u64>, Fetch(id)| Control::resume(cache.get(&id).copied())
+    ));
+    (total, cache.len())
+}
+
+#[effectful(Fetch, send)]
+fn greet(id: u64) -> String {
+    match invoke!(fetch_or_throw(id).catch()) {
+        Ok(value) => format!("hello {value}"),
+        Err(Unknown(id)) => format!("hello stranger {id}"),
+    }
+}
+
+#[test]
+fn test_invoke_selects_handled_invocation() {
+    let mut logs = Vec::new();
+    let result = report(vec![1, 2, 3])
+        .handle(|_: Fetch| -> Control<Option<u64>> { unreachable!("served locally") })
+        .handle(|Log(line)| {
+            logs.push(line);
+            Control::resume(())
+        })
+        .run_sync();
+
+    assert_eq!(result, Ok((30, 2)));
+    assert_eq!(logs, ["loaded"]);
+}
+
+#[test]
+fn test_invoke_catches_inside_a_body() {
+    let run = |id| {
+        greet(id)
+            .handle(|Fetch(id)| Control::resume((id == 1).then_some(7)))
+            .run_sync()
+    };
+
+    assert_eq!(run(1), Ok("hello 7".to_string()));
+    assert_eq!(run(2), Ok("hello stranger 2".to_string()));
+}

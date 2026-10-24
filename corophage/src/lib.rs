@@ -13,6 +13,7 @@ mod control;
 mod effect;
 mod execution;
 mod frame;
+mod invoke;
 mod locality;
 mod program;
 
@@ -41,21 +42,6 @@ pub use corophage_macros::{effect, effectful};
 
 // Keep short computations in one poll while bounding runs of ready handlers.
 const ASYNC_DISPATCH_BUDGET: usize = 128;
-
-#[inline]
-async fn yield_to_executor() {
-    let mut yielded = false;
-    std::future::poll_fn(|cx| {
-        if yielded {
-            std::task::Poll::Ready(())
-        } else {
-            yielded = true;
-            cx.waker().wake_by_ref();
-            std::task::Poll::Pending
-        }
-    })
-    .await;
-}
 
 /// An uninhabited type for effects that never resume.
 ///

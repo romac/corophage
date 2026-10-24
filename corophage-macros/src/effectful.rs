@@ -251,8 +251,10 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
                 #[allow(unused_macros)]
                 macro_rules! invoke {
+                    // Selects `Yielder::invoke` or `Yielder::invoke_handled`
+                    // by whether the program has handlers attached.
                     ($prog:expr) => {
-                        #yielder.invoke($prog).await
+                        ($prog).__invoke(&mut #yielder).await
                     }
                 }
 

@@ -1,14 +1,14 @@
 //! Two execution loops share one dispatch protocol and state owner: a
 //! cooperative async loop, and an inline loop for synchronous dispatch.
 
-use std::future::Future;
+use std::future::{Future, poll_fn};
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 
 use crate::coproduct::dispatch::Dispatch;
 use crate::effect::{Effects, Resumes};
-use crate::frame::{Generator, GeneratorState};
+use crate::frame::{Generator, GeneratorState, Signal};
 use crate::{Cancelled, Control};
 
 /// One state owner lends a fresh mutable reference to each handler call.
@@ -94,13 +94,41 @@ where
     }
 }
 
-// An `async fn` would move the generator argument into a pinned local and keep
-// both copies in its state, about doubling each run future.
-#[allow(clippy::manual_async_fn)]
+/// What the cooperative loop does when it must give other work a chance to
+/// run, or when the computation is cancelled.
+pub(crate) trait Scheduler {
+    /// Complete once other work had a chance to run.
+    fn poll_reschedule(&mut self, cx: &mut Context<'_>) -> Poll<()>;
+
+    /// Complete once the loop may return `Err(Cancelled)`.
+    fn poll_cancel(&mut self, cx: &mut Context<'_>) -> Poll<()>;
+}
+
+/// A root runner yields to the executor and returns cancellations at once.
+#[derive(Default)]
+pub(crate) struct Root {
+    yielded: bool,
+}
+
+impl Scheduler for Root {
+    fn poll_reschedule(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        if std::mem::take(&mut self.yielded) {
+            return Poll::Ready(());
+        }
+        self.yielded = true;
+        cx.waker().wake_by_ref();
+        Poll::Pending
+    }
+
+    fn poll_cancel(&mut self, _: &mut Context<'_>) -> Poll<()> {
+        Poll::Ready(())
+    }
+}
+
 pub(crate) fn drive<F, S, H, D, E, A>(
-    mut generator: Generator<F, E, A>,
-    mut state: S,
-    mut handlers: H,
+    generator: Generator<F, E, A>,
+    state: S,
+    handlers: H,
     dispatch: D,
 ) -> impl Future<Output = Result<F::Output, Cancelled>>
 where
@@ -108,6 +136,27 @@ where
     S: State,
     H: HandlerOwner,
     D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
+{
+    drive_with(generator, state, handlers, dispatch, Root::default())
+}
+
+/// The cooperative loop, shared by root runners and handled invocations.
+// An `async fn` would move the generator argument into a pinned local and keep
+// both copies in its state, about doubling each run and invocation future.
+#[allow(clippy::manual_async_fn)]
+pub(crate) fn drive_with<F, S, H, D, E, A, C>(
+    mut generator: Generator<F, E, A>,
+    mut state: S,
+    mut handlers: H,
+    dispatch: D,
+    mut scheduler: C,
+) -> impl Future<Output = Result<F::Output, Cancelled>>
+where
+    F: Future,
+    S: State,
+    H: HandlerOwner,
+    D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
+    C: Scheduler,
 {
     async move {
         // SAFETY: The block is pinned once polled, and the shadowed generator
@@ -117,32 +166,39 @@ where
         let mut step = generator.as_mut().resume(None).await;
         let mut budget = crate::ASYNC_DISPATCH_BUDGET;
         loop {
-            match step {
+            let resume = match step {
                 GeneratorState::Complete(value) => return Ok(value),
+                GeneratorState::Signalled(Signal::Cancel) => {
+                    poll_fn(|cx| scheduler.poll_cancel(cx)).await;
+                    return Err(Cancelled);
+                }
+                // A nested invocation used its budget of local dispatches.
+                GeneratorState::Signalled(Signal::Reschedule) => {
+                    poll_fn(|cx| scheduler.poll_reschedule(cx)).await;
+                    budget = crate::ASYNC_DISPATCH_BUDGET;
+                    None
+                }
                 GeneratorState::Yielded(effect) => {
                     // Completion at the budget boundary needs no extra poll.
                     if budget == 0 {
-                        crate::yield_to_executor().await;
+                        poll_fn(|cx| scheduler.poll_reschedule(cx)).await;
                         budget = crate::ASYNC_DISPATCH_BUDGET;
                     }
                     budget -= 1;
-                    match dispatch
-                        .dispatch(
-                            effect,
-                            CallContext {
-                                state: state.value_mut(),
-                                handlers: handlers.list(),
-                            },
-                        )
-                        .await
-                    {
-                        Control::Cancel => return Err(Cancelled),
-                        Control::Resume(value) => {
-                            step = generator.as_mut().resume(Some(value)).await;
+                    let context = CallContext {
+                        state: state.value_mut(),
+                        handlers: handlers.list(),
+                    };
+                    match dispatch.dispatch(effect, context).await {
+                        Control::Cancel => {
+                            poll_fn(|cx| scheduler.poll_cancel(cx)).await;
+                            return Err(Cancelled);
                         }
+                        Control::Resume(value) => Some(value),
                     }
                 }
-            }
+            };
+            step = generator.as_mut().resume(resume).await;
         }
     }
 }
@@ -177,8 +233,12 @@ where
         {
             Poll::Ready(GeneratorState::Complete(value)) => return Ok(value),
             Poll::Ready(GeneratorState::Yielded(effect)) => effect,
+            Poll::Ready(GeneratorState::Signalled(Signal::Cancel)) => return Err(Cancelled),
+            // A nested invocation used its budget; poll again at once.
+            Poll::Ready(GeneratorState::Signalled(Signal::Reschedule)) => continue,
             Poll::Pending => panic!(
                 "computation suspended on a non-effect future; use an async runner instead. \
+                 So do async handlers attached to an invoked sub-program when they suspend. \
                  Nested `.run().await` calls also suspend after a bounded number of effects; \
                  use `invoke` or `.run_sync()` for sub-programs of a synchronous program"
             ),

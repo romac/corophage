@@ -7,6 +7,7 @@ mod downstream;
 mod error;
 mod fairness;
 mod gat_resume;
+mod handled;
 mod invoke;
 mod non_static;
 #[cfg(feature = "macros")]

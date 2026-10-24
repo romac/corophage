@@ -4,7 +4,8 @@
 //! While the owner polls the body, the frame is registered in a thread-local
 //! list. A [`Yielder`](crate::Yielder) stores only the frame id and finds its
 //! frame in that list, so effect operations work inside any combinator that is
-//! polled within the body's own poll.
+//! polled within the body's own poll. An invocation also uses the slot of its
+//! parent's frame to send control [`Signal`]s, which travel up to the root.
 //!
 //! The unsafe code relies on these invariants:
 //!
@@ -109,12 +110,24 @@ struct FrameHeader {
 // the thread that registered it (I1).
 unsafe impl Send for FrameHeader {}
 
+/// A control signal from an invocation to the owner of its parent frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Signal {
+    /// A local handler cancelled: abort the whole computation.
+    Cancel,
+    /// A run of local dispatches used its budget: let the root reschedule.
+    Reschedule,
+}
+
 enum Slot<Y, A> {
     Empty,
     // Written by an operation, taken by the owner.
     Yielded(Y),
     // Written by the owner, taken by the operation.
     Resumed(A),
+    // Written by an operation, taken by the owner. Signals share the slot, so
+    // at most one effect or signal per frame is in flight.
+    Signalled(Signal),
 }
 
 /// The header comes first, so a header pointer can be cast back to the whole
@@ -204,6 +217,53 @@ fn out_of_order() -> ! {
     panic!("corophage frames were unregistered out of order");
 }
 
+/// The id of a frame of type `Frame<Effs, Resumes<'a, Effs>>` (I3).
+pub(crate) struct FrameRef<'a, Effs> {
+    id: FrameId,
+    marker: Invariant<'a, Effs>,
+}
+
+impl<'a, Effs> Clone for FrameRef<'a, Effs> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<'a, Effs> Copy for FrameRef<'a, Effs> {}
+
+impl<'a, Effs: MapResume> FrameRef<'a, Effs> {
+    /// # Safety
+    ///
+    /// `id` must belong to a frame of type `Frame<Effs, Resumes<'a, Effs>>`.
+    unsafe fn new(id: FrameId) -> Self {
+        Self {
+            id,
+            marker: PhantomData,
+        }
+    }
+
+    /// Start an operation on this frame.
+    pub(crate) fn operation(self) -> Operation<'a, Effs> {
+        Operation {
+            frame: self,
+            stage: Stage::Idle,
+        }
+    }
+
+    /// Run `f` on this frame, which must be registered.
+    fn with<R>(self, f: impl FnOnce(&Frame<Effs, Resumes<'a, Effs>>) -> R) -> R {
+        // SAFETY: The constructor's caller guarantees the frame type.
+        unsafe { with_frame(self.id, f) }.unwrap_or_else(|| not_registered())
+    }
+
+    /// Like [`with`](Self::with), but does nothing if the frame is not
+    /// registered.
+    fn with_registered<R>(self, f: impl FnOnce(&Frame<Effs, Resumes<'a, Effs>>) -> R) -> Option<R> {
+        // SAFETY: As in `with`.
+        unsafe { with_frame(self.id, f) }
+    }
+}
+
 /// Run `f` on the registered frame with this id, if there is one.
 ///
 /// # Safety
@@ -223,11 +283,17 @@ unsafe fn with_frame<Y, A, R>(id: FrameId, f: impl FnOnce(&Frame<Y, A>) -> R) ->
     None
 }
 
-/// Take the id of the frame whose owner polls a body for the first time.
+/// Take the frame whose owner polls a body for the first time.
 ///
 /// Only the owner polls a body, so its frame is the most recently registered.
-pub(crate) fn start() -> FrameId {
-    starting(true)
+///
+/// # Safety
+///
+/// Only a body may call this, at its first poll, and its runner's frame must
+/// have type `Frame<Effs, Resumes<'a, Effs>>` (I3).
+pub(crate) unsafe fn start<'a, Effs: MapResume>() -> FrameRef<'a, Effs> {
+    // SAFETY: The caller guarantees the frame type.
+    unsafe { FrameRef::new(starting(true)) }
 }
 
 /// The id of the frame whose owner polls a body for the first time. A wrapper
@@ -252,89 +318,105 @@ fn not_registered() -> ! {
     )
 }
 
-/// One effect operation on a frame: it hands an effect to the frame's owner,
-/// then waits for the resume.
+/// What an [`Operation`] waits for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Stage {
+    Idle,
+    /// The resume of the effect it yielded.
+    Resume,
+    /// The owner taking the signal it sent.
+    Signal(Signal),
+}
+
+/// One operation on a frame: it hands an effect or a signal to the frame's
+/// owner, then waits for the resume or for the owner to take the signal.
 ///
-/// Dropping the operation while it waits withdraws its effect, or discards its
-/// resume if the handler already ran.
+/// Dropping the operation while it waits withdraws its effect or signal, or
+/// discards its resume if the handler already ran.
 pub(crate) struct Operation<'a, Effs: MapResume> {
-    frame: FrameId,
-    waiting: bool,
-    marker: Invariant<'a, Effs>,
+    frame: FrameRef<'a, Effs>,
+    stage: Stage,
 }
 
 impl<'a, Effs: MapResume> Operation<'a, Effs> {
-    /// # Safety
-    ///
-    /// `frame` must be the id of a `Frame<Effs, Resumes<'a, Effs>>` (I3).
-    pub(crate) unsafe fn new(frame: FrameId) -> Self {
-        Self {
-            frame,
-            waiting: false,
-            marker: PhantomData,
-        }
-    }
-
-    pub(crate) fn is_waiting(&self) -> bool {
-        self.waiting
+    pub(crate) fn stage(&self) -> Stage {
+        self.stage
     }
 
     /// Hand an effect to the frame's owner. The caller must then return
     /// `Pending` up to the owner.
     pub(crate) fn yield_(&mut self, cx: &Context<'_>, effect: Effs) {
-        // SAFETY: The constructor's caller guarantees the frame type.
-        let found = unsafe {
-            with_frame::<Effs, Resumes<'a, Effs>, _>(self.frame, |frame| {
-                if !frame.is_empty() {
-                    panic!("another effect operation of this computation is in flight");
-                }
-                frame.replace(Slot::Yielded(effect));
-                self.waiting = true;
-                frame.wake_unless_owner(cx);
-            })
-        };
-        found.unwrap_or_else(|| not_registered())
+        self.hand_over(cx, Slot::Yielded(effect), Stage::Resume);
+    }
+
+    /// Hand a signal to the frame's owner. The caller must then return
+    /// `Pending` up to the owner.
+    pub(crate) fn signal(&mut self, cx: &Context<'_>, signal: Signal) {
+        self.hand_over(cx, Slot::Signalled(signal), Stage::Signal(signal));
+    }
+
+    fn hand_over(&mut self, cx: &Context<'_>, slot: Slot<Effs, Resumes<'a, Effs>>, stage: Stage) {
+        self.frame.with(|frame| {
+            if !frame.is_empty() {
+                panic!("another effect operation of this computation is in flight");
+            }
+            frame.replace(slot);
+            self.stage = stage;
+            frame.wake_unless_owner(cx);
+        });
     }
 
     /// Take the resume of the yielded effect once the owner provides it.
     pub(crate) fn poll_resume(&mut self, cx: &Context<'_>) -> Poll<Resumes<'a, Effs>> {
-        if !self.waiting {
+        if self.stage != Stage::Resume {
             panic!("effect operation polled after completion");
         }
-        // SAFETY: As in `yield_`.
-        let poll = unsafe {
-            with_frame::<Effs, Resumes<'a, Effs>, _>(self.frame, |frame| {
-                match frame.replace(Slot::Empty) {
-                    Slot::Resumed(value) => {
-                        self.waiting = false;
-                        Poll::Ready(value)
-                    }
-                    // Polled again before the owner took the effect.
-                    yielded @ Slot::Yielded(_) => {
-                        frame.replace(yielded);
-                        frame.wake_unless_owner(cx);
-                        Poll::Pending
-                    }
-                    Slot::Empty => panic!("effect operation lost its pending effect"),
-                }
-            })
-        };
-        poll.unwrap_or_else(|| not_registered())
+        self.frame.with(|frame| match frame.replace(Slot::Empty) {
+            Slot::Resumed(value) => {
+                self.stage = Stage::Idle;
+                Poll::Ready(value)
+            }
+            // Polled again before the owner took the effect.
+            yielded @ Slot::Yielded(_) => {
+                frame.replace(yielded);
+                frame.wake_unless_owner(cx);
+                Poll::Pending
+            }
+            _ => panic!("effect operation lost its pending effect"),
+        })
+    }
+
+    /// Complete once the owner has taken the signal.
+    pub(crate) fn poll_signal(&mut self, cx: &Context<'_>) -> Poll<()> {
+        if !matches!(self.stage, Stage::Signal(_)) {
+            panic!("signal polled after completion");
+        }
+        self.frame.with(|frame| match frame.replace(Slot::Empty) {
+            // Polled again before the owner took the signal.
+            signalled @ Slot::Signalled(_) => {
+                frame.replace(signalled);
+                frame.wake_unless_owner(cx);
+                Poll::Pending
+            }
+            Slot::Empty => {
+                self.stage = Stage::Idle;
+                Poll::Ready(())
+            }
+            _ => panic!("signal operation found another operation's value"),
+        })
     }
 }
 
 impl<'a, Effs: MapResume> Drop for Operation<'a, Effs> {
     fn drop(&mut self) {
-        if self.waiting {
+        if self.stage != Stage::Idle {
             // At most one operation per frame is in flight, so the slot holds
-            // this operation's effect or resume. An unregistered frame keeps
-            // it until the frame itself is dropped.
-            // SAFETY: As in `yield_`.
-            let withdrawn = unsafe {
-                with_frame::<Effs, Resumes<'a, Effs>, _>(self.frame, |frame| {
-                    frame.replace(Slot::Empty)
-                })
-            };
+            // this operation's effect, resume, or signal, or nothing once the
+            // owner took the signal. An unregistered frame keeps it until the
+            // frame itself is dropped.
+            let withdrawn = self
+                .frame
+                .with_registered(|frame| frame.replace(Slot::Empty));
             drop(withdrawn);
         }
     }
@@ -346,8 +428,7 @@ impl<'a, Effs: MapResume> Drop for Operation<'a, Effs> {
 /// The wrapper attaches before it polls the body for the first time, and
 /// inspects the slot each time the body returns `Pending`.
 pub(crate) struct Interceptor<'a, Effs: MapResume> {
-    frame: Option<FrameId>,
-    marker: Invariant<'a, Effs>,
+    frame: Option<FrameRef<'a, Effs>>,
 }
 
 impl<'a, Effs: MapResume> Interceptor<'a, Effs> {
@@ -356,40 +437,34 @@ impl<'a, Effs: MapResume> Interceptor<'a, Effs> {
     /// The interceptor must only be polled as part of a body whose runner's
     /// frame has type `Frame<Effs, Resumes<'a, Effs>>` (I3).
     pub(crate) unsafe fn new() -> Self {
-        Self {
-            frame: None,
-            marker: PhantomData,
-        }
+        Self { frame: None }
     }
 
     /// Record the frame of the runner that polls the body for the first time.
     pub(crate) fn attach(&mut self) {
         if self.frame.is_none() {
-            self.frame = Some(starting(false));
+            // SAFETY: The constructor's caller guarantees the frame type.
+            self.frame = Some(unsafe { FrameRef::new(starting(false)) });
         }
     }
 
     /// Take the effect that the body just yielded, if `select` accepts it.
     /// Otherwise the effect stays in the slot for the owner.
     pub(crate) fn take<T>(&self, select: impl FnOnce(Effs) -> Result<T, Effs>) -> Option<T> {
-        let id = self.frame.expect("interceptor polled before attaching");
-        // SAFETY: The constructor's caller guarantees the frame type.
-        let taken = unsafe {
-            with_frame::<Effs, Resumes<'a, Effs>, _>(id, |frame| match frame.replace(Slot::Empty) {
-                Slot::Yielded(effect) => match select(effect) {
-                    Ok(taken) => Some(taken),
-                    Err(effect) => {
-                        frame.replace(Slot::Yielded(effect));
-                        None
-                    }
-                },
-                other => {
-                    frame.replace(other);
+        let frame = self.frame.expect("interceptor polled before attaching");
+        frame.with(|frame| match frame.replace(Slot::Empty) {
+            Slot::Yielded(effect) => match select(effect) {
+                Ok(taken) => Some(taken),
+                Err(effect) => {
+                    frame.replace(Slot::Yielded(effect));
                     None
                 }
-            })
-        };
-        taken.unwrap_or_else(|| not_registered())
+            },
+            other => {
+                frame.replace(other);
+                None
+            }
+        })
     }
 }
 
@@ -430,6 +505,8 @@ impl<'a, Effs: MapResume> Future for RawYield<'a, Effs> {
 /// A step of a [`Generator`].
 pub(crate) enum GeneratorState<Y, R> {
     Yielded(Y),
+    /// A nested invocation signalled the owner.
+    Signalled(Signal),
     Complete(R),
 }
 
@@ -477,6 +554,7 @@ impl<F: Future, Y, A> Generator<F, Y, A> {
             Poll::Ready(value) => Poll::Ready(GeneratorState::Complete(value)),
             Poll::Pending => match frame.replace(Slot::Empty) {
                 Slot::Yielded(effect) => Poll::Ready(GeneratorState::Yielded(effect)),
+                Slot::Signalled(signal) => Poll::Ready(GeneratorState::Signalled(signal)),
                 Slot::Empty => Poll::Pending,
                 // The body waits on something else before reading its resume.
                 resumed @ Slot::Resumed(_) => {
