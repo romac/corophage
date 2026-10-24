@@ -327,6 +327,48 @@ let result = Program::new(|mut y: Yielder<'_, Effects![Ask, Print, Log]>| async 
 
 Sub-programs can themselves invoke other sub-programs. Concrete future storage grows with nesting depth; use explicit boxing for recursive functions or to limit stored type size.
 
+#### Handling some effects locally
+
+A sub-program can have handlers attached before it is invoked. Those handlers run inside the invocation, and only the remaining effects must be in the outer program's effects:
+
+```rust,ignore
+#[effect(Option<u64>)]
+struct Fetch(u64);
+
+#[effectful(Fetch, Log)]
+fn load_all(ids: Vec<u64>) -> u64 {
+    let mut total = 0;
+    for id in ids {
+        total += yield_!(Fetch(id)).unwrap_or(0);
+    }
+    yield_!(Log("loaded"));
+    total
+}
+
+#[effectful(Log)]
+fn report(ids: Vec<u64>) -> u64 {
+    let mut cache = HashMap::from([(1, 10), (2, 20)]);
+    // Fetch is served from the cache; Log reaches report's caller.
+    invoke!(load_all(ids).with_state(&mut cache).handle(
+        |cache: &mut HashMap<u64, u64>, Fetch(id)| Control::resume(cache.get(&id).copied())
+    ))
+}
+```
+
+`invoke!` selects the right method. With the manual API, use `y.invoke_handled(program).await` for a sub-program with handlers attached. A fully handled sub-program can be invoked from any program, and a [caught](https://corophage.rs/docs/handlers/#throwing-errors) one returns its error to the invoking body:
+
+```rust,ignore
+#[effectful(Fetch)]
+fn greet(id: u64) -> String {
+    match invoke!(find_user(id).catch()) {
+        Ok(user) => format!("hello {user}"),
+        Err(NotFound(_)) => "hello stranger".into(),
+    }
+}
+```
+
+Local handlers can be sync or async. Under `.run_sync()`, an async local handler that suspends panics, like an ordinary future in the body. A local handler that cancels cancels the whole computation, and local dispatches count toward the outer runner's scheduling budget.
+
 ### Explicit return types and boxing
 
 Manual functions can return `Program<'a, Effs, impl Future<Output = R> + 'a>`. To retain an erased `Effectful` signature, box the unhandled body explicitly:
