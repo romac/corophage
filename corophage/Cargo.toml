@@ -23,6 +23,7 @@ macros = ["dep:corophage-macros"]
 
 [dev-dependencies]
 divan = "0.1"
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 tokio = { version = "1", default-features = false, features = ["macros", "rt", "sync", "time"] }
 trybuild = "1"
 
