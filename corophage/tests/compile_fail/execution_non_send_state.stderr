@@ -13,16 +13,11 @@ error[E0277]: `Rc<usize>` cannot be sent between threads safely
    |
    = help: within `impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>`, the trait `Send` is not implemented for `Rc<usize>`
    = note: required because it appears within the type `&mut Rc<usize>`
-note: required because it's used within this `async` fn body
+note: required because it's used within this `async` block
   --> src/execution.rs
    |
-   | / {
-   | |     let mut generator = std::pin::pin!(generator);
-   | |     let mut step = generator.as_mut().resume(None).await;
-   | |     let mut budget = crate::ASYNC_DISPATCH_BUDGET;
-...  |
-   | | }
-   | |_^
+   |     async move {
+   |     ^^^^^^^^^^
 note: required because it appears within the type `impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>`
   --> src/program.rs
    |

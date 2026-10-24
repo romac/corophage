@@ -3,6 +3,7 @@
 
 use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 
 use crate::coproduct::dispatch::Dispatch;
@@ -93,44 +94,52 @@ where
     }
 }
 
-pub(crate) async fn drive<F, S, H, D, E, A>(
-    generator: Generator<F, E, A>,
+// An `async fn` would move the generator argument into a pinned local and keep
+// both copies in its state, about doubling each run future.
+#[allow(clippy::manual_async_fn)]
+pub(crate) fn drive<F, S, H, D, E, A>(
+    mut generator: Generator<F, E, A>,
     mut state: S,
     mut handlers: H,
     dispatch: D,
-) -> Result<F::Output, Cancelled>
+) -> impl Future<Output = Result<F::Output, Cancelled>>
 where
     F: Future,
     S: State,
     H: HandlerOwner,
     D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
 {
-    let mut generator = std::pin::pin!(generator);
-    let mut step = generator.as_mut().resume(None).await;
-    let mut budget = crate::ASYNC_DISPATCH_BUDGET;
-    loop {
-        match step {
-            GeneratorState::Complete(value) => return Ok(value),
-            GeneratorState::Yielded(effect) => {
-                // Completion at the budget boundary needs no extra poll.
-                if budget == 0 {
-                    crate::yield_to_executor().await;
-                    budget = crate::ASYNC_DISPATCH_BUDGET;
-                }
-                budget -= 1;
-                match dispatch
-                    .dispatch(
-                        effect,
-                        CallContext {
-                            state: state.value_mut(),
-                            handlers: handlers.list(),
-                        },
-                    )
-                    .await
-                {
-                    Control::Cancel => return Err(Cancelled),
-                    Control::Resume(value) => {
-                        step = generator.as_mut().resume(Some(value)).await;
+    async move {
+        // SAFETY: The block is pinned once polled, and the shadowed generator
+        // is never moved again. Pinning it where it was captured keeps a
+        // single copy of a possibly large body in the block's state.
+        let mut generator = unsafe { Pin::new_unchecked(&mut generator) };
+        let mut step = generator.as_mut().resume(None).await;
+        let mut budget = crate::ASYNC_DISPATCH_BUDGET;
+        loop {
+            match step {
+                GeneratorState::Complete(value) => return Ok(value),
+                GeneratorState::Yielded(effect) => {
+                    // Completion at the budget boundary needs no extra poll.
+                    if budget == 0 {
+                        crate::yield_to_executor().await;
+                        budget = crate::ASYNC_DISPATCH_BUDGET;
+                    }
+                    budget -= 1;
+                    match dispatch
+                        .dispatch(
+                            effect,
+                            CallContext {
+                                state: state.value_mut(),
+                                handlers: handlers.list(),
+                            },
+                        )
+                        .await
+                    {
+                        Control::Cancel => return Err(Cancelled),
+                        Control::Resume(value) => {
+                            step = generator.as_mut().resume(Some(value)).await;
+                        }
                     }
                 }
             }
