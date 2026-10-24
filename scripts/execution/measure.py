@@ -41,7 +41,7 @@ def main():
     source = source.replace("// NESTING_FUNCTIONS", "\n\n".join(nesting))
     source = source.replace("// NESTING_SAMPLES", "\n".join(samples))
     env = dict(os.environ, RUSTC_WRAPPER="", CARGO_INCREMENTAL="0")
-    baseline = run(["git", "rev-parse", args.baseline], cwd=ROOT).strip()
+    baseline = run(["git", "rev-parse", f"{args.baseline}^{{commit}}"], cwd=ROOT).strip()
     sources = hashlib.sha256()
     for package_name in ["corophage", "corophage-macros"]:
         for path in sorted((ROOT / package_name / "src").rglob("*.rs")):
