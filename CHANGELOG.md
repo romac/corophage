@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Reduced catch overhead by inlining effect transport polling.
+- Corrected cancellation documentation: timeouts can withdraw effects before dispatch and interrupt suspended handlers inside invoked sub-programs.
 - Local handler dispatches share their root runner's budget across successive and nested invocations. A loop of short handled children can no longer bypass cooperative scheduling by starting a fresh budget for each child. Independently run programs retain their own budgets.
 
 ### Added

@@ -290,10 +290,12 @@ where
     /// handler already resumed, the resume value is discarded; the handler's
     /// side effects remain.
     ///
-    /// The computation is not polled while a handler runs, so a competing
-    /// branch cannot interrupt the handler. It can only win in the poll that
-    /// yielded the effect, or after the handler resumed. In `select!`, use
-    /// `biased;` with the effect branch first to rule out the second case.
+    /// While this computation's runner awaits a handler, competing branches
+    /// in this computation cannot interrupt it. They can win before dispatch
+    /// or after resume; an expired timeout can withdraw the effect before
+    /// dispatch. In `select!`, use `biased;` with the effect branch first to
+    /// avoid discarding a ready resume. Cancelling an enclosing invocation
+    /// or run can still drop a suspended handler.
     #[inline]
     pub fn yield_<E, Index>(
         &mut self,
@@ -381,7 +383,9 @@ where
     /// reschedule, as for its own dispatches.
     ///
     /// The returned future withdraws a forwarded effect or a pending
-    /// cancellation when dropped, and drops the sub-program.
+    /// cancellation when dropped, and drops the sub-program, including any
+    /// suspended local handler. A timeout or competing branch can therefore
+    /// interrupt that handler; side effects already performed remain.
     #[inline]
     #[allow(clippy::type_complexity)]
     pub fn invoke_handled<'b, SubEffs, F, Remaining, Handlers, S, Mode, Indices>(

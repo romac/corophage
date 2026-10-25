@@ -226,12 +226,12 @@ With an explicit yielder, `y.yield_(effect)` and `y.invoke(program)` are futures
 
 Only one operation of a computation can be in flight at a time, because `yield_!` and `invoke!` borrow the yielder mutably.
 
-Dropping an operation before it completes withdraws its effect:
+Dropping a `yield_` operation before it completes withdraws its effect:
 
 - If the handler has not taken the effect yet, the effect is never handled.
 - If the handler already resumed, the resume value is discarded. The handler's side effects remain.
 
-This is weaker than cancel-safety. The runner does not poll the computation while a handler runs, so a competing branch cannot interrupt a handler. It can only win in the poll that yielded the effect, which withdraws it, or in the poll after the handler resumed, which discards the resume. Under `tokio::select!`'s random branch order, the second case is likely. Use `biased;` and list the effect branch first to rule it out:
+The runner does not poll the computation while awaiting its handler. A competing branch in that computation can win before dispatch or after resume, but cannot interrupt the active handler. In `tokio::select!`, use `biased;` and list the effect branch first to avoid discarding a ready resume:
 
 ```rust,ignore
 let reply = tokio::select! {
@@ -241,4 +241,6 @@ let reply = tokio::select! {
 };
 ```
 
-For the same reason, `tokio::time::timeout` around an effect operation has no effect: the operation is polled again only after its handler finishes, and it completes first. Dropping an `invoke!` operation withdraws the effect it forwards and drops the sub-program.
+A timeout around a direct yield can withdraw it before dispatch, but cannot interrupt the runner's active handler.
+
+Dropping an invocation withdraws any forwarded effect and drops the sub-program, including a suspended local handler. Thus `select!` or `timeout` around `invoke_handled` can interrupt that handler; side effects already performed remain. Dropping the whole run can also interrupt its suspended handler.

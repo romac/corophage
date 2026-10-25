@@ -490,6 +490,8 @@ impl<'a, Effs: MapResume> RawYield<'a, Effs> {
 impl<'a, Effs: MapResume> Future for RawYield<'a, Effs> {
     type Output = Resumes<'a, Effs>;
 
+    // Keep effect transport in the body's poll; an extra call slows catch loops.
+    #[inline(always)]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         match this.effect.take() {
