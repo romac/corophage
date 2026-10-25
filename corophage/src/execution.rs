@@ -1,6 +1,7 @@
 //! Two execution loops share one dispatch protocol and state owner: a
 //! cooperative async loop, and an inline loop for synchronous dispatch.
 
+use std::cell::Cell;
 use std::future::{Future, poll_fn};
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -10,6 +11,66 @@ use crate::coproduct::dispatch::Dispatch;
 use crate::effect::{Effects, Resumes};
 use crate::frame::{Generator, GeneratorState, Signal};
 use crate::{Cancelled, Control};
+
+thread_local! {
+    // Invocations execute within their root's poll, even when a short child
+    // completes without sending an effect or signal back to the root.
+    static DISPATCH_BUDGET: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Scope the budget shared by a root's invocations. Independent nested runners
+/// restore the caller's budget on every exit, including unwinding. Async roots
+/// enter once per poll, so no thread-local state survives a suspended poll.
+struct Budget {
+    previous: usize,
+}
+
+impl Budget {
+    fn enter() -> Self {
+        Self {
+            previous: DISPATCH_BUDGET.with(|budget| budget.replace(crate::ASYNC_DISPATCH_BUDGET)),
+        }
+    }
+
+    fn reset() {
+        DISPATCH_BUDGET.with(|budget| budget.set(crate::ASYNC_DISPATCH_BUDGET));
+    }
+
+    #[inline(always)]
+    fn consume() -> bool {
+        DISPATCH_BUDGET.with(|budget| match budget.get().checked_sub(1) {
+            Some(remaining) => {
+                budget.set(remaining);
+                true
+            }
+            None => false,
+        })
+    }
+}
+
+impl Drop for Budget {
+    fn drop(&mut self) {
+        DISPATCH_BUDGET.with(|budget| budget.set(self.previous));
+    }
+}
+
+pin_project_lite::pin_project! {
+    /// Establish the budget around the whole root poll, including dispatches.
+    struct Cooperative<F> {
+        #[pin]
+        future: F,
+    }
+}
+
+impl<F: Future> Future for Cooperative<F> {
+    type Output = F::Output;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let _budget = Budget::enter();
+        self.project().future.poll(cx)
+    }
+}
 
 /// One state owner lends a fresh mutable reference to each handler call.
 #[doc(hidden)]
@@ -137,7 +198,9 @@ where
     H: HandlerOwner,
     D: for<'call> Dispatcher<CallContext<'call, S::Value, H::List>, E, A>,
 {
-    drive_with(generator, state, handlers, dispatch, Root::default())
+    Cooperative {
+        future: drive_with(generator, state, handlers, dispatch, Root::default()),
+    }
 }
 
 /// The cooperative loop, shared by root runners and handled invocations.
@@ -164,7 +227,6 @@ where
         // single copy of a possibly large body in the block's state.
         let mut generator = unsafe { Pin::new_unchecked(&mut generator) };
         let mut stepper = Stepper {
-            budget: crate::ASYNC_DISPATCH_BUDGET,
             resume: None,
             pending: None,
             rescheduling: false,
@@ -202,7 +264,6 @@ enum Next<E, R> {
 /// nested invocation asks for it, happens inside the step, so the loop only
 /// awaits steps and dispatches.
 struct Stepper<E, A> {
-    budget: usize,
     resume: Option<A>,
     // An effect held back while the scheduler runs at the budget boundary.
     pending: Option<E>,
@@ -223,22 +284,26 @@ impl<E, A> Stepper<E, A> {
             if self.rescheduling {
                 std::task::ready!(scheduler.poll_reschedule(cx));
                 self.rescheduling = false;
-                self.budget = crate::ASYNC_DISPATCH_BUDGET;
                 if let Some(effect) = self.pending.take() {
-                    self.budget -= 1;
-                    return Poll::Ready(Next::Effect(effect));
+                    if Budget::consume() {
+                        return Poll::Ready(Next::Effect(effect));
+                    }
+                    // Another invocation may have spent the renewed budget
+                    // before a combinator re-polled this one.
+                    self.pending = Some(effect);
+                    self.rescheduling = true;
+                    continue;
                 }
             }
             match std::task::ready!(generator.as_mut().poll_resume(cx, self.resume.take())) {
                 GeneratorState::Complete(value) => return Poll::Ready(Next::Complete(value)),
                 GeneratorState::Yielded(effect) => {
                     // Completion at the budget boundary needs no extra poll.
-                    if self.budget == 0 {
+                    if Budget::consume() {
+                        return Poll::Ready(Next::Effect(effect));
+                    } else {
                         self.pending = Some(effect);
                         self.rescheduling = true;
-                    } else {
-                        self.budget -= 1;
-                        return Poll::Ready(Next::Effect(effect));
                     }
                 }
                 // A nested invocation used its budget of local dispatches.
@@ -272,6 +337,7 @@ where
     let mut generator = std::pin::pin!(generator);
     let mut context = Context::from_waker(Waker::noop());
     let mut argument = None;
+    let _budget = Budget::enter();
     loop {
         let effect = match generator
             .as_mut()
@@ -280,8 +346,12 @@ where
             Poll::Ready(GeneratorState::Complete(value)) => return Ok(value),
             Poll::Ready(GeneratorState::Yielded(effect)) => effect,
             Poll::Ready(GeneratorState::Signalled(Signal::Cancel)) => return Err(Cancelled),
-            // A nested invocation used its budget; poll again at once.
-            Poll::Ready(GeneratorState::Signalled(Signal::Reschedule)) => continue,
+            // Local invocations still signal at budget boundaries, allowing
+            // combinators to observe them. A sync root resumes immediately.
+            Poll::Ready(GeneratorState::Signalled(Signal::Reschedule)) => {
+                Budget::reset();
+                continue;
+            }
             Poll::Pending => panic!(
                 "computation suspended on a non-effect future; use an async runner instead. \
                  So do async handlers attached to an invoked sub-program when they suspend. \

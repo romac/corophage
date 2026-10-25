@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Local handler dispatches share their root runner's budget across successive and nested invocations. A loop of short handled children can no longer bypass cooperative scheduling by starting a fresh budget for each child. Independently run programs retain their own budgets.
+
 ### Added
 
 - A sub-program with handlers attached can be invoked. Its handlers run inside the invocation, and only its remaining effects must belong to the invoking program, whose handlers receive them. `invoke!` selects `Yielder::invoke` or the new `Yielder::invoke_handled`. Fully handled and caught sub-programs can be invoked too, so `invoke!(child.catch())` catches inside a body. Local handlers can be async; under `.run_sync()`, one that suspends panics. A local cancellation cancels the whole computation, and local dispatches share the outer runner's scheduling budget, also under `.run_sync()`.

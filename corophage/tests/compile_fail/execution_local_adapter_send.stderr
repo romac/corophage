@@ -33,6 +33,11 @@ note: required because it's used within this `async` block
    |
    |     async move {
    |     ^^^^^^^^^^
+note: required because it appears within the type `corophage::execution::Cooperative<impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>>`
+  --> src/execution.rs
+   |
+   |     struct Cooperative<F> {
+   |            ^^^^^^^^^^^
 note: required because it appears within the type `impl Future<Output = Result<<impl Future<Output = usize> as Future>::Output, Cancelled>>`
   --> src/execution.rs
    |

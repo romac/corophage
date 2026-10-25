@@ -171,6 +171,172 @@ fn locally_handled_effects_share_the_outer_runner_budget() {
     drive_in_batches(future, handled);
 }
 
+// Each child completes after one dispatch. Its unused budget must not be
+// replaced by a fresh budget when the parent invokes the next child.
+fn short_children<'a>(
+    handled: &'a AtomicUsize,
+) -> Program<'a, Effects![], impl Future<Output = usize> + 'a> {
+    Program::new(move |mut y: Yielder<'_, Effects![]>| async move {
+        let mut sum = 0;
+        for i in 0..EFFECT_COUNT {
+            let child = Program::new(|mut y: Yielder<'_, Effects![Tick]>| async move {
+                y.yield_(Tick(i)).await
+            });
+            sum += y
+                .invoke_handled(child.handle(|tick: Tick| handle_tick(handled, tick)))
+                .await;
+        }
+        sum
+    })
+}
+
+#[test]
+fn short_handled_children_share_the_outer_runner_budget() {
+    let handled = AtomicUsize::new(0);
+    drive_in_batches(short_children(&handled).run(), &handled);
+}
+
+#[test]
+fn root_and_short_handled_children_share_one_budget() {
+    let handled = AtomicUsize::new(0);
+    let handled = &handled;
+    let future = Program::new(|mut y: Yielder<'_, Effects![Tick]>| async move {
+        let mut sum = 0;
+        for i in (0..EFFECT_COUNT).step_by(2) {
+            sum += y.yield_(Tick(i)).await;
+            let child = Program::new(|mut y: Yielder<'_, Effects![Tick]>| async move {
+                y.yield_(Tick(i + 1)).await
+            });
+            sum += y
+                .invoke_handled(child.handle(|tick: Tick| handle_tick(handled, tick)))
+                .await;
+        }
+        sum
+    })
+    .handle(|tick: Tick| handle_tick(handled, tick))
+    .run();
+
+    drive_in_batches(future, handled);
+}
+
+#[test]
+fn short_handled_children_share_the_budget_through_unhandled_invocations() {
+    let handled = AtomicUsize::new(0);
+    let handled = &handled;
+    let future = Program::new(|mut y: Yielder<'_, Effects![]>| async move {
+        y.invoke(short_children(handled)).await
+    })
+    .run();
+
+    drive_in_batches(future, handled);
+}
+
+#[test]
+fn short_handled_children_complete_at_the_budget_boundary_without_an_extra_poll() {
+    for effects in [0, 1, 128, 129] {
+        let handled = AtomicUsize::new(0);
+        let handled = &handled;
+        let future = Program::new(|mut y: Yielder<'_, Effects![]>| async move {
+            for i in 0..effects {
+                let child = Program::new(|mut y: Yielder<'_, Effects![Tick]>| async move {
+                    y.yield_(Tick(i)).await
+                });
+                assert_eq!(
+                    y.invoke_handled(child.handle(|tick: Tick| handle_tick(handled, tick)))
+                        .await,
+                    i + 1
+                );
+            }
+            effects
+        })
+        .run();
+        let mut future = std::pin::pin!(future);
+        let wakes = Arc::new(WakeCount::default());
+        let waker = Waker::from(wakes.clone());
+        let mut cx = Context::from_waker(&waker);
+        let first = future.as_mut().poll(&mut cx);
+
+        if effects <= 128 {
+            assert_eq!(first, Poll::Ready(Ok(effects)));
+            assert_eq!(wakes.0.load(Ordering::Relaxed), 0);
+        } else {
+            assert!(first.is_pending());
+            assert_eq!(handled.load(Ordering::Relaxed), 128);
+            assert!(wakes.0.load(Ordering::Relaxed) > 0);
+            assert_eq!(future.as_mut().poll(&mut cx), Poll::Ready(Ok(effects)));
+        }
+        assert_eq!(handled.load(Ordering::Relaxed), effects);
+    }
+}
+
+#[test]
+fn independent_nested_runners_restore_the_outer_budget_on_completion_and_panic() {
+    for synchronous in [false, true] {
+        let handled = AtomicUsize::new(0);
+        let future = Program::new(ready_effects)
+            .handle(|tick: Tick| {
+                let panic = tick.0 == 64;
+                let nested = std::panic::catch_unwind(|| {
+                    let program = Program::new(|mut y: Yielder<'_, Effects![Tick]>| async move {
+                        y.yield_(Tick(0)).await;
+                        assert!(!panic, "nested runner panic");
+                    })
+                    .handle(|_: Tick| Control::resume(0));
+                    if synchronous {
+                        assert_eq!(program.run_sync(), Ok(()));
+                    } else {
+                        assert_eq!(
+                            std::pin::pin!(program.run())
+                                .poll(&mut Context::from_waker(Waker::noop())),
+                            Poll::Ready(Ok(()))
+                        );
+                    }
+                });
+                assert_eq!(nested.is_err(), panic);
+                handle_tick(&handled, tick)
+            })
+            .run();
+        let mut future = std::pin::pin!(future);
+
+        // Fresh budgets in nested roots must not refill the enclosing root's.
+        assert!(
+            future
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop()))
+                .is_pending()
+        );
+        assert_eq!(handled.load(Ordering::Relaxed), 128);
+    }
+}
+
+#[test]
+fn a_sync_root_continues_after_withdrawing_a_local_reschedule() {
+    let handled = AtomicUsize::new(0);
+    let handled = &handled;
+    let result = Program::new(|mut y: Yielder<'_, Effects![]>| async move {
+        tokio::select! {
+            biased;
+            _ = y.invoke_handled(
+                Program::new(ready_effects).handle(|tick: Tick| handle_tick(handled, tick))
+            ) => panic!("the invocation must yield before completing"),
+            () = std::future::ready(()) => (),
+        }
+        assert_eq!(handled.load(Ordering::Relaxed), 128);
+        // Withdrawal clears the signal, but does not refund completed work.
+        // This child must request a new reschedule before its handler runs.
+        let child =
+            Program::new(
+                |mut y: Yielder<'_, Effects![Tick]>| async move { y.yield_(Tick(128)).await },
+            );
+        y.invoke_handled(child.handle(|tick: Tick| handle_tick(handled, tick)))
+            .await
+    })
+    .run_sync();
+
+    assert_eq!(result, Ok(129));
+    assert_eq!(handled.load(Ordering::Relaxed), 129);
+}
+
 #[test]
 fn locally_handled_effects_complete_under_a_sync_root() {
     let handled = AtomicUsize::new(0);

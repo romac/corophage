@@ -462,7 +462,7 @@ fn greet(id: u64) -> String {
 }
 ```
 
-Local handlers can be sync or async. Under `.run_sync()`, an async local handler that suspends panics, like an ordinary future in the body. A local handler that cancels cancels the whole computation, and local dispatches count toward the outer runner's scheduling budget.
+Local handlers can be sync or async. Under `.run_sync()`, an async local handler that suspends panics, like an ordinary future in the body. A local handler that cancels cancels the whole computation, and local dispatches count toward the outer runner's scheduling budget. Successive and nested invocations draw from the same budget, including when each child performs only one local dispatch.
 
 ## `Send`-able programs
 
