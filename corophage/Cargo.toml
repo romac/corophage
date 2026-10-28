@@ -71,5 +71,10 @@ name = "stress"
 harness = false
 required-features = ["macros"]
 
+[[bench]]
+name = "execution"
+harness = false
+required-features = ["macros"]
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
