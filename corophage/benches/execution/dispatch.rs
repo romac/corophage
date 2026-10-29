@@ -13,20 +13,21 @@ mod catching {
         bencher.bench(|| {
             black_box(
                 fallible(black_box(1000), black_box(throw_at))
-                    .catch()
                     .handle(tick)
+                    .catch()
                     .run_sync(),
             )
         });
     }
 
+    #[cfg(not(comparison_v070))]
     #[divan::bench(args = [0, 999, 1000])]
     fn nested_forwarding(bencher: divan::Bencher, throw_at: usize) {
         bencher.bench(|| {
             black_box(
                 catch_layer(black_box(1000), black_box(throw_at))
-                    .catch()
                     .handle(tick)
+                    .catch()
                     .run_sync(),
             )
         });
@@ -74,6 +75,7 @@ mod invocation {
         });
     }
 
+    #[cfg(not(comparison_v070))]
     #[divan::bench(args = [1, 4, 8])]
     fn partially_handled(bencher: divan::Bencher, depth: usize) {
         bencher.bench(|| {

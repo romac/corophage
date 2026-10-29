@@ -48,4 +48,29 @@ cargo bench -p corophage --bench execution -- dispatch::catching
 cargo bench -p corophage --bench execution -- scheduling::fairness
 ```
 
-Smoke runs establish that fixtures execute; their timings are not performance conclusions. For comparisons, retain the revision, source state, compiler, profile, and host conditions, and repeat runs in alternating order. `scripts/execution/measure.py` remains the separate isolated revision-comparison harness for timing, allocation counts, future sizes, build time, and binary size; this suite does not change its historical fixtures or saved results.
+Smoke runs establish that fixtures execute; their timings are not performance conclusions. For comparisons, retain the revision, source state, compiler, profile, and host conditions, and repeat runs in alternating order.
+
+## Automated comparison with v0.7.0
+
+```sh
+python3 scripts/execution/measure.py
+```
+
+The script requires Python 3.9 or newer and the repository's Cargo/nextest tooling. It archives v0.7.0 and builds the current core probe and execution suite against each revision in separate fresh targets, with the compiler wrapper disabled. The same suite sources and starting dependency lockfile are used on both sides, and shared resolved dependency versions must match. Divan is pinned to 0.1.21 because the script parses its timing output. The script runs the shared fixture tests with nextest and smoke-tests every registered case before measuring. No files in the archived revision are patched.
+
+All 108 current suite cases are recorded. Of these, 88 run on both revisions. The other 20 are recorded as unsupported on v0.7.0, with individual names and reasons: nested invocable catches, partially handled invocation, cancellation through handled invocations, short handled children, and the competing-task case using handled children. The v0.7.0 compatibility configuration excludes only those cases; it does not emulate them with a different workload. Simple catch attaches its ordinary handler before `.catch()`, which both APIs support.
+
+By default, each revision runs twice, in baseline/candidate then candidate/baseline order. Each suite case uses 100 Divan samples; Divan chooses its sample size except for latency and suspended-drop cases, which retain one operation per sample. Use `--runs` (at least 2) and `--sample-count` to increase repetition. `--baseline` selects another revision; the old terminal `Catch` API selects the v0.7.0 compatibility configuration. Other revisions must support the current benchmark API.
+
+The JSON at `corophage/benches/results/execution.json` uses schema version 2. It retains the original core probe's `revisions`, first-run `measurements`, and `candidate_extras`, and adds repeated `runs`, `run_order`, and `comparisons`. `execution_suite` contains inventories, fixture-check output, per-run measurements and raw Divan output, unsupported-case reasons, and comparisons. Ratios are candidate time divided by baseline time, so values below 1 mean less elapsed time; a zero baseline produces a null ratio. Comparisons use the median of each revision's run medians. Candidate-only cases have measurements but no invented baseline or ratio.
+
+Core timings still use seven calibrated samples and count allocations separately. The expanded Divan suite records timing only. Core and suite build times and binary sizes are recorded separately; the suite binaries contain different numbers of cases, so their sizes are not equivalent-workload comparisons. Source, fixture, harness, and resolved-lock hashes, compiler/platform details, and host load are recorded. The script refuses to write results if measured source files change during the run.
+
+For a shorter validation run without replacing saved results:
+
+```sh
+python3 -m unittest discover -s scripts/execution -p 'test_*.py'
+python3 scripts/execution/measure.py --sample-count 10 --output /tmp/corophage-comparison.json
+```
+
+The historical performance tables are not refreshed automatically by this command.

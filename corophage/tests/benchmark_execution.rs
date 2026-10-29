@@ -22,11 +22,11 @@ fn catch_fixtures_stop_at_the_labelled_effect() {
     for throw_at in [0, 999, 1000] {
         let mut calls = 0;
         let result = fallible(1000, throw_at)
-            .catch()
             .handle(|effect| {
                 calls += 1;
                 tick(effect)
             })
+            .catch()
             .run_sync();
         assert_eq!(calls, throw_at);
         assert_eq!(
@@ -37,23 +37,26 @@ fn catch_fixtures_stop_at_the_labelled_effect() {
                 Err(Inner)
             })
         );
-        calls = 0;
-        let result = catch_layer(1000, throw_at)
-            .catch()
-            .handle(|effect| {
-                calls += 1;
-                tick(effect)
-            })
-            .run_sync();
-        assert_eq!(calls, throw_at);
-        assert_eq!(
-            result,
-            Ok(if throw_at == 1000 {
-                Ok(1000)
-            } else {
-                Err(Outer)
-            })
-        );
+        #[cfg(not(comparison_v070))]
+        {
+            calls = 0;
+            let result = catch_layer(1000, throw_at)
+                .catch()
+                .handle(|effect| {
+                    calls += 1;
+                    tick(effect)
+                })
+                .run_sync();
+            assert_eq!(calls, throw_at);
+            assert_eq!(
+                result,
+                Ok(if throw_at == 1000 {
+                    Ok(1000)
+                } else {
+                    Err(Outer)
+                })
+            );
+        }
     }
 }
 
@@ -81,8 +84,11 @@ fn invocation_fixtures_do_equal_work_with_different_handler_placement() {
     check!(plain_1, 1, 2);
     check!(plain_4, 4, 5);
     check!(plain_8, 8, 9);
+    #[cfg(not(comparison_v070))]
     check!(handled_1, 1, 1);
+    #[cfg(not(comparison_v070))]
     check!(handled_4, 4, 1);
+    #[cfg(not(comparison_v070))]
     check!(handled_8, 8, 1);
 }
 
@@ -110,8 +116,11 @@ async fn cancellation_fixtures_never_reach_the_leaf_ticks() {
     check!(plain_1);
     check!(plain_4);
     check!(plain_8);
+    #[cfg(not(comparison_v070))]
     check!(handled_1);
+    #[cfg(not(comparison_v070))]
     check!(handled_4);
+    #[cfg(not(comparison_v070))]
     check!(handled_8);
 }
 
@@ -177,6 +186,7 @@ async fn async_workloads_preserve_results_and_handler_loans() {
                 .await,
             Ok(n)
         );
+        #[cfg(not(comparison_v070))]
         assert_eq!(short_children(n).run().await, Ok(n));
 
         let bytes = vec![7; 64];
@@ -204,7 +214,11 @@ async fn async_workloads_preserve_results_and_handler_loans() {
 
 #[tokio::test]
 async fn latency_probe_observes_an_active_competing_task() {
-    for load in [0, 1, 2] {
+    #[cfg(comparison_v070)]
+    let loads = [0, 1];
+    #[cfg(not(comparison_v070))]
+    let loads = [0, 1, 2];
+    for load in loads {
         let input = PeerLatency::new(load);
         let progress = input.local.run_until(input.peer).await.unwrap();
         if load == 0 {

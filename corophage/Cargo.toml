@@ -77,4 +77,4 @@ harness = false
 required-features = ["macros"]
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)', 'cfg(comparison_v070)'] }

@@ -87,6 +87,7 @@ mod fairness {
         b.bench(|| black_box(rt.block_on(ticks(black_box(n)).handle(tick).run())));
     }
 
+    #[cfg(not(comparison_v070))]
     #[divan::bench(args = [127, 128, 129, 255, 256, 257, 10000])]
     fn short_handled_children(b: divan::Bencher, n: usize) {
         let rt = runtime();
@@ -96,7 +97,8 @@ mod fairness {
     // 0 = idle executor, 1 = flat load, 2 = short handled children. Creating
     // tasks and dropping the unfinished load are outside the timed region.
     // Each input owns a fresh LocalSet, so samples cannot leak background work.
-    #[divan::bench(args = [0, 1, 2], sample_size = 1)]
+    #[cfg_attr(comparison_v070, divan::bench(args = [0, 1], sample_size = 1))]
+    #[cfg_attr(not(comparison_v070), divan::bench(args = [0, 1, 2], sample_size = 1))]
     fn peer_first_poll_latency(b: divan::Bencher, load: usize) {
         let rt = runtime();
         b.with_inputs(|| PeerLatency::new(load))

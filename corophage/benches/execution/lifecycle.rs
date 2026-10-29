@@ -40,6 +40,7 @@ mod cancellation {
         });
     }
 
+    #[cfg(not(comparison_v070))]
     #[divan::bench(args = [1, 4, 8])]
     fn handled_sync(b: divan::Bencher, depth: usize) {
         let rt = runtime();
@@ -66,6 +67,7 @@ mod cancellation {
         });
     }
 
+    #[cfg(not(comparison_v070))]
     #[divan::bench(args = [1, 4, 8])]
     fn handled_async(b: divan::Bencher, depth: usize) {
         let rt = runtime();

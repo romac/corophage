@@ -1,5 +1,7 @@
 //! Workloads shared by execution benchmarks and their semantic checks.
 //! Chain depths count invocation edges; no chain boxes its child bodies.
+//! The comparison harness sets `comparison_v070` only in its archived-baseline
+//! build, excluding APIs that release does not provide instead of emulating them.
 
 use std::future::Future;
 use std::future::poll_fn;
@@ -78,6 +80,7 @@ macro_rules! chain {
             local + invoke!($plain_child(n, cancel))
         }
 
+        #[cfg(not(comparison_v070))]
         #[effectful(Tick, LocalTick)]
         pub fn $handled(n: usize, cancel: bool) -> usize {
             let local = yield_!(LocalTick($depth));
@@ -101,6 +104,7 @@ chain!(plain_8, handled_8, plain_7, handled_7, 8);
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Inner;
+#[cfg(not(comparison_v070))]
 #[derive(Debug, PartialEq, Eq)]
 pub struct Outer;
 
@@ -117,6 +121,7 @@ pub fn fallible(n: usize, throw_at: usize) -> usize {
 }
 
 /// Ordinary Tick effects pass through an invoked catch before the outer catch.
+#[cfg(not(comparison_v070))]
 #[effectful(Tick, Throw<Outer>)]
 pub fn catch_layer(n: usize, throw_at: usize) -> usize {
     match invoke!(fallible(n, throw_at).catch()) {
@@ -182,6 +187,7 @@ pub fn borrowed<'a>(
     })
 }
 
+#[cfg(not(comparison_v070))]
 #[effectful()]
 pub fn short_children(n: usize) -> usize {
     let mut sum = 0;
@@ -222,6 +228,7 @@ impl PeerLatency {
                         .unwrap();
                 });
             }
+            #[cfg(not(comparison_v070))]
             2 => {
                 local.spawn_local(async move {
                     Program::new(|mut y: Yielder<'_, Effects![]>| async move {
